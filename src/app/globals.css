@@ -1,26 +1,665 @@
-@import "tailwindcss";
+/* =================================================================
+   MILO DESIGN SYSTEM — globals.css for Next.js
+   Direct port of:
+     colors_and_type.css  (tokens + base type)
+     components.css       (milo-btn, milo-card, milo-bubble etc.)
+     kit.css              (scene, clouds, topbar, modal, shop-card)
+   ================================================================= */
 
+/* ── Fonts ─────────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@600;700;800;900&display=swap');
+
+/* ── Reset ──────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+/* =================================================================
+   1. COLORS & TYPE  (colors_and_type.css verbatim)
+   ================================================================= */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Brand colors */
+  --milo-orange:        #F26B2C;
+  --milo-orange-deep:   #C84F1A;
+  --milo-orange-soft:   #FFD9B8;
+
+  --sun-yellow:         #FFC933;
+  --sun-yellow-deep:    #E0A800;
+  --sun-yellow-soft:    #FFF1B8;
+
+  --garden-green:       #6FBE3F;
+  --garden-green-deep:  #4A8F20;
+  --garden-green-soft:  #D6F0BD;
+
+  --sky-blue:           #5BC3F0;
+  --sky-blue-deep:      #2A8AB5;
+  --sky-blue-soft:      #CFEFFB;
+
+  --apple-red:          #E64545;
+  --apple-red-deep:     #B02323;
+  --apple-red-soft:     #FFD2D2;
+
+  --berry-purple:       #9362D8;
+  --berry-purple-deep:  #6B3DAA;
+
+  /* Neutrals */
+  --paper:              #FFF8EC;
+  --paper-soft:         #FFFEFA;
+  --cream:              #FFEFC9;
+  --ink:                #3D2516;
+  --ink-soft:           #6F4E36;
+  --ink-muted:          #A0856E;
+  --outline:            #2A1A0F;
+
+  /* Semantic fg/bg */
+  --fg-1:               var(--ink);
+  --fg-2:               var(--ink-soft);
+  --fg-3:               var(--ink-muted);
+  --fg-on-color:        #FFFEFA;
+  --bg-1:               var(--paper);
+  --bg-2:               #FFF1D6;
+  --bg-page:            #FCEAB6;
+
+  --success:            var(--garden-green);
+  --warning:            var(--sun-yellow-deep);
+  --danger:             var(--apple-red);
+  --info:               var(--sky-blue);
+
+  /* Typography */
+  --font-display:       'Fredoka', 'Baloo 2', 'Quicksand', system-ui, sans-serif;
+  --font-body:          'Nunito', 'Fredoka', system-ui, sans-serif;
+  --font-numeric:       'Fredoka', system-ui, sans-serif;
+
+  --t-display:          84px;
+  --t-h1:               44px;
+  --t-h2:               32px;
+  --t-h3:               24px;
+  --t-body-lg:          22px;
+  --t-body:             18px;
+  --t-label:            16px;
+  --t-tiny:             14px;
+
+  --w-regular:          600;
+  --w-bold:             700;
+  --w-heavy:            800;
+  --w-black:            900;
+
+  --ls-tight:           -0.01em;
+  --ls-normal:          0em;
+  --ls-loose:           0.02em;
+
+  /* Spacing */
+  --s-1: 4px;  --s-2: 8px;  --s-3: 12px; --s-4: 16px;
+  --s-5: 24px; --s-6: 32px; --s-7: 48px; --s-8: 64px;
+
+  /* Radii */
+  --r-sm:   12px;
+  --r-md:   18px;
+  --r-lg:   28px;
+  --r-xl:   40px;
+  --r-pill: 999px;
+  --r-blob: 36% 64% 60% 40% / 50% 40% 60% 50%;
+
+  /* Borders */
+  --bw-thin:   2px;
+  --bw-md:     3px;
+  --bw-thick:  4px;
+  --bw-stroke: 5px;
+  --b-color:   var(--outline);
+
+  /* Shadows */
+  --sh-soft:  0 4px 0 rgba(61,37,22,.08),  0 8px 18px  rgba(61,37,22,.10);
+  --sh-card:  0 6px 0 rgba(61,37,22,.12),  0 12px 24px rgba(61,37,22,.12);
+  --sh-press: 0 2px 0 rgba(61,37,22,.18),  0 4px 8px   rgba(61,37,22,.12);
+  --sh-pop:   0 10px 0 var(--milo-orange-deep), 0 16px 30px rgba(200,79,26,.30);
+  --sh-stack: 0 6px 0 var(--btn-stripe, var(--milo-orange-deep));
+
+  /* Motion */
+  --ease-bounce:  cubic-bezier(.34, 1.56, .64, 1);
+  --ease-smooth:  cubic-bezier(.4, 0, .2, 1);
+  --dur-fast:     160ms;
+  --dur-med:      300ms;
+  --dur-slow:     450ms;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* ── Base type ─────────────────────────────────────────────────── */
+html, body {
+  font-family: var(--font-body);
+  font-weight: var(--w-bold);
+  color: var(--fg-1);
+  background: var(--bg-page);
+  -webkit-font-smoothing: antialiased;
+  margin: 0; padding: 0;
+  min-height: 100dvh;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+h1, .h1 {
+  font-family: var(--font-display);
+  font-weight: var(--w-heavy);
+  font-size: var(--t-h1);
+  line-height: 1.05;
+  letter-spacing: var(--ls-tight);
+  color: var(--fg-1);
+  margin: 0;
+}
+h2, .h2 {
+  font-family: var(--font-display);
+  font-weight: var(--w-heavy);
+  font-size: var(--t-h2);
+  line-height: 1.1;
+  margin: 0;
+}
+h3, .h3 {
+  font-family: var(--font-display);
+  font-weight: var(--w-bold);
+  font-size: var(--t-h3);
+  line-height: 1.15;
+  margin: 0;
+}
+p, .p {
+  font-family: var(--font-body);
+  font-weight: var(--w-bold);
+  font-size: var(--t-body);
+  line-height: 1.4;
+  color: var(--fg-2);
+  margin: 0;
+}
+.display {
+  font-family: var(--font-display);
+  font-weight: var(--w-black);
+  font-size: var(--t-display);
+  line-height: 0.9;
+  color: var(--milo-orange);
+  -webkit-text-stroke: 3px var(--outline);
+  paint-order: stroke fill;
+}
+.dialogue {
+  font-family: var(--font-display);
+  font-weight: var(--w-bold);
+  font-size: var(--t-body-lg);
+  line-height: 1.3;
+  color: var(--fg-1);
+}
+.label {
+  font-family: var(--font-body);
+  font-weight: var(--w-heavy);
+  font-size: var(--t-label);
+  letter-spacing: var(--ls-loose);
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+.numeric {
+  font-family: var(--font-numeric);
+  font-feature-settings: "tnum" 1;
+  font-weight: var(--w-black);
+}
+.meta {
+  font-family: var(--font-body);
+  font-weight: var(--w-heavy);
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--fg-3);
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* =================================================================
+   2. COMPONENTS  (components.css verbatim)
+   ================================================================= */
+
+/* ── Candy-stack button ─────────────────────────────────────────── */
+.milo-btn {
+  --btn-bg:     var(--milo-orange);
+  --btn-stripe: var(--milo-orange-deep);
+  --btn-fg:     var(--fg-on-color);
+
+  appearance: none;
+  border: var(--bw-thick) solid var(--outline);
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+  font-family: var(--font-display);
+  font-weight: var(--w-heavy);
+  font-size: var(--t-body-lg);
+  letter-spacing: var(--ls-tight);
+  padding: var(--s-4) var(--s-6);
+  border-radius: var(--r-pill);
+  cursor: pointer;
+  box-shadow: 0 6px 0 var(--btn-stripe);
+  text-shadow: 0 2px 0 rgba(61,37,22,.25);
+  transition: transform var(--dur-fast) var(--ease-smooth),
+              box-shadow var(--dur-fast) var(--ease-smooth);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-3);
+  user-select: none;
+  white-space: nowrap;
 }
+.milo-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 0 var(--btn-stripe);
+}
+.milo-btn:active,
+.milo-btn.is-pressed {
+  transform: translateY(6px);
+  box-shadow: 0 0 0 var(--btn-stripe);
+}
+.milo-btn.is-disabled,
+.milo-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: 0 6px 0 var(--btn-stripe);
+}
+
+/* Tones */
+.milo-btn.tone-green  { --btn-bg: var(--garden-green); --btn-stripe: var(--garden-green-deep); }
+.milo-btn.tone-yellow { --btn-bg: var(--sun-yellow);   --btn-stripe: var(--sun-yellow-deep);
+                        --btn-fg: var(--outline); text-shadow: 0 2px 0 rgba(255,255,255,.4); }
+.milo-btn.tone-blue   { --btn-bg: var(--sky-blue);     --btn-stripe: var(--sky-blue-deep); }
+.milo-btn.tone-red    { --btn-bg: var(--apple-red);    --btn-stripe: var(--apple-red-deep); }
+.milo-btn.tone-purple { --btn-bg: var(--berry-purple); --btn-stripe: var(--berry-purple-deep); }
+.milo-btn.tone-cream  { --btn-bg: var(--paper);        --btn-stripe: #C8AC79;
+                        --btn-fg: var(--outline); text-shadow: none; }
+
+/* Sizes */
+.milo-btn.size-sm { font-size: var(--t-body);  padding: var(--s-3) var(--s-5); }
+.milo-btn.size-lg { font-size: var(--t-h3);    padding: var(--s-5) var(--s-7); }
+.milo-btn.size-xl { font-size: var(--t-h2);    padding: var(--s-5) var(--s-8); }
+
+.milo-btn.is-round {
+  width: 72px; height: 72px; padding: 0;
+  border-radius: 50%;
+}
+
+/* ── Card ───────────────────────────────────────────────────────── */
+.milo-card {
+  background: var(--paper);
+  border: var(--bw-md) solid var(--outline);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-card);
+  padding: var(--s-5);
+  color: var(--fg-1);
+}
+.milo-card.tone-cream  { background: var(--cream); }
+.milo-card.tone-green  { background: var(--garden-green-soft); }
+.milo-card.tone-yellow { background: var(--sun-yellow-soft); }
+.milo-card.tone-blue   { background: var(--sky-blue-soft); }
+.milo-card.tone-red    { background: var(--apple-red-soft); }
+
+/* ── Chip ───────────────────────────────────────────────────────── */
+.milo-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  background: var(--paper);
+  border: var(--bw-md) solid var(--outline);
+  border-radius: var(--r-pill);
+  padding: 6px var(--s-4);
+  font-family: var(--font-display);
+  font-weight: var(--w-heavy);
+  font-size: var(--t-body);
+  color: var(--fg-1);
+  box-shadow: 0 3px 0 rgba(61,37,22,.15);
+}
+.milo-chip.tone-yellow { background: var(--sun-yellow); }
+.milo-chip.tone-green  { background: var(--garden-green-soft); }
+.milo-chip.tone-blue   { background: var(--sky-blue-soft); }
+
+/* ── XP / progress bar ──────────────────────────────────────────── */
+.milo-bar {
+  position: relative;
+  background: var(--paper-soft);
+  border: var(--bw-md) solid var(--outline);
+  border-radius: var(--r-pill);
+  height: 28px;
+  overflow: hidden;
+  box-shadow: inset 0 2px 0 rgba(61,37,22,.08);
+}
+.milo-bar > .fill {
+  height: 100%;
+  background: linear-gradient(180deg, var(--sun-yellow) 0%, var(--sun-yellow-deep) 100%);
+  border-right: var(--bw-md) solid var(--outline);
+  border-radius: 0 var(--r-pill) var(--r-pill) 0;
+  transition: width var(--dur-slow) var(--ease-smooth);
+}
+.milo-bar.tone-green > .fill {
+  background: linear-gradient(180deg, var(--garden-green) 0%, var(--garden-green-deep) 100%);
+}
+
+/* ── Star wrapper ────────────────────────────────────────────────── */
+.milo-star {
+  width: 56px; height: 56px;
+  display: inline-block;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  filter: drop-shadow(0 4px 6px rgba(255,201,51,.4));
+}
+.milo-star.is-empty { filter: grayscale(1) opacity(.45); }
+
+/* ── Speech bubble ───────────────────────────────────────────────── */
+.milo-bubble {
+  position: relative;
+  background: var(--paper);
+  border: var(--bw-thick) solid var(--outline);
+  border-radius: var(--r-lg);
+  padding: var(--s-4) var(--s-5);
+  font-family: var(--font-display);
+  font-weight: var(--w-bold);
+  font-size: var(--t-body-lg);
+  color: var(--fg-1);
+  box-shadow: var(--sh-soft);
+  max-width: 520px;
+}
+.milo-bubble::after {
+  content: "";
+  position: absolute;
+  left: -16px; bottom: 18px;
+  width: 28px; height: 22px;
+  background: var(--paper);
+  border-left: var(--bw-thick) solid var(--outline);
+  border-bottom: var(--bw-thick) solid var(--outline);
+  border-radius: 0 0 0 14px;
+  transform: rotate(20deg);
+}
+
+/* ── Avatar tile ─────────────────────────────────────────────────── */
+.milo-avatar {
+  width: 96px; height: 96px;
+  border-radius: 50%;
+  border: var(--bw-thick) solid var(--outline);
+  background: var(--paper);
+  box-shadow: var(--sh-soft);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  transition: transform var(--dur-med) var(--ease-bounce);
+  cursor: pointer;
+}
+.milo-avatar img { width: 80%; height: 80%; object-fit: contain; }
+.milo-avatar.is-selected {
+  transform: scale(1.15);
+  box-shadow: 0 0 0 6px var(--sun-yellow), var(--sh-card);
+}
+.milo-avatar.is-dim { opacity: 0.65; }
+
+/* ── Stage / icon slot ───────────────────────────────────────────── */
+.milo-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: var(--sky-blue-soft);
+  border: var(--bw-thick) solid var(--outline);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+.milo-icon-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--cream);
+  border: var(--bw-md) dashed var(--ink-muted);
+  border-radius: var(--r-md);
+  color: var(--ink-muted);
+  font-family: var(--font-body);
+  font-weight: var(--w-heavy);
+  font-size: var(--t-tiny);
+  text-transform: uppercase;
+  letter-spacing: var(--ls-loose);
+  width: 64px; height: 64px;
+}
+
+/* =================================================================
+   3. KIT SCAFFOLD  (kit.css verbatim, adapted for Next.js)
+   ================================================================= */
+
+/* Screen wrapper — full viewport, warm bg */
+.kit-screen {
+  flex: 1;
+  min-height: 100dvh;
+  border-radius: 0;
+  overflow: hidden;
+  position: relative;
+  background: var(--bg-page);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header bar */
+.kit-topbar {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+  z-index: 10;
+  pointer-events: none;
+}
+.kit-topbar > * { pointer-events: auto; }
+
+/* Back button */
+.kit-backbtn {
+  width: 56px; height: 56px;
+  background: var(--paper);
+  border: 4px solid var(--outline);
+  border-radius: 50%;
+  box-shadow: 0 6px 0 #c8ac79;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 32px;
+  color: var(--outline);
+  cursor: pointer;
+  user-select: none;
+  transition: transform var(--dur-fast) var(--ease-smooth),
+              box-shadow var(--dur-fast) var(--ease-smooth);
+}
+.kit-backbtn:active { transform: translateY(6px); box-shadow: 0 0 0 #c8ac79; }
+
+.kit-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  padding: 0 32px 24px;
+}
+
+/* Sky+grass scene background */
+.kit-scene {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg,
+    #B8E6FA 0%,
+    #B8E6FA 55%,
+    #8FCB54 55%,
+    #6FBE3F 100%);
+  z-index: 0;
+}
+.kit-scene::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; top: 53%;
+  height: 4px;
+  background: rgba(74,143,32,.4);
+}
+
+/* Cloud puff */
+.kit-cloud {
+  position: absolute;
+  background: #FFFEFA;
+  border-radius: 50%;
+  border: 3px solid rgba(42,26,15,.15);
+  pointer-events: none;
+}
+
+/* Grass tuft */
+.kit-tuft {
+  position: absolute;
+  width: 80px; height: 24px;
+  background: radial-gradient(ellipse at center, #4A8F20 0%, #4A8F20 50%, transparent 70%);
+  filter: blur(2px);
+  opacity: .55;
+  pointer-events: none;
+}
+
+/* Big orange counter number */
+.kit-counter {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 72px;
+  line-height: 1;
+  color: var(--milo-orange);
+  -webkit-text-stroke: 3px var(--outline);
+  paint-order: stroke fill;
+}
+
+/* Wordmark */
+.kit-wordmark {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 88px;
+  line-height: .9;
+  color: var(--milo-orange);
+  -webkit-text-stroke: 3px var(--outline);
+  paint-order: stroke fill;
+  letter-spacing: -0.02em;
+}
+
+/* Modal scrim — use position:fixed for Next.js (no bezel) */
+.kit-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(42,26,15,.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  animation: scrim-in 260ms var(--ease-smooth) both;
+}
+
+/* Modal box */
+.kit-modal {
+  background: var(--paper);
+  border: 5px solid var(--outline);
+  border-radius: 32px;
+  padding: 32px 36px;
+  box-shadow: var(--sh-card);
+  max-width: 560px;
+  width: 80%;
+  text-align: center;
+  animation: modal-in 400ms var(--ease-bounce) both;
+}
+
+/* Coin stand-in */
+.kit-coin {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #FFE38A 0%, #FFC933 55%, #E0A800 100%);
+  border: 3px solid var(--outline);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 14px;
+  color: var(--outline);
+  box-shadow: 0 2px 0 #B98C00;
+  flex-shrink: 0;
+}
+.kit-coin.size-sm { width: 22px; height: 22px; font-size: 11px; border-width: 2.5px; }
+.kit-coin.size-lg { width: 38px; height: 38px; font-size: 18px; }
+
+/* Shop card */
+.shop-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 12px;
+  background: var(--paper);
+  border: 4px solid var(--outline);
+  border-radius: 22px;
+  box-shadow: 0 6px 0 #c8ac79;
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease-smooth);
+}
+.shop-card:hover { transform: translateY(-2px); }
+.shop-card.is-owned    { background: var(--garden-green-soft); }
+.shop-card.is-equipped {
+  background: var(--sun-yellow-soft);
+  box-shadow: 0 0 0 4px var(--sun-yellow), 0 6px 0 var(--sun-yellow-deep);
+}
+.shop-card .swatch {
+  width: 86px; height: 86px;
+  border-radius: 18px;
+  border: 3px solid var(--outline);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 28px;
+}
+.shop-card .price {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 18px;
+  color: var(--outline);
+}
+
+/* Pulse on tap targets */
+.kit-pulse { animation: tap-pulse 1.4s ease-in-out infinite; }
+
+/* Star pop */
+.kit-star-pop { animation: star-pop 350ms var(--ease-bounce) both; }
+
+/* =================================================================
+   4. ANIMATIONS
+   ================================================================= */
+@keyframes scrim-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes modal-in {
+  from { transform: scale(0);   opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+@keyframes star-pop {
+  0%   { transform: scale(0);    }
+  60%  { transform: scale(1.25); }
+  100% { transform: scale(1);    }
+}
+@keyframes tap-pulse {
+  0%, 100% { transform: scale(1);    }
+  50%       { transform: scale(1.08); }
+}
+@keyframes shake {
+  0%, 100% { transform: translateX(0);   }
+  25%       { transform: translateX(-8px); }
+  75%       { transform: translateX(8px);  }
+}
+@keyframes bounce-in {
+  0%   { transform: scale(0);   opacity: 0; }
+  60%  { transform: scale(1.1); opacity: 1; }
+  100% { transform: scale(1);   opacity: 1; }
+}
+@keyframes slide-up {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+@keyframes confetti-fall {
+  0%   { transform: translateY(-40px) rotate(0deg);    opacity: 1; }
+  100% { transform: translateY(100vh) rotate(540deg);  opacity: 0; }
+}
+@keyframes xp-fill {
+  from { width: 0%; }
+}
+
+.shake      { animation: shake      400ms var(--ease-smooth) both; }
+.bounce-in  { animation: bounce-in  350ms var(--ease-bounce)  both; }
+.slide-up   { animation: slide-up   260ms var(--ease-smooth)  both; }
