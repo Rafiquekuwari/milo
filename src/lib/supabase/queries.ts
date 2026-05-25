@@ -145,101 +145,26 @@ export interface SessionPayload {
 export async function syncSession(payload: SessionPayload): Promise<boolean> {
   const supabase = db()
 
-  const { error: sessionError } = await supabase
-    .from('sessions')
-    .upsert(
-      {
-        learner_id:    payload.learnerId,
-        chapter:       payload.chapter,
-        phase:         payload.phase,
-        correct_count: payload.correctCount,
-        wrong_count:   payload.wrongCount,
-        stars_earned:  payload.starsEarned,
-        xp_earned:     payload.xpEarned,
-        coins_earned:  payload.coinsEarned,
-        client_id:     payload.clientId,
-        completed_at:  payload.completedAt,
-      },
-      { onConflict: 'client_id', ignoreDuplicates: true }
-    )
+  // Single RPC call — replaces 3 separate upserts
+  // Reduces DB round trips from 3 to 1
+  const { error } = await supabase.rpc('sync_session', {
+    p_learner_id:   payload.learnerId,
+    p_chapter:      payload.chapter,
+    p_phase:        payload.phase,
+    p_correct:      payload.correctCount,
+    p_wrong:        payload.wrongCount,
+    p_stars:        payload.starsEarned,
+    p_xp:           payload.xpEarned,
+    p_coins:        payload.coinsEarned,
+    p_client_id:    payload.clientId,
+    p_completed_at: payload.completedAt,
+  })
 
-  if (sessionError) {
-    console.error('[syncSession] insert failed:', sessionError.message)
+  if (error) {
+    console.error('[syncSession] rpc failed:', error.message)
     toast.error('Progress sync failed — will retry when online')
     return false
   }
-
-  // Upsert learner_progress
-  const { data: existing } = await supabase
-    .from('learner_progress')
-    .select('best_stars, total_xp, total_sessions')
-    .eq('learner_id', payload.learnerId)
-    .eq('chapter', payload.chapter)
-    .single()
-
-  const prev = existing as { best_stars: number; total_xp: number; total_sessions: number } | null
-
-  await supabase
-    .from('learner_progress')
-    .upsert(
-      {
-        learner_id:     payload.learnerId,
-        chapter:        payload.chapter,
-        best_stars:     Math.max(prev?.best_stars ?? 0, payload.starsEarned),
-        total_xp:       (prev?.total_xp ?? 0) + payload.xpEarned,
-        total_sessions: (prev?.total_sessions ?? 0) + 1,
-        last_played_at: payload.completedAt,
-      },
-      { onConflict: 'learner_id,chapter' }
-    )
-
-  // Upsert learner_stats
-  const { data: statsRaw } = await supabase
-    .from('learner_stats')
-    .select('total_xp, total_coins, current_streak, longest_streak, last_played_at')
-    .eq('learner_id', payload.learnerId)
-    .single()
-
-  const stats = statsRaw as {
-    total_xp: number; total_coins: number
-    current_streak: number; longest_streak: number
-    last_played_at: string | null
-  } | null
-
-  const newXP    = (stats?.total_xp    ?? 0) + payload.xpEarned
-  const newCoins = (stats?.total_coins ?? 0) + payload.coinsEarned
-
-  const today      = new Date().toDateString()
-  const lastPlayed = stats?.last_played_at
-    ? new Date(stats.last_played_at).toDateString() : null
-  const yesterday  = new Date(Date.now() - 86400000).toDateString()
-  let streak  = stats?.current_streak ?? 0
-  let longest = stats?.longest_streak ?? 0
-  if (lastPlayed !== today) {
-    streak  = lastPlayed === yesterday ? streak + 1 : 1
-    longest = Math.max(longest, streak)
-  }
-
-  const THRESHOLDS = [0, 500, 1200, 2500, 4500, 7000, 10000, 14000]
-  let level = 1
-  for (let i = THRESHOLDS.length - 1; i >= 0; i--) {
-    if (newXP >= THRESHOLDS[i]) { level = i + 1; break }
-  }
-
-  await supabase
-    .from('learner_stats')
-    .upsert(
-      {
-        learner_id:     payload.learnerId,
-        total_xp:       newXP,
-        total_coins:    newCoins,
-        current_level:  level,
-        current_streak: streak,
-        longest_streak: longest,
-        last_played_at: payload.completedAt,
-      },
-      { onConflict: 'learner_id' }
-    )
 
   return true
 }
