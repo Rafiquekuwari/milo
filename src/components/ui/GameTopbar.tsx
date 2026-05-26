@@ -32,6 +32,7 @@ export default function GameTopbar({
   }
 
   return (
+    <>
     <div style={{
       position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50,
       background: 'var(--milo-orange)',
@@ -46,19 +47,28 @@ export default function GameTopbar({
       <button
         onClick={handleBack}
         style={{
-          width: 40, height: 40, borderRadius: '50%',
-          background: 'rgba(255,255,255,0.2)',
-          border: '2.5px solid rgba(255,255,255,0.4)',
-          color: '#fff', fontSize: 20, fontWeight: 900,
-          cursor: 'pointer', display: 'flex',
-          alignItems: 'center', justifyContent: 'center',
-          flexShrink: 0,
-          transition: 'background 0.15s',
+          display: 'flex', alignItems: 'center', gap: 4,
+          padding: '7px 14px', borderRadius: 50, flexShrink: 0,
+          background: 'rgba(255,255,255,0.18)',
+          border: '2.5px solid rgba(255,255,255,0.5)',
+          color: '#fff',
+          fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 14,
+          cursor: 'pointer', transition: 'all 0.15s',
+          boxShadow: '0 3px 0 rgba(61,37,22,.2)',
         }}
-        onMouseDown={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.35)' }}
-        onMouseUp={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.2)' }}
-        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.2)' }}
-      >↩</button>
+        onMouseDown={e => {
+          e.currentTarget.style.transform = 'translateY(3px)'
+          e.currentTarget.style.boxShadow = 'none'
+        }}
+        onMouseUp={e => {
+          e.currentTarget.style.transform = ''
+          e.currentTarget.style.boxShadow = '0 3px 0 rgba(61,37,22,.2)'
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.transform = ''
+          e.currentTarget.style.boxShadow = '0 3px 0 rgba(61,37,22,.2)'
+        }}
+      >← Back</button>
 
       {/* Chapter name */}
       <div style={{
@@ -129,7 +139,7 @@ export default function GameTopbar({
         }}>{profile.totalXP}</span>
       </div>
     </div>
-  )
+
     {/* Back confirmation */}
     {confirmBack && (
       <div style={{
@@ -176,5 +186,6 @@ export default function GameTopbar({
         </div>
       </div>
     )}
-  
+    </>
+  )
 }

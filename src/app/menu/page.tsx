@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { useMiloStore, CHAPTER_ORDER, CHAPTER_NAMES, type ChapterType } from '@/lib/store'
 import { useMiloSpeaker } from '@/lib/useMiloSpeaker'
+import BackButton from '@/components/ui/BackButton'
 import ChapterPicker from '@/components/ui/ChapterPicker'
 import PWAInstallBanner from '@/components/ui/PWAInstallBanner'
 import { getActiveLearner } from '@/lib/supabase/useLearnerSession'
@@ -149,15 +150,7 @@ export default function MainMenu() {
           <span className="milo-chip tone-blue">
             Level {profile.currentLevel} · {levelName}
           </span>
-          <button
-            onClick={() => router.push('/parent')}
-            style={{
-              background: 'rgba(255,255,255,0.7)', border: '1.5px solid #e5e7eb',
-              borderRadius: 50, padding: '6px 12px',
-              fontSize: 12, fontWeight: 600, cursor: 'pointer',
-              color: 'var(--text-muted)',
-            }}
-          >← Switch</button>
+          <BackButton href='/parent' label='← Switch' size='sm' />
         </div>
       </div>
 

@@ -3,6 +3,7 @@ export const dynamic = 'force-static'
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import BackButton from '@/components/ui/BackButton'
 import { useMiloStore } from '@/lib/store'
 import { useMiloSpeaker } from '@/lib/useMiloSpeaker'
 
@@ -76,7 +77,7 @@ export default function ShopPage() {
     }}>
       {/* Topbar */}
       <div className="kit-topbar" style={{ padding: '16px 20px' }}>
-        <button onClick={() => router.push('/menu')} className="kit-backbtn" style={{ fontSize: 20 }}>←</button>
+        <BackButton href='/menu' label='← Menu' />
         <div style={{
           display: 'flex', alignItems: 'center', gap: 6,
           background: 'var(--sun-yellow-soft)',

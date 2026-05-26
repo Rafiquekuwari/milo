@@ -1,7 +1,9 @@
 'use client'
 
+import BackButton from '@/components/ui/BackButton'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+
 import {
   getMyLearners, getSentInvites, getReceivedInvites,
   sendInvite, acceptInvite, revokeInvite,
@@ -92,11 +94,7 @@ export default function InvitesPage() {
         boxShadow: '0 1px 8px rgba(0,0,0,0.06)',
         position: 'sticky', top: 0, zIndex: 10,
       }}>
-        <button onClick={() => router.push('/parent')} style={{
-          background: 'none', border: '1.5px solid #e5e7eb',
-          borderRadius: 50, padding: '8px 16px',
-          fontSize: 13, fontWeight: 600, cursor: 'pointer', color: '#888',
-        }}>← Back</button>
+        <BackButton href='/parent' label='← Dashboard' />
         <div>
           <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-dark)' }}>Share Access</div>
           <div style={{ fontSize: 12, color: '#888' }}>Invite anyone to view a learner's progress</div>
@@ -165,7 +163,7 @@ export default function InvitesPage() {
                     background: selectedId === l.id ? 'var(--milo-orange-soft)' : '#fff',
                     cursor: 'pointer',
                   }}>
-                    {['🦊','🐰','🐻','🐱'][l.avatar_index]} {l.display_name}
+                    <img src={['/assets/objects/fox.png','/assets/objects/bunny.png','/assets/objects/bear.png','/assets/objects/cat.png'][l.avatar_index]} alt="avatar" style={{width:22,height:22,objectFit:'cover',borderRadius:'50%'}} onError={e=>{(e.target as HTMLImageElement).style.display='none'}} /> {l.display_name}
                   </button>
                 ))}
               </div>

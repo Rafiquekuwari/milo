@@ -3,6 +3,7 @@ export const dynamic = 'force-static'
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import BackButton from '@/components/ui/BackButton'
 import { useMiloStore, CHAPTER_ORDER, CHAPTER_NAMES, getLevelProgress, getNextLevelXP } from '@/lib/store'
 import { getLearnerStats, getLearnerProgress } from '@/lib/supabase/queries'
 import { getActiveLearner } from '@/lib/supabase/useLearnerSession'
@@ -68,11 +69,7 @@ export default function ProfilePage() {
     }}>
       {/* Topbar */}
       <div className="kit-topbar" style={{ padding: '16px 20px' }}>
-        <button
-          onClick={() => router.push('/menu')}
-          className="kit-backbtn"
-          style={{ fontSize: 20 }}
-        >←</button>
+<BackButton href='/menu' label='← Menu' />
         <div style={{
           display: 'flex', alignItems: 'center', gap: 6,
           background: 'var(--sun-yellow-soft)',
