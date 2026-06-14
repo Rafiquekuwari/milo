@@ -4,11 +4,10 @@ import { useMiloSpeaker, afterSpeech, speakAfterCurrent } from '@/lib/useMiloSpe
 import { MiloProgressBar } from '@/components/ui/MiloUI'
 import { useAdaptive } from '@/lib/adaptive'
 import { DifficultyBadge } from '../ui/DifficultyBadge'
-import ChapterLesson from '@/components/ui/ChapterLesson'
-import { getLessonExamples } from '@/lib/lessons'
 import { useChapterPhase } from '@/lib/useChapterPhase'
 import SpeakingLock from '@/components/ui/SpeakingLock'
 import GameTopbar from '../ui/GameTopbar'
+import NumberDoorsLesson from '../lessons/NumberDoorsLesson'
 
 interface Props { onComplete:(c:number,w:number)=>void; childName:string }
 
@@ -54,8 +53,7 @@ export default function NumberDoorsChapter({ onComplete, childName }: Props) {
   }, [roundIdx, ada.difficulty])
 
   if (phase === 'lesson') return (
-    <ChapterLesson chapterId="numberRecognition" childName={childName}
-      examples={getLessonExamples('numberRecognition')} onLessonComplete={startPractice} />
+    <NumberDoorsLesson childName={childName} onLessonComplete={startPractice} />
   )
 
   function handleDoor(num: number) {
@@ -86,7 +84,7 @@ export default function NumberDoorsChapter({ onComplete, childName }: Props) {
         <img src="/assets/characters/milo-happy.png" alt="Milo" style={S.milo}
           onError={e=>{(e.target as HTMLImageElement).style.display='none'}}/>
         <div className="milo-bubble" style={{flex:1,fontSize:20}}>
-          Find door number <strong style={{color:'var(--milo-orange)',fontSize:'1.4em'}}>{round.correct}</strong>!
+          Find the door Milo says! 🔊
         </div>
       </div>
       <div style={S.doorsRow}>
@@ -108,10 +106,13 @@ export default function NumberDoorsChapter({ onComplete, childName }: Props) {
           )
         })}
       </div>
-      <div style={S.targetCard}>
-        <p style={{fontFamily:'var(--font-body)',fontSize:16,color:'var(--ink-soft)',margin:'0 0 4px'}}>Find this number:</p>
-        <span style={{fontFamily:'var(--font-display)',fontWeight:900,fontSize:72,color:'var(--milo-orange)',display:'block',lineHeight:1}}>{round.correct}</span>
-      </div>
+      <button
+        onClick={()=>speak(`Find the door with the number ${round.correct}!`)}
+        disabled={selected!==null}
+        style={S.replayBtn}
+      >
+        🔊 Hear it again
+      </button>
       {feedback && (
         <div style={{...S.flash, background: feedback==='correct' ? 'var(--garden-green)' : 'var(--apple-red)'}}>
           {feedback==='correct' ? `🎉 Correct!` : `It was ${round.correct}`}
@@ -129,7 +130,7 @@ const S:Record<string,React.CSSProperties>={
   milo:{width:92,height:92,objectFit:'contain',flexShrink:0},
   doorsRow:{display:'flex',gap:20,justifyContent:'center',flexWrap:'wrap',padding:'0 8px'},
   door:{width:110,height:170,borderRadius:'16px 16px 4px 4px',border:'4px solid',cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',position:'relative',transition:'transform .15s, box-shadow .15s'},
-  targetCard:{background:'var(--paper)',border:'4px solid var(--outline)',borderRadius:20,padding:'16px 32px',textAlign:'center',boxShadow:'0 5px 0 rgba(61,37,22,.10)'},
+  replayBtn:{background:'var(--sky-blue-soft)',border:'3px solid var(--sky-blue)',color:'var(--sky-blue-deep)',borderRadius:50,padding:'12px 28px',fontFamily:'var(--font-display)',fontWeight:800,fontSize:18,cursor:'pointer',boxShadow:'0 4px 0 var(--sky-blue-deep)'},
   flash:{position:'fixed',top:'38%',left:'50%',transform:'translate(-50%,-50%)',color:'#fff',fontFamily:'var(--font-display)',fontWeight:900,fontSize:36,padding:'18px 44px',borderRadius:28,border:'4px solid var(--outline)',boxShadow:'0 8px 0 rgba(61,37,22,.2)',zIndex:50,textAlign:'center',animation:'modal-in 280ms cubic-bezier(.34,1.56,.64,1) both'},
   label:{fontFamily:'var(--font-body)',fontSize:'var(--t-label)',color:'var(--ink-muted)',margin:0},
 }
