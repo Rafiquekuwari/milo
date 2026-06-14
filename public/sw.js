@@ -1,9 +1,13 @@
-const VERSION      = 'v8'
+const VERSION      = 'v9'
 const SHELL_CACHE  = `milo-shell-${VERSION}`
 const STATIC_CACHE = `milo-static-${VERSION}`
 const ASSETS_CACHE = `milo-assets-${VERSION}`
 
-const APP_PAGES = ['/', '/menu', '/game', '/parent', '/auth', '/profile', '/shop', '/offline.html', '/manifest.json']
+// NOTE: '/' is intentionally NOT pre-cached. The root is a redirect (→ /auth or
+// /parent); a service worker cannot return a cached redirected response to a
+// navigation (the browser fails it with ERR_FAILED). The root is handled by a
+// dedicated passthrough in the fetch handler below.
+const APP_PAGES = ['/menu', '/game', '/parent', '/auth', '/profile', '/shop', '/offline.html', '/manifest.json']
 
 // ─── Install — pre-cache all app pages ───────────────────────
 self.addEventListener('install', event => {
@@ -34,6 +38,21 @@ self.addEventListener('fetch', event => {
   if (!url.protocol.startsWith('http')) return
   if (url.hostname.includes('supabase.co')) return
   if (url.pathname.includes('hmr') || url.pathname.includes('webpack')) return
+
+  // Root navigations redirect (→ /auth or /parent). A SW must NOT serve a
+  // redirected response to a navigation, so pass the request straight through
+  // and let the browser follow the redirect itself.
+  if (request.mode === 'navigate' && url.pathname === '/') {
+    event.respondWith(
+      fetch(request, { redirect: 'manual' }).catch(async () => {
+        const cache = await caches.open(SHELL_CACHE)
+        return (await cache.match('/auth')) ||
+               (await caches.match('/offline.html')) ||
+               new Response('Offline', { status: 503 })
+      })
+    )
+    return
+  }
 
   // Static chunks — cache first forever
   if (url.pathname.startsWith('/_next/static/')) {
@@ -80,13 +99,15 @@ self.addEventListener('fetch', event => {
     caches.open(SHELL_CACHE).then(async cache => {
       const cached = await cache.match(request)
 
-      // Always try to update cache in background
+      // Always try to update cache in background.
+      // Never cache redirected/non-ok responses — a redirected response cannot
+      // be replayed to a navigation (causes ERR_FAILED).
       const networkPromise = fetch(request)
-        .then(r => { if (r.ok) cache.put(request, r.clone()); return r })
+        .then(r => { if (r.ok && !r.redirected) cache.put(request, r.clone()); return r })
         .catch(() => null)
 
-      // Cached? Return immediately (stale while revalidate)
-      if (cached) {
+      // Cached and safe to replay? Return immediately (stale while revalidate)
+      if (cached && !cached.redirected) {
         networkPromise.catch(() => {})
         return cached
       }
