@@ -8,6 +8,7 @@ import { getLessonExamples } from '@/lib/lessons'
 import { useChapterPhase } from '@/lib/useChapterPhase'
 import SpeakingLock from '@/components/ui/SpeakingLock'
 import GameTopbar from '../ui/GameTopbar'
+import AdditionLesson from '../lessons/AdditionLesson'
 
 
 interface Props{onComplete:(c:number,w:number)=>void;childName:string}
@@ -94,6 +95,10 @@ export default function AdditionChapter({onComplete,childName}:Props){
     :stage==='groupA'?`Milo has ${a} ${story.subject}…`
     :stage==='groupB'?`He gets ${b} more ${story.subject}!`
     :`How many ${story.subject} altogether?`
+
+  if(phase==='lesson') return(
+    <AdditionLesson childName={childName} onLessonComplete={startPractice}/>
+  )
 
   return(
     <div style={{...S.page,background:'linear-gradient(180deg,var(--sun-yellow-soft) 0%,var(--bg-page) 55%)'}}>
