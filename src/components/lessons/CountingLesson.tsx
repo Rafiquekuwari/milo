@@ -11,7 +11,7 @@ import { speak, stopSpeech } from '@/lib/useMiloSpeaker'
 
 interface Props { childName: string; onLessonComplete: () => void }
 
-const TOTAL_STEPS = 17
+const TOTAL_STEPS = 16
 const NUM_COLORS  = [
   '#E64545','#F26B2C','#FFC933','#6FBE3F','#5BC3F0',
   '#9362D8','#E64545','#F26B2C','#FFC933','#6FBE3F',
@@ -148,28 +148,11 @@ function SparkleAt({x,y}:{x:number,y:number}) {
   )
 }
 
-// Count badge shown on a tapped item
-function CountBadge({n,color}:{n:number,color:string}) {
-  return (
-    <div style={{
-      position:'absolute',top:-6,right:-6,
-      width:28,height:28,borderRadius:'50%',
-      background:color,color:'#fff',
-      display:'flex',alignItems:'center',justifyContent:'center',
-      fontFamily:'var(--font-display)',fontWeight:900,fontSize:14,
-      border:'2.5px solid var(--outline)',
-      animation:'countBadge 0.4s cubic-bezier(.34,1.56,.64,1)',
-      boxShadow:'0 3px 8px rgba(0,0,0,.25)',
-      zIndex:5,
-    }}>{n}</div>
-  )
-}
-
 // Number card with dots
 function NumberCard({n,visible,isActive,delay=0}:{n:number,visible:boolean,isActive:boolean,delay?:number}) {
   return (
     <div style={{
-      width:60,height:72,
+      width:62,height:78,
       background: visible ? NUM_COLORS[n-1] : 'rgba(200,200,200,0.15)',
       borderRadius:18,
       border:`3px solid ${visible ? 'rgba(61,37,22,.15)' : 'rgba(200,200,200,0.2)'}`,
@@ -177,22 +160,25 @@ function NumberCard({n,visible,isActive,delay=0}:{n:number,visible:boolean,isAct
       alignItems:'center',justifyContent:'center',gap:5,
       opacity: visible ? 1 : 0,
       animation: visible ? `numberPop 0.5s cubic-bezier(.34,1.56,.64,1) ${delay}ms both` : 'none',
-      transform: isActive ? 'scale(1.22) translateY(-5px)' : 'scale(1)',
+      // The number currently being spoken pops up BIG to grab the child's attention
+      transform: isActive ? 'scale(1.9) translateY(-12px)' : 'scale(1)',
+      zIndex: isActive ? 5 : 1,
       boxShadow: isActive
-        ? `0 0 0 4px white, 0 8px 24px ${NUM_COLORS[n-1]}90`
+        ? `0 0 0 6px white, 0 18px 42px ${NUM_COLORS[n-1]}c0`
         : visible ? '0 4px 0 rgba(61,37,22,.18)' : 'none',
-      transition:'transform 0.2s ease, box-shadow 0.2s ease',
+      transition:'transform 0.28s cubic-bezier(.34,1.56,.64,1), box-shadow 0.28s ease',
     }}>
       {visible && <>
         <span style={{
           fontFamily:'var(--font-display)',fontWeight:900,
-          fontSize:28,color:'#fff',
+          fontSize: isActive ? 52 : 32, color:'#fff',
           textShadow:'0 2px 6px rgba(0,0,0,.25)',lineHeight:1,
+          transition:'font-size 0.28s ease',
         }}>{n}</span>
-        <div style={{display:'flex',flexWrap:'wrap',gap:3,justifyContent:'center',maxWidth:44}}>
+        <div style={{display:'flex',flexWrap:'wrap',gap:3,justifyContent:'center',maxWidth:46}}>
           {Array.from({length:Math.min(n,5)}).map((_,j)=>(
             <div key={j} style={{
-              width:7,height:7,borderRadius:'50%',
+              width:8,height:8,borderRadius:'50%',
               background:'rgba(255,255,255,0.9)',
               animation:`dotPop 0.2s ease ${j*60}ms both`,
             }}/>
@@ -235,10 +221,10 @@ function SectionBreak({emoji,title,subtitle,onDone}:{
 }
 
 // Shell
-function Shell({step,miloMood,bubble,children,onNext,nextReady,onBack}:{
+function Shell({step,miloMood,bubble,children,onNext,nextReady,onBack,onSkip}:{
   step:number,miloMood:'happy'|'thinking'|'celebrate',
   bubble:string,children:React.ReactNode,
-  onNext:()=>void,nextReady:boolean,onBack:()=>void,
+  onNext:()=>void,nextReady:boolean,onBack:()=>void,onSkip:()=>void,
 }) {
   const src = miloMood==='thinking'
     ?'/assets/characters/milo-thinking.png'
@@ -282,6 +268,22 @@ function Shell({step,miloMood,bubble,children,onNext,nextReady,onBack}:{
           }}/>
         ))}
         </div>
+        <button
+          onClick={onSkip}
+          title="Skip the lesson and start playing"
+          style={{
+            display:'flex',alignItems:'center',gap:4,
+            padding:'7px 14px',borderRadius:50,flexShrink:0,
+            background:'var(--garden-green)',border:'3px solid var(--garden-green-deep)',
+            color:'#fff',
+            fontFamily:'var(--font-display)',fontWeight:800,fontSize:13,
+            cursor:'pointer',transition:'all 0.15s',
+            boxShadow:'0 3px 0 var(--garden-green-deep)',
+          }}
+          onMouseDown={e=>{e.currentTarget.style.transform='translateY(3px)';e.currentTarget.style.boxShadow='none'}}
+          onMouseUp={e=>{e.currentTarget.style.transform='';e.currentTarget.style.boxShadow='0 3px 0 var(--garden-green-deep)'}}
+          onMouseLeave={e=>{e.currentTarget.style.transform='';e.currentTarget.style.boxShadow='0 3px 0 var(--garden-green-deep)'}}
+        >Skip ▶</button>
       </div>
 
       {/* Milo + bubble */}
@@ -333,37 +335,34 @@ function Shell({step,miloMood,bubble,children,onNext,nextReady,onBack}:{
   )
 }
 
-// ═══════════════════════════════════════════
-// STEP 1 — Numbers 1-5 bounce in one by one
-// ═══════════════════════════════════════════
-function S1({onDone}:{onDone:()=>void}) {
-  const [shown,setShown]=useState<number[]>([])
-  const [active,setActive]=useState(0)
-  const ran=useRef(false)
-  useEffect(()=>{
-    if(ran.current)return;ran.current=true
-    speak("Let's meet the numbers! Watch carefully!")
-    const words=['One','Two','Three','Four','Five']
-    words.forEach((w,i)=>{
-      window.setTimeout(()=>{
-        setShown(p=>[...p,i+1]);setActive(i+1)
-        window.setTimeout(()=>speak(w),80)
-      },1300+i*1000)
-    })
-    window.setTimeout(()=>{
-      setActive(0)
-      speak('One, two, three, four, five! Amazing!')
-      window.setTimeout(onDone,2500)
-    },1300+5*1000+300)
-  },[onDone])
+// Big number that pops in the centre as counting progresses — one at a time.
+// Give it `key={n}` at the call site so each change remounts and replays the pop.
+function BigCount({n}:{n:number}) {
+  if(n<=0) return null
   return (
-    <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:18}}>
+    <div style={{
+      fontFamily:'var(--font-display)',fontWeight:900,fontSize:104,lineHeight:1,
+      color:NUM_COLORS[(n-1)%10],
+      textShadow:'0 6px 0 rgba(61,37,22,.12)',
+      animation:'numberPop 0.5s cubic-bezier(.34,1.56,.64,1)',
+    }}>{n}</div>
+  )
+}
+
+// ═══════════════════════════════════════════
+// STEP 1 — Numbers 1-10: 1-5 appear on top, then 6-10 below
+// ═══════════════════════════════════════════
+function NumberRow({label,nums,shown,active}:{
+  label:string,nums:number[],shown:number[],active:number
+}) {
+  return (
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:12}}>
       <div style={{
         fontFamily:'var(--font-display)',fontWeight:800,fontSize:13,
         color:'var(--ink-muted)',letterSpacing:1.5,textTransform:'uppercase',
-      }}>Numbers 1 to 5 🌟</div>
-      <div style={{display:'flex',gap:10,justifyContent:'center'}}>
-        {[1,2,3,4,5].map(n=>(
+      }}>{label}</div>
+      <div style={{display:'flex',gap:9,justifyContent:'center'}}>
+        {nums.map(n=>(
           <NumberCard key={n} n={n} visible={shown.includes(n)} isActive={active===n}/>
         ))}
       </div>
@@ -371,39 +370,38 @@ function S1({onDone}:{onDone:()=>void}) {
   )
 }
 
-// ═══════════════════════════════════════════
-// STEP 2 — Numbers 6-10
-// ═══════════════════════════════════════════
-function S2({onDone}:{onDone:()=>void}) {
+function S1({onDone}:{onDone:()=>void}) {
   const [shown,setShown]=useState<number[]>([])
   const [active,setActive]=useState(0)
+  const [showRow2,setShowRow2]=useState(false)
   const ran=useRef(false)
   useEffect(()=>{
     if(ran.current)return;ran.current=true
-    speak('Now the bigger numbers! Six, seven, eight, nine, ten!')
-    const words=['Six','Seven','Eight','Nine','Ten']
+    speak("Let's meet the numbers! Watch carefully!")
+    const words=['One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten']
+    const STEP=900
     words.forEach((w,i)=>{
       window.setTimeout(()=>{
-        setShown(p=>[...p,i+6]);setActive(i+6)
+        if(i===5){ setShowRow2(true) }   // reveal the bottom row when 6 appears
+        setShown(p=>[...p,i+1]);setActive(i+1)
         window.setTimeout(()=>speak(w),80)
-      },1200+i*1000)
+      },1300+i*STEP)
     })
     window.setTimeout(()=>{
       setActive(0)
-      speak('Six, seven, eight, nine, ten! You know all ten numbers!')
+      speak('You know all the numbers from one to ten! Amazing!')
       window.setTimeout(onDone,2500)
-    },1200+5*1000+300)
+    },1300+10*STEP+300)
   },[onDone])
   return (
-    <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:18}}>
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:30}}>
+      <NumberRow label="Numbers 1 to 5 🌟" nums={[1,2,3,4,5]} shown={shown} active={active}/>
       <div style={{
-        fontFamily:'var(--font-display)',fontWeight:800,fontSize:13,
-        color:'var(--ink-muted)',letterSpacing:1.5,textTransform:'uppercase',
-      }}>Numbers 6 to 10 🎯</div>
-      <div style={{display:'flex',gap:10,justifyContent:'center'}}>
-        {[6,7,8,9,10].map(n=>(
-          <NumberCard key={n} n={n} visible={shown.includes(n)} isActive={active===n}/>
-        ))}
+        opacity:showRow2?1:0,
+        transform:showRow2?'translateY(0)':'translateY(16px)',
+        transition:'opacity 0.4s ease, transform 0.4s ease',
+      }}>
+        <NumberRow label="Numbers 6 to 10 🎯" nums={[6,7,8,9,10]} shown={shown} active={active}/>
       </div>
     </div>
   )
@@ -469,11 +467,12 @@ function S4({onDone}:{onDone:()=>void}) {
               border:`3px solid ${isA?NUM_COLORS[i]:'var(--outline)'}`,
               display:'flex',alignItems:'center',justifyContent:'center',
               fontFamily:'var(--font-display)',fontWeight:900,
-              fontSize:isA?18:13,
+              fontSize:isA?26:13,
               color:isA?'#fff':'var(--ink)',
-              transform:isA?'scale(1.35)':'scale(1)',
+              transform:isA?'scale(1.85)':'scale(1)',
+              zIndex:isA?5:1,
               transition:'all 0.28s cubic-bezier(.34,1.56,.64,1)',
-              boxShadow:isA?`0 6px 14px ${NUM_COLORS[i]}80`:'0 2px 0 rgba(61,37,22,.1)',
+              boxShadow:isA?`0 0 0 5px white, 0 12px 26px ${NUM_COLORS[i]}b0`:'0 2px 0 rgba(61,37,22,.1)',
             }}>{n}</div>
           )
         })}
@@ -557,9 +556,6 @@ function S5({onDone}:{onDone:()=>void}) {
                 animation:i<shown?`dropIn 0.4s cubic-bezier(.34,1.56,.64,1) both`:'none',
                 filter:i<shown?'drop-shadow(0 0 10px rgba(255,200,0,0.8))':'none',
               }}>✨</span>
-              {i<shown&&(
-                <CountBadge n={i+1} color={NUM_COLORS[gi>=0?gi:0]}/>
-              )}
             </div>
           ))}
         </div>
@@ -646,7 +642,6 @@ function S6({onDone}:{onDone:()=>void}) {
                 opacity:i<shown?1:0,
                 animation:i<shown?'dropIn 0.35s cubic-bezier(.34,1.56,.64,1) both':'none',
               }}>🌟</span>
-              {i<shown&&<CountBadge n={i+1} color={col}/>}
             </div>
           ))}
         </div>
@@ -705,6 +700,7 @@ function S8({onDone}:{onDone:()=>void}) {
   },[onDone])
   return (
     <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:22}}>
+      <BigCount key={shown} n={shown}/>
       <div style={{display:'flex',gap:18}}>
         {[0,1,2].map(i=>(
           <div key={i} style={{position:'relative',display:'flex',alignItems:'center',justifyContent:'center'}}>
@@ -713,9 +709,7 @@ function S8({onDone}:{onDone:()=>void}) {
               opacity:shown>i?1:0,
               animation:shown>i?'dropIn 0.5s cubic-bezier(.34,1.56,.64,1) both':'none',
               filter:shown===i+1?'drop-shadow(0 0 16px rgba(242,107,44,0.7))':'none',
-            }}>🍎</span>
-            {shown>i&&<CountBadge n={i+1} color={NUM_COLORS[i]}/>}
-          </div>
+            }}>🍎</span>          </div>
         ))}
       </div>
       {badge&&(
@@ -771,6 +765,7 @@ function S9({onDone}:{onDone:()=>void}) {
     <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:20,position:'relative'}}>
       {burst&&<Confetti/>}
       {sparkles.map(s=><SparkleAt key={s.id} x={s.x} y={s.y}/>)}
+      <BigCount key={tapped.length} n={tapped.length}/>
       <div style={{
         fontFamily:'var(--font-display)',fontWeight:800,fontSize:15,
         color:'var(--milo-orange)',background:'var(--milo-orange-soft)',
@@ -803,9 +798,7 @@ function S9({onDone}:{onDone:()=>void}) {
                   animationDelay:`${i*0.2}s`,
                   pointerEvents:'none',
                 }}/>
-              )}
-              {isTapped&&<CountBadge n={tapped.indexOf(i)+1} color={NUM_COLORS[tapped.indexOf(i)]}/>}
-            </button>
+              )}            </button>
           )
         })}
       </div>
@@ -847,6 +840,7 @@ function S10({onDone}:{onDone:()=>void}) {
   },[onDone])
   return (
     <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:20}}>
+      <BigCount key={shown} n={shown}/>
       <div style={{display:'flex',gap:10,flexWrap:'wrap',justifyContent:'center'}}>
         {[0,1,2,3,4].map(i=>(
           <div key={i} style={{position:'relative',display:'flex',alignItems:'center',justifyContent:'center'}}>
@@ -859,9 +853,7 @@ function S10({onDone}:{onDone:()=>void}) {
                   :'dropIn 0.45s cubic-bezier(.34,1.56,.64,1) both')
                 :'none',
               filter:shown===i+1?'drop-shadow(0 0 14px rgba(111,190,63,0.8))':'none',
-            }}>🐸</span>
-            {shown>i&&<CountBadge n={i+1} color={NUM_COLORS[i]}/>}
-          </div>
+            }}>🐸</span>          </div>
         ))}
       </div>
       {badge&&(
@@ -916,6 +908,7 @@ function S11({onDone}:{onDone:()=>void}) {
     <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:16,position:'relative'}}>
       {burst&&<Confetti/>}
       {sparkles.map(s=><SparkleAt key={s.id} x={s.x} y={s.y}/>)}
+      <BigCount key={tapped.length} n={tapped.length}/>
       <div style={{
         fontFamily:'var(--font-display)',fontWeight:800,fontSize:14,
         color:'var(--sun-yellow-deep)',background:'var(--sun-yellow-soft)',
@@ -947,9 +940,7 @@ function S11({onDone}:{onDone:()=>void}) {
                   animationDelay:`${i*0.18}s`,
                   pointerEvents:'none',
                 }}/>
-              )}
-              {isTapped&&<CountBadge n={tapped.indexOf(i)+1} color={NUM_COLORS[tapped.indexOf(i)%10]}/>}
-            </button>
+              )}            </button>
           )
         })}
       </div>
@@ -1006,6 +997,7 @@ function S13({onDone}:{onDone:()=>void}) {
   },[onDone])
   return (
     <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:16}}>
+      <BigCount key={shown} n={shown}/>
       <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10}}>
         {Array.from({length:8}).map((_,i)=>(
           <div key={i} style={{position:'relative',display:'flex',alignItems:'center',justifyContent:'center'}}>
@@ -1014,9 +1006,7 @@ function S13({onDone}:{onDone:()=>void}) {
               opacity:shown>i?1:0,
               animation:shown>i?'groundPop 0.45s cubic-bezier(.34,1.56,.64,1) both':'none',
               filter:shown===i+1?'drop-shadow(0 0 12px rgba(242,107,44,0.6))':'none',
-            }}>🍄</span>
-            {shown>i&&<CountBadge n={i+1} color={NUM_COLORS[i%10]}/>}
-          </div>
+            }}>🍄</span>          </div>
         ))}
       </div>
       {badge&&(
@@ -1070,6 +1060,7 @@ function S14({onDone}:{onDone:()=>void}) {
     <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:14,position:'relative'}}>
       {burst&&<Confetti/>}
       {sparkles.map(s=><SparkleAt key={s.id} x={s.x} y={s.y}/>)}
+      <BigCount key={tapped.length} n={tapped.length}/>
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10}}>
         {Array.from({length:6}).map((_,i)=>{
           const isTapped=tapped.includes(i)
@@ -1096,9 +1087,7 @@ function S14({onDone}:{onDone:()=>void}) {
                   animationDelay:`${i*0.15}s`,
                   pointerEvents:'none',
                 }}/>
-              )}
-              {isTapped&&<CountBadge n={tapped.indexOf(i)+1} color={NUM_COLORS[tapped.indexOf(i)%10]}/>}
-            </button>
+              )}            </button>
           )
         })}
       </div>
@@ -1148,6 +1137,7 @@ function S15({onDone}:{onDone:()=>void}) {
     <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:10,position:'relative'}}>
       {burst&&<Confetti/>}
       {sparkles.map(s=><SparkleAt key={s.id} x={s.x} y={s.y}/>)}
+      <BigCount key={tapped.length} n={tapped.length}/>
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8}}>
         {Array.from({length:9}).map((_,i)=>{
           const isTapped=tapped.includes(i)
@@ -1169,17 +1159,6 @@ function S15({onDone}:{onDone:()=>void}) {
                 boxShadow:isTapped?'none':`0 4px 14px ${COLS[i]}60`,
               }}/>
               <div style={{width:1,height:10,background:'#888',opacity:isTapped?0.3:0.6}}/>
-              {isTapped&&(
-                <div style={{
-                  position:'absolute',top:6,left:'50%',transform:'translateX(-50%)',
-                  width:26,height:26,borderRadius:'50%',
-                  background:'var(--garden-green)',color:'#fff',
-                  display:'flex',alignItems:'center',justifyContent:'center',
-                  fontFamily:'var(--font-display)',fontWeight:900,fontSize:13,
-                  animation:'popIn 0.3s cubic-bezier(.34,1.56,.64,1)',
-                  border:'2px solid var(--outline)',
-                }}>{tapped.indexOf(i)+1}</div>
-              )}
             </button>
           )
         })}
@@ -1229,6 +1208,7 @@ function S16({onDone}:{onDone:()=>void}) {
     <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:12,position:'relative'}}>
       {burst&&<Confetti/>}
       {sparkles.map(s=><SparkleAt key={s.id} x={s.x} y={s.y}/>)}
+      <BigCount key={tapped.length} n={tapped.length}/>
       <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:6}}>
         {Array.from({length:10}).map((_,i)=>{
           const isTapped=tapped.includes(i)
@@ -1255,9 +1235,7 @@ function S16({onDone}:{onDone:()=>void}) {
                   animationDelay:`${i*0.12}s`,
                   pointerEvents:'none',
                 }}/>
-              )}
-              {isTapped&&<CountBadge n={tapped.indexOf(i)+1} color={NUM_COLORS[tapped.indexOf(i)%10]}/>}
-            </button>
+              )}            </button>
           )
         })}
       </div>
@@ -1301,6 +1279,7 @@ function S17({onDone}:{onDone:()=>void}) {
         borderRadius:50,padding:'8px 22px',
         fontFamily:'var(--font-display)',fontWeight:800,fontSize:18,color:'var(--ink)',
       }}>How many butterflies? 🦋</div>
+      <BigCount key={countIdx} n={showAnswer?0:countIdx+1}/>
       <div style={{display:'flex',gap:14,flexWrap:'wrap',justifyContent:'center'}}>
         {[0,1,2,3].map(i=>(
           <div key={i} style={{position:'relative',display:'flex',alignItems:'center',justifyContent:'center'}}>
@@ -1314,9 +1293,7 @@ function S17({onDone}:{onDone:()=>void}) {
                 :countIdx>i
                   ?'drop-shadow(0 0 6px rgba(147,98,216,0.3))'
                   :'grayscale(1)',
-            }}>🦋</span>
-            {countIdx>=i&&<CountBadge n={i+1} color={NUM_COLORS[i]}/>}
-          </div>
+            }}>🦋</span>          </div>
         ))}
       </div>
       {showAnswer&&(
@@ -1342,8 +1319,7 @@ export default function CountingLesson({childName,onLessonComplete}:Props) {
   const [confirmBack,setConfirmBack]=useState(false)
 
   const BUBBLES=[
-    `Hi ${childName}! Let's meet the numbers 1 to 5! Watch every one! 🌟`,
-    'Great! Now the bigger numbers — 6 to 10! 🎯',
+    `Hi ${childName}! Let's meet the numbers 1 to 10! Watch every one! 🌟`,
     '🎉 You know 1 to 10! Now watch them count things!',
     'The frog jumps on every number! Watch closely! 🐸',
     'Watch! Each number means this many things! ✨',
@@ -1362,7 +1338,7 @@ export default function CountingLesson({childName,onLessonComplete}:Props) {
   ]
 
   const MOODS:Array<'happy'|'thinking'|'celebrate'>=[
-    'happy','happy','celebrate',
+    'happy','celebrate',
     'happy','happy','happy','celebrate',
     'happy','thinking','happy','thinking','celebrate',
     'happy','thinking','thinking','thinking','celebrate',
@@ -1384,22 +1360,21 @@ export default function CountingLesson({childName,onLessonComplete}:Props) {
 
   const STEPS=[
     <S1  key={0}  onDone={done}/>,
-    <S2  key={1}  onDone={done}/>,
-    <S3  key={2}  onDone={done}/>,
-    <S4  key={3}  onDone={done}/>,
-    <S5  key={4}  onDone={done}/>,
-    <S6  key={5}  onDone={done}/>,
-    <S7  key={6}  onDone={done}/>,
-    <S8  key={7}  onDone={done}/>,
-    <S9  key={8}  onDone={done}/>,
-    <S10 key={9}  onDone={done}/>,
-    <S11 key={10} onDone={done}/>,
-    <S12 key={11} onDone={done}/>,
-    <S13 key={12} onDone={done}/>,
-    <S14 key={13} onDone={done}/>,
-    <S15 key={14} onDone={done}/>,
-    <S16 key={15} onDone={done}/>,
-    <S17 key={16} onDone={done}/>,
+    <S3  key={1}  onDone={done}/>,
+    <S4  key={2}  onDone={done}/>,
+    <S5  key={3}  onDone={done}/>,
+    <S6  key={4}  onDone={done}/>,
+    <S7  key={5}  onDone={done}/>,
+    <S8  key={6}  onDone={done}/>,
+    <S9  key={7}  onDone={done}/>,
+    <S10 key={8}  onDone={done}/>,
+    <S11 key={9}  onDone={done}/>,
+    <S12 key={10} onDone={done}/>,
+    <S13 key={11} onDone={done}/>,
+    <S14 key={12} onDone={done}/>,
+    <S15 key={13} onDone={done}/>,
+    <S16 key={14} onDone={done}/>,
+    <S17 key={15} onDone={done}/>,
   ]
 
   return (
@@ -1411,6 +1386,7 @@ export default function CountingLesson({childName,onLessonComplete}:Props) {
         onNext={next}
         nextReady={nextReady}
         onBack={()=>setConfirmBack(true)}
+        onSkip={()=>{stopSpeech();onLessonComplete()}}
       >
         {STEPS[step]}
       </Shell>
