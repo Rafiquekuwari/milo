@@ -13,9 +13,30 @@ import CountingLesson from '../lessons/CountingLesson'
 
 interface Props { onComplete:(c:number,w:number)=>void; childName:string }
 
+// What kind of difficulty the child is actually having — diagnosed from their
+// recent misses so the re-teach can address the real problem, not a generic one.
+//   process      → answered without counting (didn't tap any objects)
+//   recognition  → counted correctly but picked the wrong number (numeral mix-up)
+//   offByOne     → counted but landed one off (skipped / double-counted)
+//   foundational → off by more than one (no number sense yet)
+type MissKind = 'process' | 'recognition' | 'offByOne' | 'foundational'
+interface Miss { target:number; choice:number; taps:number }
+
+function diagnoseMiss(misses:Miss[]):MissKind {
+  const recent = misses.slice(-3)
+  if(!recent.length) return 'foundational'
+  const noCount      = recent.filter(m=>m.taps===0).length
+  const countedRight = recent.filter(m=>m.taps===m.target && m.choice!==m.target).length
+  const offOne       = recent.filter(m=>Math.abs(m.choice-m.target)===1).length
+  if(countedRight>=2) return 'recognition'
+  if(noCount>=2)      return 'process'
+  if(offOne>=2)       return 'offByOne'
+  return 'foundational'
+}
+
 type Remediation =
-  | { phase:'explain'; target:number; emoji:string; label:string; escalated:boolean }
-  | { phase:'check';   target:number; emoji:string; label:string }
+  | { phase:'explain'; target:number; emoji:string; label:string; kind:MissKind; escalated:boolean }
+  | { phase:'check';   target:number; emoji:string; label:string; kind:MissKind }
 
 const EMOJIS = [
   { emoji:'⭐', label:'stars'       },
@@ -57,6 +78,8 @@ export default function CountingChapter({onComplete,childName}:Props){
   // question (check). A failed check escalates to one more re-teach, then resumes.
   const[wrongRun,setWrongRun]=useState(0)
   const[remediation,setRemediation]=useState<Remediation|null>(null)
+  // Log of misses in the current wrong streak — used to diagnose the difficulty.
+  const missLog=useRef<Miss[]>([])
 
   function newRound(idx:number){
     const t=countTarget(ada.difficulty)
@@ -94,13 +117,17 @@ export default function CountingChapter({onComplete,childName}:Props){
     setFeedback(ok?'correct':'wrong')
     const newRun = ok ? 0 : wrongRun + 1
     setWrongRun(newRun)
+    // Record the miss (with whether/how much they counted) for diagnosis.
+    if(ok) missLog.current = []
+    else   missLog.current = [...missLog.current, { target, choice, taps: tapped.length }]
     if(ok){setCorrect(c=>c+1);speak(ada.isOnFire?ada.praise:`Yes! ${target} ${emojiSet.label}! ${ada.praise}`)}
     else   {setWrong(w=>w+1);speak(`Oops! There are ${target} ${emojiSet.label}. ${ada.encouragement}`)}
     afterSpeech(() => {
           setFeedback(null)
-          // 3 wrong in a row → pause and re-teach this quantity before moving on
+          // 3 wrong in a row → diagnose the difficulty, then re-teach accordingly
           if (!ok && newRun >= 3) {
-            setRemediation({ phase:'explain', target, emoji: emojiSet.emoji, label: emojiSet.label, escalated:false })
+            const kind = diagnoseMiss(missLog.current)
+            setRemediation({ phase:'explain', target, emoji: emojiSet.emoji, label: emojiSet.label, kind, escalated:false })
             return
           }
           advance(ok)
@@ -113,6 +140,7 @@ export default function CountingChapter({onComplete,childName}:Props){
     stopSpeech()
     setRemediation(null)
     setWrongRun(0)
+    missLog.current = []
     if (roundIdx + 1 >= TOTAL_ROUNDS) onComplete(correct, wrong)
     else setRoundIdx(roundIdx + 1)
   }
@@ -122,8 +150,8 @@ export default function CountingChapter({onComplete,childName}:Props){
     if (!remediation || remediation.phase !== 'explain') { finishRemediation(); return }
     if (remediation.escalated) { finishRemediation(); return }
     stopSpeech()
-    const { target:t, emoji:e, label:l } = remediation
-    setRemediation({ phase:'check', target:t, emoji:e, label:l })
+    const { target:t, emoji:e, label:l, kind } = remediation
+    setRemediation({ phase:'check', target:t, emoji:e, label:l, kind })
   }
 
   // Result of the check question: pass → resume; fail → one more (slower) re-teach.
@@ -131,8 +159,8 @@ export default function CountingChapter({onComplete,childName}:Props){
     if (!remediation) { finishRemediation(); return }
     if (pass) { finishRemediation(); return }
     stopSpeech()
-    const { target:t, emoji:e, label:l } = remediation
-    setRemediation({ phase:'explain', target:t, emoji:e, label:l, escalated:true })
+    const { target:t, emoji:e, label:l, kind } = remediation
+    setRemediation({ phase:'explain', target:t, emoji:e, label:l, kind, escalated:true })
   }
 
   const bubbleText=tapped.length===0?`Tap each ${emojiSet.label} to count!`
@@ -203,59 +231,91 @@ export default function CountingChapter({onComplete,childName}:Props){
       {remediation?.phase==='explain' && (
         <ReExplainOverlay
           target={remediation.target} emoji={remediation.emoji} label={remediation.label}
-          again={remediation.escalated} onClose={handleExplainDone}
+          kind={remediation.kind} again={remediation.escalated} onClose={handleExplainDone}
         />
       )}
       {remediation?.phase==='check' && (
         <CheckQuestion
           target={remediation.target} emoji={remediation.emoji} label={remediation.label}
-          onResult={handleCheckResult}
+          kind={remediation.kind} onResult={handleCheckResult}
         />
       )}
     </div>
   )
 }
 
+// Re-teach wording tailored to the diagnosed difficulty.
+function reTeachCopy(kind:MissKind,target:number,label:string){
+  const one = label.replace(/s$/,'') // singular-ish, for "the same apple twice"
+  switch(kind){
+    case 'process': return {
+      title:"Touch and count!",
+      tip:`Touch each ${label} as you count it.`,
+      intro:`To count, we touch each ${label}, one at a time. Watch me touch every one!`,
+      close:`That's ${target} ${label}! Touch each one as you count. Now you try!`,
+    }
+    case 'recognition': return {
+      title:"Meet the number!",
+      tip:`This many ${label} is the number ${target}.`,
+      intro:`You counted them, great job! Now look — this many ${label} is the number ${target}.`,
+      close:`This is the number ${target}! Now find ${target}. You can do it!`,
+    }
+    case 'offByOne': return {
+      title:"Count carefully!",
+      tip:`Don't skip any, and don't count the same one twice.`,
+      intro:`Let's count slowly. Don't miss any, and don't count the same ${one} twice!`,
+      close:`${target}! The last number we say is how many. Now you try!`,
+    }
+    default: return {
+      title:"Let's count together!",
+      tip:`Count the ${label} with Milo.`,
+      intro:`Let's count the ${label} together, slowly!`,
+      close:`That's ${target} ${label}! Now you try again. You can do it!`,
+    }
+  }
+}
+
+const RE_COLORS=['#E64545','#F26B2C','#FFC933','#6FBE3F','#5BC3F0','#9362D8','#E64545','#F26B2C','#FFC933']
+const POP_KEYFRAME=`@keyframes re-pop{0%{transform:scale(0) rotate(-12deg);opacity:0}55%{transform:scale(1.35) rotate(4deg);opacity:1}100%{transform:scale(1) rotate(0);opacity:1}}`
+
 // ─── Re-explanation overlay ──────────────────────────────────
-// Shown after 3 wrong answers in a row. Milo counts the missed
-// quantity slowly, one at a time, then lets the child try again.
-function ReExplainOverlay({target,emoji,label,again,onClose}:{
-  target:number;emoji:string;label:string;again?:boolean;onClose:()=>void
+// Shown after 3 wrong in a row. Milo counts the missed quantity slowly, one at
+// a time — but the wording/emphasis is tailored to the diagnosed difficulty.
+function ReExplainOverlay({target,emoji,label,kind,again,onClose}:{
+  target:number;emoji:string;label:string;kind:MissKind;again?:boolean;onClose:()=>void
 }){
   const [shown,setShown]=useState(0)
   const [ready,setReady]=useState(false)
   const ran=useRef(false)
-  const COLORS=['#E64545','#F26B2C','#FFC933','#6FBE3F','#5BC3F0','#9362D8','#E64545','#F26B2C','#FFC933']
+  const copy=reTeachCopy(kind,target,label)
   useEffect(()=>{
     if(ran.current)return;ran.current=true
-    speak(again
-      ? `No worries! Let's count the ${label} one more time, super slowly!`
-      : `Let's count the ${label} together, slowly!`)
+    speak(again ? `No worries! Once more, super slowly. ${copy.intro}` : copy.intro)
     for(let k=1;k<=target;k++){
       window.setTimeout(()=>{
         setShown(k)
         window.setTimeout(()=>speak(String(k)),80)
-      },1300+(k-1)*1100)
+      },1700+(k-1)*1100)
     }
     window.setTimeout(()=>{
-      speak(`That's ${target} ${label}! Now you try again. You can do it!`)
+      speak(copy.close)
       setReady(true)
-    },1300+target*1100+300)
-  },[target,label,again])
+    },1700+target*1100+300)
+  },[target,label,again,kind,copy.intro,copy.close])
   return (
     <div style={{position:'fixed',inset:0,zIndex:200,background:'rgba(61,37,22,0.7)',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
-      <style>{`@keyframes re-pop{0%{transform:scale(0) rotate(-12deg);opacity:0}55%{transform:scale(1.35) rotate(4deg);opacity:1}100%{transform:scale(1) rotate(0);opacity:1}}`}</style>
+      <style>{POP_KEYFRAME}</style>
       <div style={{background:'var(--paper)',border:'4px solid var(--outline)',borderRadius:28,padding:'24px 22px 28px',maxWidth:420,width:'100%',textAlign:'center',boxShadow:'0 8px 0 rgba(61,37,22,.2)',maxHeight:'92vh',overflowY:'auto'}}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,marginBottom:4}}>
           <img src="/assets/characters/milo-thinking.png" alt="Milo" style={{width:48,height:48,objectFit:'contain'}} onError={e=>{(e.target as HTMLImageElement).style.display='none'}}/>
-          <h3 style={{fontFamily:'var(--font-display)',fontSize:20,margin:0,color:'var(--milo-orange)'}}>Let's count together!</h3>
+          <h3 style={{fontFamily:'var(--font-display)',fontSize:20,margin:0,color:'var(--milo-orange)'}}>{copy.title}</h3>
         </div>
-        <p style={{fontFamily:'var(--font-body)',fontSize:14,color:'var(--ink-soft)',margin:'0 0 12px'}}>Watch carefully — count the {label} with Milo.</p>
+        <p style={{fontFamily:'var(--font-body)',fontSize:14,color:'var(--ink-soft)',margin:'0 0 12px'}}>{copy.tip}</p>
         <div style={{height:92,display:'flex',alignItems:'center',justifyContent:'center'}}>
           {shown>0 && (
             <div key={shown} style={{
               fontFamily:'var(--font-display)',fontWeight:900,fontSize:80,lineHeight:1,
-              color:COLORS[(shown-1)%COLORS.length],textShadow:'0 5px 0 rgba(61,37,22,.12)',
+              color:RE_COLORS[(shown-1)%RE_COLORS.length],textShadow:'0 5px 0 rgba(61,37,22,.12)',
               animation:'re-pop 0.5s cubic-bezier(.34,1.56,.64,1)',
             }}>{shown}</div>
           )}
@@ -286,14 +346,17 @@ function ReExplainOverlay({target,emoji,label,again,onClose}:{
 }
 
 // ─── Check question ──────────────────────────────────────────
-// Shown right after a re-teach to verify the child understood. Matched to the
-// missed quantity but made easier: only 2 choices and the number-line hint is
-// always on. Pass → resume play; fail → escalate to one more re-teach.
-function CheckQuestion({target,emoji,label,onResult}:{
-  target:number;emoji:string;label:string;onResult:(pass:boolean)=>void
+// Verifies the child understood, matched to the missed quantity and made easier
+// (2 choices). The FORM adapts to the diagnosis: when the problem was "not
+// counting" (process), the child must tap each object to count first; otherwise
+// the objects are shown statically with the number-line hint.
+function CheckQuestion({target,emoji,label,kind,onResult}:{
+  target:number;emoji:string;label:string;kind:MissKind;onResult:(pass:boolean)=>void
 }){
+  const mode = kind==='process' ? 'count' : 'pick'
   const [picked,setPicked]=useState<number|null>(null)
   const [ready,setReady]=useState(false)
+  const [tappedIdx,setTappedIdx]=useState<number[]>([])
   const ran=useRef(false)
   const choices=useRef<number[]>((()=>{
     const distractor = target>1 ? (Math.random()<0.5?target-1:target+1) : target+1
@@ -301,9 +364,15 @@ function CheckQuestion({target,emoji,label,onResult}:{
   })()).current
   useEffect(()=>{
     if(ran.current)return;ran.current=true
-    speak(`Now you try! How many ${label}? Touch the right number.`)
+    speak(mode==='count'
+      ? `Now you try! Touch each ${label}, then pick how many.`
+      : `Now you try! How many ${label}? Touch the right number.`)
     window.setTimeout(()=>afterSpeech(()=>setReady(true)),400)
-  },[label])
+  },[label,mode])
+  function tap(i:number){
+    if(!ready||picked!=null||tappedIdx.includes(i))return
+    const next=[...tappedIdx,i];setTappedIdx(next);speak(String(next.length))
+  }
   function pick(c:number){
     if(picked!=null||!ready)return
     setPicked(c)
@@ -314,26 +383,66 @@ function CheckQuestion({target,emoji,label,onResult}:{
   }
   return (
     <div style={{position:'fixed',inset:0,zIndex:200,background:'rgba(61,37,22,0.7)',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+      <style>{POP_KEYFRAME}</style>
       <div style={{background:'var(--paper)',border:'4px solid var(--outline)',borderRadius:28,padding:'24px 22px 28px',maxWidth:420,width:'100%',textAlign:'center',boxShadow:'0 8px 0 rgba(61,37,22,.2)',maxHeight:'92vh',overflowY:'auto'}}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,marginBottom:4}}>
           <img src="/assets/characters/milo-happy.png" alt="Milo" style={{width:48,height:48,objectFit:'contain'}} onError={e=>{(e.target as HTMLImageElement).style.display='none'}}/>
           <h3 style={{fontFamily:'var(--font-display)',fontSize:20,margin:0,color:'var(--garden-green-deep)'}}>Your turn!</h3>
         </div>
-        <p style={{fontFamily:'var(--font-body)',fontSize:15,color:'var(--ink-soft)',margin:'0 0 14px'}}>How many {label}? Count them!</p>
-        {/* Objects to count */}
-        <div style={{display:'flex',flexWrap:'wrap',gap:10,justifyContent:'center',maxWidth:320,margin:'0 auto 12px',minHeight:56}}>
-          {Array.from({length:target}).map((_,i)=>(
-            <span key={i} style={{fontSize:40}}>{emoji}</span>
-          ))}
-        </div>
-        {/* Number-line hint (always on) */}
-        <div style={{display:'flex',gap:6,flexWrap:'wrap',justifyContent:'center',marginBottom:18}}>
-          {Array.from({length:target}).map((_,i)=>(
-            <div key={i} style={{width:30,height:30,borderRadius:'50%',border:'3px solid var(--sky-blue-deep)',background:'var(--sky-blue)',display:'flex',alignItems:'center',justifyContent:'center'}}>
-              <span style={{fontFamily:'var(--font-display)',fontWeight:900,fontSize:12,color:'#fff'}}>{i+1}</span>
+        <p style={{fontFamily:'var(--font-body)',fontSize:15,color:'var(--ink-soft)',margin:'0 0 14px'}}>
+          {mode==='count' ? `Touch each ${label}, then pick how many!` : `How many ${label}? Count them!`}
+        </p>
+
+        {mode==='count' ? (
+          <>
+            {/* Running tally */}
+            <div style={{height:70,display:'flex',alignItems:'center',justifyContent:'center'}}>
+              {tappedIdx.length>0 && (
+                <div key={tappedIdx.length} style={{
+                  fontFamily:'var(--font-display)',fontWeight:900,fontSize:60,lineHeight:1,
+                  color:RE_COLORS[(tappedIdx.length-1)%RE_COLORS.length],textShadow:'0 4px 0 rgba(61,37,22,.12)',
+                  animation:'re-pop 0.45s cubic-bezier(.34,1.56,.64,1)',
+                }}>{tappedIdx.length}</div>
+              )}
             </div>
-          ))}
-        </div>
+            {/* Tappable objects */}
+            <div style={{display:'flex',flexWrap:'wrap',gap:10,justifyContent:'center',maxWidth:320,margin:'0 auto 16px',minHeight:56}}>
+              {Array.from({length:target}).map((_,i)=>{
+                const isTapped=tappedIdx.includes(i)
+                return (
+                  <button key={i} onClick={()=>tap(i)} disabled={isTapped||picked!=null} style={{
+                    background:'transparent',border:'none',position:'relative',width:60,height:60,
+                    cursor:isTapped||picked!=null?'default':'pointer',
+                    display:'flex',alignItems:'center',justifyContent:'center',
+                  }}>
+                    <span style={{fontSize:42,opacity:isTapped?0.4:1,transform:isTapped?'scale(0.85)':'scale(1)',transition:'all 0.2s',filter:isTapped?'grayscale(1)':'none'}}>{emoji}</span>
+                    {isTapped&&(
+                      <span style={{position:'absolute',top:-4,right:-4,width:22,height:22,borderRadius:'50%',background:'var(--garden-green)',color:'#fff',border:'2px solid var(--outline)',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'var(--font-display)',fontWeight:900,fontSize:11}}>{tappedIdx.indexOf(i)+1}</span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Static objects to count */}
+            <div style={{display:'flex',flexWrap:'wrap',gap:10,justifyContent:'center',maxWidth:320,margin:'0 auto 12px',minHeight:56}}>
+              {Array.from({length:target}).map((_,i)=>(
+                <span key={i} style={{fontSize:40}}>{emoji}</span>
+              ))}
+            </div>
+            {/* Number-line hint */}
+            <div style={{display:'flex',gap:6,flexWrap:'wrap',justifyContent:'center',marginBottom:18}}>
+              {Array.from({length:target}).map((_,i)=>(
+                <div key={i} style={{width:30,height:30,borderRadius:'50%',border:'3px solid var(--sky-blue-deep)',background:'var(--sky-blue)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                  <span style={{fontFamily:'var(--font-display)',fontWeight:900,fontSize:12,color:'#fff'}}>{i+1}</span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
         {/* 2 choices */}
         <div style={{display:'flex',gap:16,justifyContent:'center',opacity:ready?1:0.45,transition:'opacity 0.2s'}}>
           {choices.map(c=>{
