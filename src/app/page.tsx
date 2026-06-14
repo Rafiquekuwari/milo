@@ -10,20 +10,10 @@ export default function RootPage() {
     async function check() {
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        router.replace('/auth')
-        return
-      }
-      const { data: access } = await supabase
-        .from('learner_access')
-        .select('learner_id')
-        .eq('parent_id', session.user.id)
-        .limit(1)
-      if (!access || access.length === 0) {
-        router.replace('/parent')
-      } else {
-        router.replace('/parent')
-      }
+      // The /parent dashboard is the hub: it loads the parent's learners
+      // (or shows the "add your first learner" empty state) on its own, so
+      // signed-in users always land there. Unauthenticated users go to /auth.
+      router.replace(session ? '/parent' : '/auth')
     }
     check()
   }, [router])
