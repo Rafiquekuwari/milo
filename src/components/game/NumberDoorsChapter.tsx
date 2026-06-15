@@ -1,6 +1,6 @@
 'use client'
-import { useState, useEffect } from 'react'
-import { useMiloSpeaker, afterSpeech, speakAfterCurrent } from '@/lib/useMiloSpeaker'
+import { useState, useEffect, useRef } from 'react'
+import { useMiloSpeaker, afterSpeech, speakAfterCurrent, speak, speakSeq } from '@/lib/useMiloSpeaker'
 import { MiloProgressBar } from '@/components/ui/MiloUI'
 import { useAdaptive } from '@/lib/adaptive'
 import { DifficultyBadge } from '../ui/DifficultyBadge'
@@ -38,6 +38,9 @@ export default function NumberDoorsChapter({ onComplete, childName }: Props) {
   const [correct, setCorrect] = useState(0)
   const [wrong, setWrong] = useState(0)
   const [feedback, setFeedback] = useState<'correct'|'wrong'|null>(null)
+  // Adaptive remediation: after 3 wrong in a row, re-teach the number, then check.
+  const [wrongRun, setWrongRun] = useState(0)
+  const [reMed, setReMed] = useState<{phase:'reteach'|'check'; target:number}|null>(null)
 
   useEffect(() => {
     const r = buildRound(ada.difficulty)
@@ -62,13 +65,24 @@ export default function NumberDoorsChapter({ onComplete, childName }: Props) {
     const ok = num === round.correct
     setFeedback(ok ? 'correct' : 'wrong')
     ada.record(ok)
+    const newRun = ok ? 0 : wrongRun + 1
+    setWrongRun(newRun)
     if (ok) { setCorrect(c=>c+1); speak(`Yes! Number ${round.correct}! ${ada.praise}`) }
     else    { setWrong(w=>w+1);   speak(`Door ${round.correct} was right! ${ada.encouragement}`) }
     afterSpeech(() => {
           setFeedback(null)
-              const next = roundIdx + 1
-              if (next >= TOTAL_ROUNDS) onComplete(ok?correct+1:correct, ok?wrong:wrong+1)
-              else window.setTimeout(() => setRoundIdx(next), 300)})
+          // 3 wrong in a row → re-teach the number, then check
+          if (!ok && newRun >= 3) { setReMed({ phase:'reteach', target: round.correct }); return }
+          const next = roundIdx + 1
+          if (next >= TOTAL_ROUNDS) onComplete(ok?correct+1:correct, ok?wrong:wrong+1)
+          else window.setTimeout(() => setRoundIdx(next), 300)})
+  }
+
+  function finishReMed() {
+    setReMed(null); setWrongRun(0)
+    const next = roundIdx + 1
+    if (next >= TOTAL_ROUNDS) onComplete(correct, wrong)
+    else setRoundIdx(next)
   }
 
   return (
@@ -119,7 +133,101 @@ export default function NumberDoorsChapter({ onComplete, childName }: Props) {
         </div>
       )}
       <p style={S.label}>Round {Math.min(roundIdx+1,TOTAL_ROUNDS)} of {TOTAL_ROUNDS}</p>
+
+      {reMed?.phase==='reteach' && (
+        <DoorRemediationOverlay>
+          <WatchNumber target={reMed.target} onDone={()=>setReMed({phase:'check',target:reMed.target})}/>
+        </DoorRemediationOverlay>
+      )}
+      {reMed?.phase==='check' && (
+        <DoorRemediationOverlay>
+          <CheckNumber target={reMed.target} onDone={finishReMed}/>
+        </DoorRemediationOverlay>
+      )}
     </div>
+  )
+}
+
+// ─── Re-teach overlay (shown after 3 wrong in a row) ──────────────
+function DoorRemediationOverlay({children}:{children:React.ReactNode}){
+  return (
+    <div style={{position:'fixed',inset:0,zIndex:200,background:'rgba(61,37,22,0.7)',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+      <div style={{background:'var(--paper)',border:'4px solid var(--outline)',borderRadius:28,padding:'24px 22px 28px',maxWidth:420,width:'100%',textAlign:'center',boxShadow:'0 8px 0 rgba(61,37,22,.2)',maxHeight:'92vh',overflowY:'auto'}}>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+// WATCH — show the missed number big and name it (robust against blocked audio).
+function WatchNumber({target,onDone}:{target:number;onDone:()=>void}){
+  const [shown,setShown]=useState(false)
+  const ran=useRef(false)
+  useEffect(()=>{
+    if(ran.current)return; ran.current=true
+    const lines=[`Let's look at this number again.`, `This is the number ${target}!`, `${target}. Now you try!`]
+    let started=false, finished=false
+    const cl:Array<()=>void>=[]
+    const at=(fn:()=>void,ms:number)=>{ const id=window.setTimeout(fn,ms); cl.push(()=>window.clearTimeout(id)) }
+    at(()=>setShown(true),150)
+    const complete=()=>{ if(finished)return; finished=true; at(onDone,800) }
+    const cancel=speakSeq(lines,{onWord:()=>{started=true},onDone:complete}); cl.push(cancel)
+    at(()=>{ if(started||finished)return; cancel(); at(()=>speak(lines[0]),0); at(()=>{setShown(true);speak(`This is the number ${target}!`)},2000); at(()=>{speak('Now you try!');complete()},3800) },1900)
+    return ()=>cl.forEach(f=>f())
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[])
+  return (
+    <>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,marginBottom:8}}>
+        <img src="/assets/characters/milo-thinking.png" alt="Milo" style={{width:48,height:48,objectFit:'contain'}} onError={e=>{(e.target as HTMLImageElement).style.display='none'}}/>
+        <h3 style={{fontFamily:'var(--font-display)',fontSize:20,margin:0,color:'var(--milo-orange)'}}>Let's look again!</h3>
+      </div>
+      <div style={{height:150,display:'flex',alignItems:'center',justifyContent:'center'}}>
+        {shown && <div style={{width:120,height:150,borderRadius:'16px 16px 4px 4px',border:'5px solid var(--milo-orange)',background:'var(--milo-orange-soft)',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 6px 0 var(--milo-orange-deep)',animation:'modal-in 400ms cubic-bezier(.34,1.56,.64,1) both'}}>
+          <span style={{fontFamily:'var(--font-display)',fontWeight:900,fontSize:84,color:'var(--ink)',lineHeight:1}}>{target}</span>
+        </div>}
+      </div>
+    </>
+  )
+}
+
+// CHECK — child picks the number from two doors (retry on wrong).
+function CheckNumber({target,onDone}:{target:number;onDone:()=>void}){
+  const doors=useRef<number[]>((()=>{
+    const distractor = target>1 ? (Math.random()<0.5?target-1:target+1) : target+1
+    return [target,distractor].sort(()=>Math.random()-.5)
+  })()).current
+  const [picked,setPicked]=useState<number|null>(null)
+  const [wrongPick,setWrongPick]=useState<number|null>(null)
+  const spoken=useRef(false)
+  useEffect(()=>{ if(spoken.current)return; spoken.current=true; speak(`Now you try! Find the number ${target}.`) },[])
+  function pick(n:number){
+    if(picked!=null)return
+    if(n===target){ setPicked(n); speak(`Yes! Number ${target}! Wonderful!`); window.setTimeout(onDone,2200) }
+    else { setWrongPick(n); speak(`That's ${n}. Find ${target}! Try again!`); window.setTimeout(()=>setWrongPick(null),900) }
+  }
+  return (
+    <>
+      <h3 style={{fontFamily:'var(--font-display)',fontSize:20,margin:'0 0 4px',color:'var(--garden-green-deep)'}}>Your turn!</h3>
+      <p style={{fontFamily:'var(--font-body)',fontSize:15,color:'var(--ink-soft)',margin:'0 0 16px'}}>Tap the number {target}.</p>
+      <div style={{display:'flex',gap:18,justifyContent:'center'}}>
+        {doors.map(n=>{
+          const isRight=picked===n, isWrong=wrongPick===n
+          return (
+            <button key={n} onClick={()=>pick(n)} disabled={picked!=null} style={{
+              width:96,height:130,borderRadius:'14px 14px 4px 4px',
+              background:isRight?'var(--garden-green-soft)':isWrong?'var(--apple-red-soft)':'var(--sky-blue-soft)',
+              border:`4px solid ${isRight?'var(--garden-green)':isWrong?'var(--apple-red)':'var(--sky-blue)'}`,
+              boxShadow:`0 6px 0 ${isRight?'var(--garden-green-deep)':isWrong?'var(--apple-red-deep)':'var(--sky-blue-deep)'}`,
+              cursor:picked!=null?'default':'pointer',
+              transform:isRight?'scale(1.08) translateY(-4px)':'scale(1)',transition:'transform 160ms cubic-bezier(.34,1.56,.64,1)',
+            }}>
+              <span style={{fontFamily:'var(--font-display)',fontWeight:900,fontSize:56,color:'var(--ink)'}}>{n}</span>
+            </button>
+          )
+        })}
+      </div>
+    </>
   )
 }
 

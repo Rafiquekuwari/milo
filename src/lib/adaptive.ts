@@ -168,6 +168,22 @@ export function countTarget(difficulty: Difficulty): number {
   return Math.floor(Math.random() * 5) + 5                          // 5–9
 }
 
+export function patternUnitLen(difficulty: Difficulty): number {
+  // Patterns: how many distinct items in the repeating unit. A demotion makes
+  // the unit shorter again (ABCD → ABC → AB), i.e. genuinely easier.
+  if (difficulty === 1) return 2   // AB
+  if (difficulty === 2) return 3   // ABC
+  return 4                          // ABCD
+}
+
+export function matchTarget(difficulty: Difficulty): number {
+  // Apple Basket: how many to put in the basket. Tiers step down clearly so a
+  // demotion really does hand the child smaller numbers again.
+  if (difficulty === 1) return Math.floor(Math.random() * 3) + 1   // 1–3
+  if (difficulty === 2) return Math.floor(Math.random() * 4) + 3   // 3–6
+  return Math.floor(Math.random() * 5) + 6                          // 6–10
+}
+
 export function addPair(difficulty: Difficulty): [number, number] {
   if (difficulty === 1) {
     const a = Math.floor(Math.random() * 3) + 1  // 1–3

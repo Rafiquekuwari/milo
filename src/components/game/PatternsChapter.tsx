@@ -2,10 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { useMiloSpeaker, afterSpeech, speakAfterCurrent } from '@/lib/useMiloSpeaker'
-import { useAdaptive } from '@/lib/adaptive'
+import { useAdaptive, patternUnitLen } from '@/lib/adaptive'
 import { DifficultyBadge } from '../ui/DifficultyBadge'
-import ChapterLesson from '@/components/ui/ChapterLesson'
-import { getLessonExamples } from '@/lib/lessons'
+import PatternsLesson, { WatchPattern, TapNext, CSS as PAT_CSS } from '../lessons/PatternsLesson'
 import { useChapterPhase } from '@/lib/useChapterPhase'
 import SpeakingLock from '@/components/ui/SpeakingLock'
 import GameTopbar from '../ui/GameTopbar'
@@ -15,90 +14,79 @@ interface Props {
   childName: string
 }
 
-// ─── Pattern elements ───────────────────────────────────────────
-const SETS = [
-  { items: ['🔴', '🔵'], name: 'red blue' },
-  { items: ['⭐', '🌙'], name: 'star moon' },
-  { items: ['🦋', '🌸'], name: 'butterfly flower' },
-  { items: ['🟦', '🟨'], name: 'square diamond' },
-  { items: ['🐸', '🐠'], name: 'frog fish' },
-  { items: ['🍎', '🍋'], name: 'apple lemon' },
-  { items: ['🔺', '🔷'], name: 'triangle diamond' },
+// ─── Pattern themes (up to 4 distinct items so units can be AB / ABC / ABCD) ──
+const THEMES = [
+  { items: ['🔴','🔵','🟢','🟡'], names: ['red','blue','green','yellow'] },
+  { items: ['⭐','🌙','☀️','☁️'], names: ['star','moon','sun','cloud'] },
+  { items: ['🦋','🌸','🐝','🍀'], names: ['butterfly','flower','bee','clover'] },
+  { items: ['🐸','🐠','🐢','🦀'], names: ['frog','fish','turtle','crab'] },
+  { items: ['🍎','🍋','🍇','🍊'], names: ['apple','lemon','grape','orange'] },
+  { items: ['🔺','🔷','🟥','🟪'], names: ['triangle','diamond','square','purple'] },
 ]
 
 type QType = 'whatComesNext' | 'whatIsMissing' | 'whichBreaks'
 
 interface Round {
   type: QType
-  sequence: string[]   // full repeating sequence displayed
-  answer: string       // correct answer emoji
-  choices: string[]    // 3 shuffled choices
-  missingIndex?: number
+  sequence: string[]      // full sequence displayed (with ❓ / intruder if applicable)
+  answer: string          // correct answer emoji
+  choices: string[]       // 3 shuffled choices
+  unit: string[]          // the repeating unit (for the rule row + re-teach)
+  unitNames: string[]     // spoken names parallel to unit
+  foreign: string         // an item from another theme (distractor / intruder)
   hint: string
 }
 
-// ─── Build a repeating AB or ABC pattern ────────────────────────
-function makePattern(set: { items: string[] }, reps: number): string[] {
+function makeSeq(unit: string[], reps: number): string[] {
   const out: string[] = []
-  for (let i = 0; i < reps; i++) out.push(...set.items)
+  for (let r = 0; r < reps; r++) out.push(...unit)
   return out
 }
 
-function buildRound(idx: number): Round {
-  const setA = SETS[idx % SETS.length]
-  const setB = SETS[(idx + 3) % SETS.length] // different set for wrong choices
+function pick3(answer: string, pool: string[]): string[] {
+  const opts = new Set<string>([answer])
+  for (const p of pool) { if (opts.size >= 3) break; if (p !== answer) opts.add(p) }
+  return [...opts].sort(() => Math.random() - .5)
+}
 
-  const type: QType =
-    idx < 2 ? 'whatComesNext' :
-    idx < 4 ? 'whatIsMissing' :
-    'whichBreaks'
+function buildRound(idx: number, difficulty: 1 | 2 | 3): Round {
+  const theme   = THEMES[idx % THEMES.length]
+  const foreign = THEMES[(idx + 3) % THEMES.length].items[0]
+  const unitLen = patternUnitLen(difficulty)
+  const unit      = theme.items.slice(0, unitLen)
+  const unitNames = theme.names.slice(0, unitLen)
+  const type: QType = (['whatComesNext','whatIsMissing','whichBreaks'] as QType[])[idx % 3]
+  const reps = unitLen <= 2 ? 3 : 2
+  const common = { unit, unitNames, foreign }
 
   if (type === 'whatComesNext') {
-    // Show 4-6 items of AB pattern, ask what comes next
-    const reps = 2 + (idx % 2)
-    const seq  = makePattern(setA, reps)
-    const answer = setA.items[seq.length % setA.items.length]
-    // Distractors: next item from a different set + wrong item from same set
-    const wrong1 = setB.items[0]
-    const wrong2 = setA.items[(seq.length + 1) % setA.items.length]
-    const choices = [answer, wrong1, wrong2].sort(() => Math.random() - .5)
-    return {
-      type, sequence: seq, answer, choices,
-      hint: `What comes next in the pattern?`,
-    }
+    const base    = reps * unitLen
+    const extra   = Math.floor(Math.random() * unitLen)   // a partial last unit → answer varies
+    const shownLen = base + extra
+    const seq: string[] = []
+    for (let i = 0; i < shownLen; i++) seq.push(unit[i % unitLen])
+    const answer  = unit[shownLen % unitLen]
+    const choices = pick3(answer, [...unit, foreign])
+    return { type, sequence: seq, answer, choices, ...common, hint: 'What comes next in the pattern?' }
   }
 
   if (type === 'whatIsMissing') {
-    // Show pattern with one item replaced by ❓
-    const seq = makePattern(setA, 3)
-    const missingIndex = 2 + Math.floor(Math.random() * (seq.length - 3))
+    const seq = makeSeq(unit, reps)
+    const missingIndex = unitLen + Math.floor(Math.random() * (seq.length - unitLen))
     const answer = seq[missingIndex]
     const display = [...seq]
     display[missingIndex] = '❓'
-    const wrong1 = setB.items[0]
-    const wrong2 = setA.items[(setA.items.indexOf(answer) + 1) % setA.items.length]
-    const choices = [answer, wrong1, wrong2].sort(() => Math.random() - .5)
-    return {
-      type, sequence: display, answer, choices, missingIndex,
-      hint: `Which one is missing from the pattern?`,
-    }
+    const choices = pick3(answer, [...unit, foreign])
+    return { type, sequence: display, answer, choices, ...common, hint: 'Which one is missing from the pattern?' }
   }
 
-  // whichBreaks: show correct AB pattern with one wrong item — pick the odd one out
-  // Then give 3 choices of which position is wrong
-  const seq = makePattern(setA, 3)
-  // Inject a wrong item at a random position
+  // whichBreaks: inject a foreign item; the answer is the odd one out
+  const seq = makeSeq(unit, reps)
   const breakIdx = 1 + Math.floor(Math.random() * (seq.length - 2))
-  const original  = seq[breakIdx]
-  seq[breakIdx]   = setB.items[0]  // the intruder
-  const answer    = setB.items[0]  // the wrong item
-  const wrong1    = setA.items[0]
-  const wrong2    = setA.items[1]
-  const choices   = [answer, wrong1, wrong2].sort(() => Math.random() - .5)
-  return {
-    type, sequence: seq, answer, choices,
-    hint: `Find the one that doesn't belong!`,
-  }
+  seq[breakIdx] = foreign
+  const answer = foreign
+  const choices = pick3(answer, unit)
+  return { type, sequence: seq, answer, choices, ...common, hint: "Find the one that doesn't belong!" }
 }
 
 const TOTAL_ROUNDS = 10
@@ -120,47 +108,59 @@ export default function PatternsChapter({ onComplete, childName }: Props) {
   const { speak } = useMiloSpeaker()
   const ada = useAdaptive('patterns')
   const [roundIdx,  setRoundIdx]  = useState(0)
-  const [round,     setRound]     = useState<Round>(() => buildRound(0))
+  const [round,     setRound]     = useState<Round>(() => buildRound(0, 1))
   const [selected,  setSelected]  = useState<string | null>(null)
   const [correct,   setCorrect]   = useState(0)
   const [wrong,     setWrong]     = useState(0)
   const [feedback,  setFeedback]  = useState<'correct' | 'wrong' | null>(null)
-  const [highlight, setHighlight] = useState<number | null>(null) // index to pulse for whichBreaks
+  // Adaptive remediation: after 3 wrong in a row, re-teach the pattern, then check.
+  const [wrongRun, setWrongRun] = useState(0)
+  const [reMed, setReMed] = useState<{ phase: 'reteach' | 'check'; round: Round } | null>(null)
 
   useEffect(() => {
-    const r = buildRound(roundIdx)
+    const r = buildRound(roundIdx, ada.difficulty)
     setRound(r)
     setSelected(null)
-    setHighlight(null)
 
     const intro = roundIdx === 0
       ? `Hi ${childName}! Let's find patterns! Look carefully at the sequence.`
-      : r.hint
+      : ada.shouldHint ? `Take your time. ${r.hint}` : r.hint
     window.setTimeout(() => { speakAfterCurrent(intro) }, 300)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roundIdx])
+  }, [roundIdx, ada.difficulty])
 
   function handleChoice(choice: string) {
     if (selected !== null) return
     setSelected(choice)
     const ok = choice === round.answer
     setFeedback(ok ? 'correct' : 'wrong')
+    ada.record(ok)
+    const newRun = ok ? 0 : wrongRun + 1
+    setWrongRun(newRun)
 
     if (ok) {
       setCorrect(c => c + 1)
-      speak(roundIdx % 3 === 0
-        ? `Amazing! You found the pattern!`
-        : `Yes! Great pattern thinking!`)
+      speak(roundIdx % 3 === 0 ? `Amazing! You found the pattern! ${ada.praise}` : `Yes! Great pattern thinking! ${ada.praise}`)
     } else {
       setWrong(w => w + 1)
-      speak(`Not quite! The answer was ${round.answer}. Keep looking!`)
+      speak(`Not quite! The answer was ${round.answer}. ${ada.encouragement}`)
     }
 
     afterSpeech(() => {
-          setFeedback(null)
-              const next = roundIdx + 1
-              if (next >= TOTAL_ROUNDS) onComplete(ok?correct+1:correct, ok?wrong:wrong+1)
-              else window.setTimeout(() => setRoundIdx(next), 300)})
+      setFeedback(null)
+      // 3 wrong in a row → re-teach this pattern, then check with an easy one.
+      if (!ok && newRun >= 3) { setReMed({ phase: 'reteach', round }); return }
+      const next = roundIdx + 1
+      if (next >= TOTAL_ROUNDS) onComplete(ok ? correct + 1 : correct, ok ? wrong : wrong + 1)
+      else window.setTimeout(() => setRoundIdx(next), 300)
+    })
+  }
+
+  function finishReMed() {
+    setReMed(null); setWrongRun(0)
+    const next = roundIdx + 1
+    if (next >= TOTAL_ROUNDS) onComplete(correct, wrong)
+    else setRoundIdx(next)
   }
 
   // Derive bubble text
@@ -168,16 +168,9 @@ export default function PatternsChapter({ onComplete, childName }: Props) {
     ? feedback === 'correct' ? '🎉 Correct! Great pattern thinking!' : `The answer was ${round.answer}`
     : TYPE_LABEL[round.type]
 
-  // ── Lesson phase (5 interactive examples) ──────────────────
+  // ── Lesson phase (animated baby-step lesson) ───────────────
   if (phase === 'lesson') {
-    return (
-      <ChapterLesson
-        chapterId="patterns"
-        childName={childName}
-        examples={getLessonExamples('patterns')}
-        onLessonComplete={startPractice}
-      />
-    )
+    return <PatternsLesson childName={childName} onLessonComplete={startPractice} />
   }
 
   // ── Practice phase (10 questions with adaptive engine) ─────
@@ -225,7 +218,6 @@ export default function PatternsChapter({ onComplete, childName }: Props) {
         {round.sequence.map((item, i) => {
           const isMissing  = item === '❓'
           const isBreaker  = round.type === 'whichBreaks' && item === round.answer
-          const isSelected = selected !== null && isMissing
 
           return (
             <div
@@ -278,10 +270,10 @@ export default function PatternsChapter({ onComplete, childName }: Props) {
         )}
       </div>
 
-      {/* Repeating rule hint — show the base pattern */}
+      {/* Repeating rule hint — show the base unit */}
       <div style={S.ruleRow}>
         <span style={S.ruleLabel}>Pattern rule:</span>
-        {SETS.find(s => s.items.some(x => round.sequence.includes(x) && x !== '❓'))?.items.map((em, i) => (
+        {round.unit.map((em, i) => (
           <span key={i} style={{ fontSize: 28 }}>{em}</span>
         ))}
         <span style={{ fontFamily: 'var(--font-display)', fontSize: 18, color: 'var(--ink-muted)' }}>repeating</span>
@@ -326,6 +318,35 @@ export default function PatternsChapter({ onComplete, childName }: Props) {
       <p style={S.roundLabel}>
         Round {Math.min(roundIdx + 1, TOTAL_ROUNDS)} of {TOTAL_ROUNDS}
       </p>
+
+      {reMed?.phase === 'reteach' && (
+        <PatternRemediationOverlay>
+          <WatchPattern unit={reMed.round.unit} names={reMed.round.unitNames}
+            reps={reMed.round.unit.length <= 2 ? 3 : 2}
+            intro="Let's look at the pattern together! It repeats, over and over."
+            outro="See? Now you try with an easy one!"
+            onDone={() => setReMed({ phase: 'check', round: reMed.round })}/>
+        </PatternRemediationOverlay>
+      )}
+      {reMed?.phase === 'check' && (
+        <PatternRemediationOverlay>
+          <TapNext unit={reMed.round.unit.slice(0, 2)} reps={3} foreign={reMed.round.foreign}
+            intro="Now you try! What comes next?"
+            onDone={finishReMed}/>
+        </PatternRemediationOverlay>
+      )}
+    </div>
+  )
+}
+
+// Overlay wrapper for the re-teach / check (carries the lesson's animation CSS).
+function PatternRemediationOverlay({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{position:'fixed',inset:0,zIndex:200,background:'rgba(61,37,22,0.7)',display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+      <style>{PAT_CSS}</style>
+      <div style={{background:'var(--paper)',border:'4px solid var(--outline)',borderRadius:24,padding:'22px 14px 26px',maxWidth:480,width:'100%',boxShadow:'0 8px 0 rgba(61,37,22,.2)',maxHeight:'94vh',overflowY:'auto'}}>
+        {children}
+      </div>
     </div>
   )
 }
