@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useMiloSpeaker, afterSpeech, speakAfterCurrent } from '@/lib/useMiloSpeaker'
+import { useState, useEffect, useRef } from 'react'
+import { useMiloSpeaker, afterSpeech, speakAfterCurrent, speakAt } from '@/lib/useMiloSpeaker'
 import { useAdaptive, type Difficulty } from '@/lib/adaptive'
 
 import { useChapterPhase } from '@/lib/useChapterPhase'
@@ -72,6 +72,7 @@ export default function NumberComparisonChapter({ onComplete, childName }: Props
   // Adaptive remediation: after 3 wrong in a row, re-teach by counting & comparing.
   const [wrongRun, setWrongRun] = useState(0)
   const [reMed, setReMed]       = useState<{ phase:'reteach'|'check'; a:number; b:number; mode:Mode }|null>(null)
+  const answerRef = useRef<HTMLElement|null>(null)   // the correct group (for the pointer)
 
   useEffect(() => {
     // Build each round from the CURRENT adaptive difficulty (read on round change).
@@ -96,8 +97,8 @@ export default function NumberComparisonChapter({ onComplete, childName }: Props
     const newRun = ok ? 0 : wrongRun + 1
     setWrongRun(newRun)
     const correctVal = round.answer==='a'?round.a:round.answer==='b'?round.b:round.c!
-    if (ok) { setCorrect(c=>c+1); speak(round.mode==='more' ? `Yes! ${correctVal} is more! Great job!` : `Yes! ${correctVal} is fewer! Great job!`) }
-    else    { setWrong(w=>w+1);   speak(round.mode==='more' ? `Oops! ${correctVal} is more.` : `Oops! ${correctVal} is fewer.`) }
+    if (ok) { setCorrect(c=>c+1); speakAt(round.mode==='more' ? `Yes! ${correctVal} is more! Great job!` : `Yes! ${correctVal} is fewer! Great job!`, answerRef.current) }
+    else    { setWrong(w=>w+1);   speakAt(round.mode==='more' ? `Oops! ${correctVal} is more.` : `Oops! ${correctVal} is fewer.`, answerRef.current) }
     afterSpeech(() => {
       setFeedback(null)
       if (!ok && newRun >= 3) {                      // struggling → re-teach this comparison
@@ -150,7 +151,8 @@ export default function NumberComparisonChapter({ onComplete, childName }: Props
           const isSel = selected === key
           const isOk  = round.answer === key
           return (
-            <button key={key} onClick={() => handleSelect(key)} disabled={!!selected} style={{
+            <button key={key} onClick={() => handleSelect(key)} disabled={!!selected}
+              ref={isOk ? (el)=>{answerRef.current=el} : undefined} style={{
               ...S.card,
               background: isSel ? (isOk ? 'var(--garden-green-soft)' : 'var(--apple-red-soft)') : 'var(--paper)',
               borderColor: isSel ? (isOk ? 'var(--garden-green)' : 'var(--apple-red)') : 'var(--outline)',

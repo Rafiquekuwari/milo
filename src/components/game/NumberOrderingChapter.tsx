@@ -1,6 +1,6 @@
 'use client'
-import { useState, useEffect } from 'react'
-import { useMiloSpeaker, afterSpeech, speakAfterCurrent } from '@/lib/useMiloSpeaker'
+import { useState, useEffect, useRef } from 'react'
+import { useMiloSpeaker, afterSpeech, speakAfterCurrent, speakAt } from '@/lib/useMiloSpeaker'
 import { MiloProgressBar } from '@/components/ui/MiloUI'
 import { useAdaptive, seqStart, seqLength } from '@/lib/adaptive'
 import { DifficultyBadge } from '../ui/DifficultyBadge'
@@ -56,6 +56,7 @@ export default function NumberOrderingChapter({ onComplete, childName }: Props) 
   // Adaptive remediation: after 3 wrong in a row, re-teach the order then check.
   const [wrongRun, setWrongRun] = useState(0)
   const [reMed, setReMed] = useState<{phase:'reteach'|'check';seq:number[];hole:number;kind:'next'|'missing'}|null>(null)
+  const answerRef = useRef<HTMLElement|null>(null)   // the correct choice (for the pointer)
   // Must be before any early return — hooks must always be called in same order
   const [shuffled] = useState(() => [...Array(6).keys()].sort(()=>Math.random()-.5))
 
@@ -111,8 +112,8 @@ export default function NumberOrderingChapter({ onComplete, childName }: Props) 
     ada.record(ok)
     const newRun = ok ? 0 : wrongRun + 1
     setWrongRun(newRun)
-    if (ok) { setCorrect(c=>c+1); speak(`Yes! ${round.answer}! ${ada.praise}`) }
-    else    { setWrong(w=>w+1);   speak(`The answer is ${round.answer}. ${ada.encouragement}`) }
+    if (ok) { setCorrect(c=>c+1); speakAt(`Yes! ${round.answer}! ${ada.praise}`, answerRef.current) }
+    else    { setWrong(w=>w+1);   speakAt(`The answer is ${round.answer}. ${ada.encouragement}`, answerRef.current) }
     // 3 wrong in a row → re-teach the order, then check
     if (!ok && newRun >= 3) {
       const hole = round.type==='fillMissing' ? (round.missingIndex ?? 2) : round.sequence.length-1
@@ -181,6 +182,7 @@ export default function NumberOrderingChapter({ onComplete, childName }: Props) 
         <div style={S.choiceRow}>
           {round.choices.map(c=>(
             <button key={c} className="milo-btn tone-blue" onClick={()=>handleChoice(c)} disabled={answered}
+              ref={c===round.answer ? (el)=>{answerRef.current=el} : undefined}
               style={{width:88,height:88,fontSize:38,borderRadius:22}}>
               {c}
             </button>

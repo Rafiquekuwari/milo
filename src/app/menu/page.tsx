@@ -197,9 +197,9 @@ export default function MainMenu() {
             background: 'linear-gradient(135deg, var(--milo-orange-soft) 0%, #fff 100%)',
             border: '3px solid var(--milo-orange)',
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', rowGap: 10 }}>
               <div style={{ fontSize: 36 }}>{CHAPTER_EMOJIS[resumeChapter]}</div>
-              <div style={{ flex: 1 }}>
+              <div style={{ flex: 1, minWidth: 140 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--milo-orange)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 }}>
                   Continue where you left off
                 </div>
@@ -247,13 +247,13 @@ export default function MainMenu() {
               {doneCount} / {CHAPTER_ORDER.length} done
             </span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', rowGap: 10 }}>
             <img
               src={CHAPTER_ASSETS[nextChapter]}
               style={{ width: 56, height: 56, objectFit: 'contain' }}
               alt=""
             />
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, minWidth: 140 }}>
               <h3 style={{ fontSize: 22, margin: 0 }}>{CHAPTER_NAMES[nextChapter]}</h3>
               <p style={{ fontSize: 14, marginTop: 2, color: 'var(--ink-soft)' }}>
                 {allDone ? 'Great job! All chapters complete!' : 'Tap Play to start!'}

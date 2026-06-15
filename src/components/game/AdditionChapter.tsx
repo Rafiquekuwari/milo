@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
-import { useMiloSpeaker, afterSpeech, speakAfterCurrent } from '@/lib/useMiloSpeaker'
+import { useMiloSpeaker, afterSpeech, speakAfterCurrent, speakAt } from '@/lib/useMiloSpeaker'
 import { useAdaptive, addPair } from '@/lib/adaptive'
 import { DifficultyBadge } from '../ui/DifficultyBadge'
 import { useChapterPhase } from '@/lib/useChapterPhase'
@@ -47,6 +47,7 @@ export default function AdditionChapter({onComplete,childName}:Props){
   // Adaptive remediation: after 3 wrong in a row, re-teach by counting the sum.
   const[wrongRun,setWrongRun]=useState(0)
   const[reMed,setReMed]=useState<{phase:'reteach'|'check';a:number;b:number;emoji:string}|null>(null)
+  const answerRef=useRef<HTMLElement|null>(null)   // the correct sum choice (for the pointer)
   const timers=useRef<number[]>([])
   const clearT=()=>{timers.current.forEach(id=>window.clearTimeout(id));timers.current=[]}
 
@@ -75,8 +76,8 @@ export default function AdditionChapter({onComplete,childName}:Props){
     ada.record(ok)
     const newRun=ok?0:wrongRun+1
     setWrongRun(newRun)
-    if(ok){setCorrect(c=>c+1);speak(`Yes! ${a} plus ${b} is ${ans}! ${ada.praise}`)}
-    else  {setWrong(w=>w+1);speak(`${a} plus ${b} equals ${ans}. ${ada.encouragement}`)}
+    if(ok){setCorrect(c=>c+1);speakAt(`Yes! ${a} plus ${b} is ${ans}! ${ada.praise}`, answerRef.current)}
+    else  {setWrong(w=>w+1);speakAt(`${a} plus ${b} equals ${ans}. ${ada.encouragement}`, answerRef.current)}
     afterSpeech(()=>{
       setFeedback(null)
       // 3 wrong in a row → re-teach this sum by counting it, then check
@@ -192,7 +193,8 @@ export default function AdditionChapter({onComplete,childName}:Props){
           {choices.map(ch=>{
             const isSel=selected===ch;const isOk=ch===ans
             return(
-              <button key={ch} disabled={selected!==null} onClick={()=>handleAnswer(ch)} style={{
+              <button key={ch} disabled={selected!==null} onClick={()=>handleAnswer(ch)}
+                ref={isOk ? (el)=>{answerRef.current=el} : undefined} style={{
                 width:96,height:96,background:isSel?(isOk?'var(--garden-green-soft)':'var(--apple-red-soft)'):'var(--paper)',
                 border:`4px solid ${isSel?(isOk?'var(--garden-green)':'var(--apple-red)'):'var(--outline)'}`,
                 borderRadius:24,boxShadow:isSel?`0 6px 0 ${isOk?'var(--garden-green-deep)':'var(--apple-red-deep)'}`:'0 6px 0 #c8ac79',

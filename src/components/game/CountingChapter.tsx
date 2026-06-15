@@ -8,7 +8,7 @@ import { DifficultyBadge } from '@/components/ui/DifficultyBadge'
 import { useChapterPhase } from '@/lib/useChapterPhase'
 import SpeakingLock from '@/components/ui/SpeakingLock'
 import GameTopbar from '@/components/ui/GameTopbar'
-import { afterSpeech, speakAfterCurrent, speak, stopSpeech, useMiloSpeaker } from '@/lib/useMiloSpeaker'
+import { afterSpeech, speakAfterCurrent, speak, speakAt, stopSpeech, useMiloSpeaker } from '@/lib/useMiloSpeaker'
 import CountingLesson from '../lessons/CountingLesson'
 
 interface Props { onComplete:(c:number,w:number)=>void; childName:string }
@@ -80,6 +80,7 @@ export default function CountingChapter({onComplete,childName}:Props){
   const[remediation,setRemediation]=useState<Remediation|null>(null)
   // Log of misses in the current wrong streak — used to diagnose the difficulty.
   const missLog=useRef<Miss[]>([])
+  const answerRef=useRef<HTMLElement|null>(null)   // the correct number choice (for the pointer)
 
   function newRound(idx:number){
     const t=countTarget(ada.difficulty)
@@ -120,8 +121,8 @@ export default function CountingChapter({onComplete,childName}:Props){
     // Record the miss (with whether/how much they counted) for diagnosis.
     if(ok) missLog.current = []
     else   missLog.current = [...missLog.current, { target, choice, taps: tapped.length }]
-    if(ok){setCorrect(c=>c+1);speak(ada.isOnFire?ada.praise:`Yes! ${target} ${emojiSet.label}! ${ada.praise}`)}
-    else   {setWrong(w=>w+1);speak(`Oops! There are ${target} ${emojiSet.label}. ${ada.encouragement}`)}
+    if(ok){setCorrect(c=>c+1);speakAt(ada.isOnFire?ada.praise:`Yes! ${target} ${emojiSet.label}! ${ada.praise}`, answerRef.current)}
+    else   {setWrong(w=>w+1);speakAt(`Oops! There are ${target} ${emojiSet.label}. ${ada.encouragement}`, answerRef.current)}
     afterSpeech(() => {
           setFeedback(null)
           // 3 wrong in a row → diagnose the difficulty, then re-teach accordingly
@@ -212,7 +213,9 @@ export default function CountingChapter({onComplete,childName}:Props){
       )}
       <div style={S.choiceRow}>
         {choices.map(c=>(
-          <button key={c} onClick={()=>handleAnswer(c)} disabled={answered} style={{
+          <button key={c} onClick={()=>handleAnswer(c)} disabled={answered}
+            ref={c===target ? (el)=>{answerRef.current=el} : undefined}
+            style={{
             ...S.choiceBtn,
             background:answered&&c===target?'var(--garden-green-soft)':'var(--paper)',
             borderColor:answered&&c===target?'var(--garden-green)':'var(--outline)',

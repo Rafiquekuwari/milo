@@ -1,11 +1,11 @@
 'use client'
-import { useState, useEffect } from 'react'
-import { useMiloSpeaker, afterSpeech, speakAfterCurrent } from '@/lib/useMiloSpeaker'
+import { useState, useEffect, useRef } from 'react'
+import { useMiloSpeaker, afterSpeech, speakSeq, speakAt } from '@/lib/useMiloSpeaker'
+import { pointAt } from '@/lib/miloPointer'
 import { MiloProgressBar } from '@/components/ui/MiloUI'
-import { useAdaptive, Difficulty } from '@/lib/adaptive'
+import { useAdaptive, matchTarget, Difficulty } from '@/lib/adaptive'
 import { DifficultyBadge } from '../ui/DifficultyBadge'
-import ChapterLesson from '@/components/ui/ChapterLesson'
-import { getLessonExamples } from '@/lib/lessons'
+import MatchingQuantitiesLesson, { WatchFill, TapFill, CSS as MATCH_CSS } from '../lessons/MatchingQuantitiesLesson'
 import { useChapterPhase } from '@/lib/useChapterPhase'
 import SpeakingLock from '@/components/ui/SpeakingLock'
 import GameTopbar from '../ui/GameTopbar'
@@ -14,9 +14,8 @@ interface Props { onComplete:(c:number,w:number)=>void; childName:string }
 const TOTAL_ROUNDS = 10
 const TOTAL_APPLES = 10
 
-function buildRound(diff: number) {
-  const max = diff === 1 ? 5 : diff === 2 ? 7 : 10
-  return { target: Math.floor(Math.random() * max) + 1 }
+function buildRound(diff: Difficulty) {
+  return { target: matchTarget(diff) }
 }
 
 export default function MatchingQuantitiesChapter({ onComplete, childName }: Props) {
@@ -31,27 +30,40 @@ export default function MatchingQuantitiesChapter({ onComplete, childName }: Pro
   const [wrong, setWrong] = useState(0)
   const [feedback, setFeedback] = useState<'correct'|'wrong'|null>(null)
   const [shaking, setShaking] = useState(false)
+  // Gates apple-tapping until Milo has FINISHED the round instruction, so the
+  // counting can never jump ahead of "Put N apples in the basket!".
+  const [ready, setReady] = useState(false)
+  // Adaptive remediation: after 3 wrong in a row, re-teach by re-counting into
+  // the basket, then check with a small, confidence-building number.
+  const [wrongRun, setWrongRun] = useState(0)
+  const [reMed, setReMed] = useState<{phase:'reteach'|'check'; target:number}|null>(null)
+  const basketRef = useRef<HTMLDivElement | null>(null)   // pointer target (the basket)
 
   useEffect(() => {
     const r = buildRound(ada.difficulty)
-    setRound(r); setBasket(0); setSubmitted(false)
-    window.setTimeout(() => speakAfterCurrent(
-      roundIdx === 0
-        ? `Hi ${childName}! Put ${r.target} apple${r.target > 1 ? 's' : ''} in the basket!`
-        : ada.shouldHint
-        ? `Put exactly ${r.target} apple${r.target > 1 ? 's' : ''} — count carefully!`
-        : `Put ${r.target} apple${r.target > 1 ? 's' : ''} in the basket!`
-    ), 300)
+    setRound(r); setBasket(0); setSubmitted(false); setReady(false)
+    const apples = `apple${r.target > 1 ? 's' : ''}`
+    const prompt =
+      roundIdx === 0   ? `Hi ${childName}! Put ${r.target} ${apples} in the basket!`
+      : ada.shouldHint ? `Put exactly ${r.target} ${apples} — count carefully!`
+      :                  `Put ${r.target} ${apples} in the basket!`
+    // Speak the instruction first; only unlock tapping once it has finished, so a
+    // number can never be spoken before the instruction.
+    let started = false
+    const cancel = speakSeq([prompt], { onWord: () => { started = true; pointAt(basketRef.current) }, onDone: () => setReady(true) })
+    // Fallback: if speech never starts (blocked autoplay, muted device…), unlock
+    // anyway so the round can never get stuck with the apples disabled.
+    const fb = window.setTimeout(() => { if (!started) setReady(true) }, 2000)
+    return () => { cancel(); window.clearTimeout(fb) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roundIdx, ada.difficulty])
 
   if (phase === 'lesson') return (
-    <ChapterLesson chapterId="matchingQuantities" childName={childName}
-      examples={getLessonExamples('matchingQuantities')} onLessonComplete={startPractice} />
+    <MatchingQuantitiesLesson childName={childName} onLessonComplete={startPractice} />
   )
 
   function addApple() {
-    if (submitted || basket >= TOTAL_APPLES) return
+    if (!ready || submitted || basket >= TOTAL_APPLES) return
     const next = basket + 1
     setBasket(next)
     speak(String(next))
@@ -63,14 +75,25 @@ export default function MatchingQuantitiesChapter({ onComplete, childName }: Pro
     const ok = basket === round.target
     setFeedback(ok ? 'correct' : 'wrong')
     ada.record(ok)
-    if (ok) { setCorrect(c=>c+1); speak(`Yes! ${round.target} apples! ${ada.praise}`) }
-    else { setWrong(w=>w+1); setShaking(true); speak(`We needed ${round.target}. ${ada.encouragement}`); window.setTimeout(()=>setShaking(false),500) }
+    const newRun = ok ? 0 : wrongRun + 1
+    setWrongRun(newRun)
+    if (ok) { setCorrect(c=>c+1); speakAt(`Yes! ${round.target} apples! ${ada.praise}`, basketRef.current) }
+    else { setWrong(w=>w+1); setShaking(true); speakAt(`We needed ${round.target}. ${ada.encouragement}`, basketRef.current); window.setTimeout(()=>setShaking(false),500) }
     afterSpeech(() => {
           setFeedback(null)
+          // 3 wrong in a row → re-teach this target, then check with a small one.
+          if (!ok && newRun >= 3) { setReMed({ phase:'reteach', target: round.target }); return }
           const next = roundIdx + 1
           if (next >= TOTAL_ROUNDS) onComplete(ok?correct+1:correct, ok?wrong:wrong+1)
           else window.setTimeout(() => setRoundIdx(next), 300)
         })
+  }
+
+  function finishReMed() {
+    setReMed(null); setWrongRun(0)
+    const next = roundIdx + 1
+    if (next >= TOTAL_ROUNDS) onComplete(correct, wrong)
+    else setRoundIdx(next)
   }
 
   return (
@@ -93,16 +116,16 @@ export default function MatchingQuantitiesChapter({ onComplete, childName }: Pro
         <p style={S.areaLabel}>Tap apples to pick them:</p>
         <div style={S.appleGrid}>
           {Array.from({length:TOTAL_APPLES}).map((_,i)=>(
-            <button key={i} onClick={addApple} disabled={submitted||i<basket} style={{
+            <button key={i} onClick={addApple} disabled={!ready||submitted||i<basket} style={{
               fontSize:ada.difficulty===1?40:34, background:'transparent', border:'none',
-              cursor:submitted||i<basket?'default':'pointer',
-              opacity:i<basket?0.25:1, transform:i<basket?'scale(.8)':'scale(1)',
+              cursor:!ready||submitted||i<basket?'default':'pointer',
+              opacity:i<basket?0.25:!ready?0.5:1, transform:i<basket?'scale(.8)':'scale(1)',
               transition:'all .15s',
             }}>🍎</button>
           ))}
         </div>
       </div>
-      <div style={{...S.basketArea, animation:shaking?'shake 400ms ease both':'none'}}>
+      <div ref={basketRef} style={{...S.basketArea, animation:shaking?'shake 400ms ease both':'none'}}>
         <p style={S.areaLabel}>Your basket: <strong>{basket}</strong> / {round.target}</p>
         <div style={S.basketRow}>
           <span style={{fontSize:48}}>🧺</span>
@@ -125,6 +148,35 @@ export default function MatchingQuantitiesChapter({ onComplete, childName }: Pro
         {feedback==='correct'?`🎉 ${round.target} apples!`:`We needed ${round.target}!`}
       </div>}
       <p style={S.label}>Round {Math.min(roundIdx+1,TOTAL_ROUNDS)} of {TOTAL_ROUNDS}</p>
+
+      {reMed?.phase==='reteach' && (
+        <MatchRemediationOverlay>
+          <WatchFill target={reMed.target} emoji="🍎"
+            intro={`Let's count them in together! We need ${reMed.target}.`}
+            outro={`${reMed.target} apples — just right! Now you try with a small one!`}
+            onDone={()=>setReMed({phase:'check',target:Math.min(reMed.target,3)})}/>
+        </MatchRemediationOverlay>
+      )}
+      {reMed?.phase==='check' && (
+        <MatchRemediationOverlay>
+          <TapFill target={reMed.target} emoji="🍎"
+            intro={`Now you try! Put exactly ${reMed.target} in the basket.`}
+            outro={`${reMed.target} apples! You did it!`}
+            onDone={finishReMed}/>
+        </MatchRemediationOverlay>
+      )}
+    </div>
+  )
+}
+
+// Overlay wrapper for the re-teach / check (carries the lesson's animation CSS).
+function MatchRemediationOverlay({children}:{children:React.ReactNode}){
+  return (
+    <div style={{position:'fixed',inset:0,zIndex:200,background:'rgba(61,37,22,0.7)',display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+      <style>{MATCH_CSS}</style>
+      <div style={{background:'var(--paper)',border:'4px solid var(--outline)',borderRadius:24,padding:'22px 14px 26px',maxWidth:480,width:'100%',boxShadow:'0 8px 0 rgba(61,37,22,.2)',maxHeight:'94vh',overflowY:'auto'}}>
+        {children}
+      </div>
     </div>
   )
 }

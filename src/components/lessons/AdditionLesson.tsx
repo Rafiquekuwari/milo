@@ -12,6 +12,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { speak, stopSpeech } from '@/lib/useMiloSpeaker'
+import ScaleToFill from './ScaleToFill'
 
 interface Props { childName: string; onLessonComplete: () => void }
 
@@ -189,7 +190,7 @@ function Shell({step,miloMood,bubble,children,onNext,nextReady,onBack,onSkip}:{
     ?'/assets/characters/milo-thinking.png'
     :'/assets/characters/milo-happy.png'
   return (
-    <div style={{
+    <div className="milo-lesson" style={{
       minHeight:'100dvh',display:'flex',flexDirection:'column',
       alignItems:'center',background:'var(--bg-page)',
       padding:'10px 14px 24px',gap:10,
@@ -248,7 +249,7 @@ function Shell({step,miloMood,bubble,children,onNext,nextReady,onBack,onSkip}:{
         display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
         padding:16,minHeight:260,position:'relative',overflow:'hidden',
       }}>
-        {children}
+        <ScaleToFill>{children}</ScaleToFill>
       </div>
 
       <button onClick={onNext} disabled={!nextReady} style={{

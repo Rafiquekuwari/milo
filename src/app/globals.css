@@ -663,3 +663,27 @@ p, .p {
 .shake      { animation: shake      400ms var(--ease-smooth) both; }
 .bounce-in  { animation: bounce-in  350ms var(--ease-bounce)  both; }
 .slide-up   { animation: slide-up   260ms var(--ease-smooth)  both; }
+/* ── Bigger objects + text inside chapters, auto-fit to the screen ──────────── */
+/* The JS fit controller (game/page.tsx) sets --game-zoom so content is as large
+   as possible while still fitting the viewport — no scroll, any screen. `zoom`
+   (not transform) keeps the fixed topbar + modals anchored to the viewport. */
+.game-zoom { zoom: var(--game-zoom, 1); }
+/* Practice chapters size to their content so the fit controller can scale them UP
+   to fill the screen while staying centred; the stage (game/page.tsx) paints the
+   theme colour across the whole screen. */
+.game-zoom > * { min-height: 0 !important; }
+/* Lessons stay full-height: nav bar pinned to the top, the canvas centred in the
+   middle (ScaleToFill grows the content to fill it), Next button at the bottom. */
+.game-zoom > .milo-lesson { min-height: 100dvh !important; }
+
+/* ── Voice pointer (bouncing hand that points at what Milo is saying) ───────── */
+@keyframes milo-point-bob {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50%      { transform: translateX(-50%) translateY(-9px); }
+}
+
+/* ── Mobile: stop the menu/topbar chips overlapping the hero, shrink wordmark ── */
+@media (max-width: 560px) {
+  .kit-topbar { position: relative; flex-wrap: wrap; row-gap: 8px; padding: 12px 16px; }
+  .kit-wordmark { font-size: 36px !important; }
+}

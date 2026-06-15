@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useMiloSpeaker, afterSpeech, speakAfterCurrent } from '@/lib/useMiloSpeaker'
+import { useState, useEffect, useRef } from 'react'
+import { useMiloSpeaker, afterSpeech, speakAfterCurrent, speak, speakSeq, speakAt } from '@/lib/useMiloSpeaker'
 
 interface Props {
   onComplete: (correct: number, wrong: number) => void
@@ -23,13 +23,16 @@ const COLORS: ColorDef[] = [
 type QType = 'matchColor'|'nameColor'
 interface Round { type: QType; targetColor: ColorDef; choices: ColorDef[]; question: string; shapeKey: string }
 
-function buildRound(idx: number): Round {
+function buildRound(idx: number, diff: number): Round {
   // Pure colour recognition: alternate "match this colour" and "name this colour".
   const type: QType = idx % 2 === 0 ? 'matchColor' : 'nameColor'
   const shape = SHAPES[Math.floor(Math.random() * SHAPES.length)]   // random object
   const shuffled = [...COLORS].sort(() => Math.random()-.5)
   const target = shuffled[0]
-  const choices = [target, shuffled[1], shuffled[2]].sort(() => Math.random()-.5)
+  // Difficulty = how many buckets to choose from (more = harder). A demotion
+  // shrinks the choices back down.
+  const count = diff === 1 ? 3 : diff === 2 ? 4 : 5
+  const choices = shuffled.slice(0, count).sort(() => Math.random()-.5)
   return {
     type, targetColor: target, choices, shapeKey: shape.key,
     question: type === 'matchColor' ? `Which paint bucket is ${target.name}?` : `What color is this ${shape.label}?`,
@@ -70,36 +73,52 @@ export default function ColorGardenChapter({ onComplete, childName }: Props) {
   const { speak } = useMiloSpeaker()
   const ada = useAdaptive('colors')
   const [roundIdx, setRoundIdx]     = useState(0)
-  const [round, setRound]           = useState<Round>(() => buildRound(0))
+  const [round, setRound]           = useState<Round>(() => buildRound(0, 1))
   const [selected, setSelected]     = useState<string|null>(null)
   const [correct, setCorrect]       = useState(0)
   const [wrong, setWrong]           = useState(0)
   const [feedback, setFeedback]     = useState<'correct'|'wrong'|null>(null)
   const [flowerColor, setFlowerColor] = useState('#D1D5DB')
+  // Adaptive remediation: after 3 wrong in a row, re-teach the colour, then check.
+  const [wrongRun, setWrongRun] = useState(0)
+  const [reMed, setReMed] = useState<{phase:'reteach'|'check'; color:ColorDef; shapeKey:string}|null>(null)
+  const answerRef = useRef<HTMLElement | null>(null)   // the correct bucket (for the pointer)
 
   useEffect(() => {
-    const r = buildRound(roundIdx)
+    const r = buildRound(roundIdx, ada.difficulty)
     setRound(r); setSelected(null)
     // "What colour is this flower?" must actually show the colour — otherwise it's
     // unanswerable. Match/mix rounds keep the flower grey until the child answers.
     setFlowerColor(r.type === 'nameColor' ? r.targetColor.hex : '#D1D5DB')
     window.setTimeout(() => { speakAfterCurrent(roundIdx === 0 ? `Hi ${childName}! ${r.question}` : r.question) }, 300)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roundIdx])
+  }, [roundIdx, ada.difficulty])
 
   function handleChoice(color: ColorDef) {
     if (selected) return
     setSelected(color.name); setFlowerColor(color.hex)
     const ok = color.name === round.targetColor.name
     setFeedback(ok ? 'correct' : 'wrong')
-    if (ok) { setCorrect(c=>c+1); speak(`Yes! ${color.name}! Beautiful!`) }
-    else    { setWrong(w=>w+1);   speak(`Oops! The answer was ${round.targetColor.name}!`); window.setTimeout(()=>setFlowerColor(round.targetColor.hex), 500) }
+    ada.record(ok)
+    const newRun = ok ? 0 : wrongRun + 1
+    setWrongRun(newRun)
+    if (ok) { setCorrect(c=>c+1); speakAt(`Yes! ${color.name}! ${ada.praise}`, answerRef.current) }
+    else    { setWrong(w=>w+1);   speakAt(`Oops! The answer was ${round.targetColor.name}. ${ada.encouragement}`, answerRef.current); window.setTimeout(()=>setFlowerColor(round.targetColor.hex), 500) }
     afterSpeech(() => {
       setFeedback(null)
+      // 3 wrong in a row → re-teach this colour, then check
+      if (!ok && newRun >= 3) { setReMed({ phase:'reteach', color: round.targetColor, shapeKey: round.shapeKey }); return }
       const next = roundIdx + 1
       if (next >= TOTAL_ROUNDS) onComplete(ok?correct+1:correct, ok?wrong:wrong+1)
       else window.setTimeout(() => setRoundIdx(next), 300)
     })
+  }
+
+  function finishReMed() {
+    setReMed(null); setWrongRun(0)
+    const next = roundIdx + 1
+    if (next >= TOTAL_ROUNDS) onComplete(correct, wrong)
+    else setRoundIdx(next)
   }
 
   // ── Lesson phase ───────────────────────────────────────────
@@ -145,7 +164,9 @@ export default function ColorGardenChapter({ onComplete, childName }: Props) {
           const isSel = selected === color.name
           const isOk  = color.name === round.targetColor.name
           return (
-            <button key={color.name} onClick={() => handleChoice(color)} disabled={!!selected} style={{
+            <button key={color.name} onClick={() => handleChoice(color)} disabled={!!selected}
+              ref={isOk ? (el)=>{answerRef.current=el} : undefined}
+              style={{
               ...S.bucket,
               background: color.hex,
               borderColor: isSel ? (isOk?'var(--garden-green)':'var(--apple-red)') : 'var(--outline)',
@@ -162,7 +183,101 @@ export default function ColorGardenChapter({ onComplete, childName }: Props) {
 
       {feedback && <div style={{position:'fixed',top:'38%',left:'50%',transform:'translate(-50%,-50%)',color:'#fff',fontFamily:'var(--font-display)',fontWeight:900,fontSize:'var(--t-h1)',padding:'20px 40px',borderRadius:24,border:'4px solid var(--outline)',boxShadow:'0 8px 0 rgba(61,37,22,.2)',zIndex:50,textAlign:'center',animation:'modal-in 280ms cubic-bezier(.34,1.56,.64,1) both',background:feedback==='correct'?'var(--garden-green)':'var(--apple-red)'}}>{feedback==='correct'?`🌸 ${round.targetColor.name}!`:`It was ${round.targetColor.name}!`}</div>}
       <p style={S.label}>Round {Math.min(roundIdx+1,TOTAL_ROUNDS)} of {TOTAL_ROUNDS}</p>
+
+      {reMed?.phase==='reteach' && (
+        <ColorRemediationOverlay>
+          <WatchColor color={reMed.color} shapeKey={reMed.shapeKey} onDone={()=>setReMed({phase:'check',color:reMed.color,shapeKey:reMed.shapeKey})}/>
+        </ColorRemediationOverlay>
+      )}
+      {reMed?.phase==='check' && (
+        <ColorRemediationOverlay>
+          <CheckColor color={reMed.color} shapeKey={reMed.shapeKey} onDone={finishReMed}/>
+        </ColorRemediationOverlay>
+      )}
     </div>
+  )
+}
+
+// ─── Re-teach overlay (shown after 3 wrong in a row) ──────────────
+function ColorRemediationOverlay({children}:{children:React.ReactNode}){
+  return (
+    <div style={{position:'fixed',inset:0,zIndex:200,background:'rgba(61,37,22,0.7)',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+      <div style={{background:'var(--paper)',border:'4px solid var(--outline)',borderRadius:28,padding:'24px 22px 28px',maxWidth:420,width:'100%',textAlign:'center',boxShadow:'0 8px 0 rgba(61,37,22,.2)',maxHeight:'92vh',overflowY:'auto'}}>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+// WATCH — show the object filled with the missed colour and name it.
+function WatchColor({color,shapeKey,onDone}:{color:ColorDef;shapeKey:string;onDone:()=>void}){
+  const [shown,setShown]=useState(false)
+  const ran=useRef(false)
+  useEffect(()=>{
+    if(ran.current)return; ran.current=true
+    const lines=[`Let's look at this colour again.`, `This colour is ${color.name}!`, `${color.name}. Now you try!`]
+    let started=false, finished=false
+    const cl:Array<()=>void>=[]
+    const at=(fn:()=>void,ms:number)=>{ const id=window.setTimeout(fn,ms); cl.push(()=>window.clearTimeout(id)) }
+    at(()=>setShown(true),150)
+    const complete=()=>{ if(finished)return; finished=true; at(onDone,800) }
+    const cancel=speakSeq(lines,{onWord:()=>{started=true},onDone:complete}); cl.push(cancel)
+    at(()=>{ if(started||finished)return; cancel(); at(()=>speak(lines[0]),0); at(()=>{setShown(true);speak(`This colour is ${color.name}!`)},2000); at(()=>{speak('Now you try!');complete()},3800) },1900)
+    return ()=>cl.forEach(f=>f())
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[])
+  return (
+    <>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,marginBottom:8}}>
+        <img src="/assets/characters/milo-thinking.png" alt="Milo" style={{width:48,height:48,objectFit:'contain'}} onError={e=>{(e.target as HTMLImageElement).style.display='none'}}/>
+        <h3 style={{fontFamily:'var(--font-display)',fontSize:20,margin:0,color:'var(--milo-orange)'}}>Let's look again!</h3>
+      </div>
+      <div style={{height:150,display:'flex',alignItems:'center',justifyContent:'center'}}>
+        {shown && <div dangerouslySetInnerHTML={{ __html: SHAPE(shapeKey).svg(color.hex) }} style={{width:140,height:140,animation:'modal-in 400ms cubic-bezier(.34,1.56,.64,1) both'}}/>}
+      </div>
+      <div style={{fontFamily:'var(--font-display)',fontWeight:900,fontSize:26,color:color.hex,textTransform:'capitalize',textShadow:'0 2px 0 rgba(61,37,22,.12)'}}>{color.name}</div>
+    </>
+  )
+}
+
+// CHECK — child picks the colour from two buckets (retry on wrong).
+function CheckColor({color,shapeKey,onDone}:{color:ColorDef;shapeKey:string;onDone:()=>void}){
+  const buckets=useRef<ColorDef[]>((()=>{
+    const other = COLORS.filter(c=>c.name!==color.name).sort(()=>Math.random()-.5)[0]
+    return [color,other].sort(()=>Math.random()-.5)
+  })()).current
+  const [picked,setPicked]=useState<string|null>(null)
+  const [wrongPick,setWrongPick]=useState<string|null>(null)
+  const spoken=useRef(false)
+  useEffect(()=>{ if(spoken.current)return; spoken.current=true; speak(`Now you try! Which one is ${color.name}?`) },[])
+  function pick(c:ColorDef){
+    if(picked!=null)return
+    if(c.name===color.name){ setPicked(c.name); speak(`Yes! ${color.name}! Wonderful!`); window.setTimeout(onDone,2200) }
+    else { setWrongPick(c.name); speak(`That's ${c.name}. Find ${color.name}! Try again!`); window.setTimeout(()=>setWrongPick(null),900) }
+  }
+  return (
+    <>
+      <h3 style={{fontFamily:'var(--font-display)',fontSize:20,margin:'0 0 4px',color:'var(--garden-green-deep)'}}>Your turn!</h3>
+      <p style={{fontFamily:'var(--font-body)',fontSize:15,color:'var(--ink-soft)',margin:'0 0 16px'}}>Tap the <span style={{color:color.hex,textTransform:'capitalize',fontWeight:800}}>{color.name}</span> bucket.</p>
+      <div style={{display:'flex',gap:18,justifyContent:'center'}}>
+        {buckets.map(c=>{
+          const isRight=picked===c.name, isWrong=wrongPick===c.name
+          return (
+            <button key={c.name} onClick={()=>pick(c)} disabled={picked!=null} style={{
+              width:90,height:100,borderRadius:20,background:c.hex,
+              border:`4px solid ${isRight?'var(--garden-green)':isWrong?'var(--apple-red)':'var(--outline)'}`,
+              boxShadow:`0 5px 0 ${c.hex}aa`,cursor:picked!=null?'default':'pointer',
+              display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:4,fontSize:38,position:'relative',
+              transform:isRight?'scale(1.1) translateY(-6px)':'scale(1)',transition:'transform 160ms cubic-bezier(.34,1.56,.64,1)',
+            }}>
+              🪣
+              <span style={{fontFamily:'var(--font-body)',fontSize:12,fontWeight:700,color:'#fff',textShadow:'0 1px 2px rgba(0,0,0,.4)',textTransform:'capitalize'}}>{c.name}</span>
+              {isRight&&<span style={{position:'absolute',top:-12,right:-12,fontSize:24}}>✅</span>}
+            </button>
+          )
+        })}
+      </div>
+    </>
   )
 }
 
