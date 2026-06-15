@@ -6,6 +6,20 @@ import { useRouter } from 'next/navigation'
 import BackButton from '@/components/ui/BackButton'
 import { useMiloStore } from '@/lib/store'
 import { useMiloSpeaker } from '@/lib/useMiloSpeaker'
+import { getActiveLearner } from '@/lib/supabase/useLearnerSession'
+import { saveLearnerState } from '@/lib/supabase/queries'
+
+// Push the latest coins/owned/equipped to Supabase so the shop syncs across devices.
+function syncShopState() {
+  const learner = getActiveLearner()
+  if (!learner) return
+  const p = useMiloStore.getState().profile
+  saveLearnerState(learner.id, {
+    coinsSpent:    p.coinsSpent,
+    ownedItems:    p.ownedItems,
+    equippedItems: p.equippedItems,
+  }).catch(() => {})
+}
 
 interface ShopItem {
   id: string; name: string; emoji: string
@@ -48,6 +62,7 @@ export default function ShopPage() {
   function handleBuy(item: ShopItem) {
     if (profile.ownedItems.includes(item.id)) {
       equipItem(item.slot, item.id)
+      syncShopState()
       speak(`${item.name} equipped!`)
       showFlash(`✅ ${item.name} equipped!`)
       return
@@ -60,6 +75,7 @@ export default function ShopPage() {
     const ok = purchaseItem(item.id, item.cost)
     if (ok) {
       equipItem(item.slot, item.id)
+      syncShopState()
       speak(`You got the ${item.name}! Great choice!`)
       showFlash(`🎉 Got ${item.name}!`)
     }
@@ -170,6 +186,7 @@ export default function ShopPage() {
                 onClick={() => {
                   // Unequip — remove from equipped
                   equipItem(featured.slot, '')
+                  syncShopState()
                   speak('Taken off!')
                   showFlash('Taken off!')
                 }}

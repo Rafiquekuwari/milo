@@ -9,7 +9,7 @@ import BackButton from '@/components/ui/BackButton'
 import ChapterPicker from '@/components/ui/ChapterPicker'
 import PWAInstallBanner from '@/components/ui/PWAInstallBanner'
 import { getActiveLearner } from '@/lib/supabase/useLearnerSession'
-import { getLearnerStats, getLearnerProgress } from '@/lib/supabase/queries'
+import { getLearnerStats, getLearnerProgress, getLearnerState, saveLearnerState } from '@/lib/supabase/queries'
 
 const AVATAR_SRCS = ['/assets/objects/fox.png','/assets/objects/bunny.png','/assets/objects/bear.png','/assets/objects/cat.png']
 const LEVEL_NAMES   = ['Beginner','Counter','Explorer','Number Star','Math Wizard','Champion',"Milo's Champion",'Legend']
@@ -75,15 +75,24 @@ export default function MainMenu() {
       setLastPlayedState(lp)
       setReady(true)
 
-      // Cross-device sync: pull this learner's progress from Supabase and merge it
-      // in, so completed chapters / stars / XP show on whatever device they log in.
+      // Cross-device sync: pull this learner's full state from Supabase (progress,
+      // coins, shop items) and merge it in, so everything shows on whatever device
+      // they log in on. Then push the merged state back to reconcile the server
+      // (propagates anything bought/earned offline). All merges are monotonic.
       ;(async () => {
         try {
-          const [stats, progress] = await Promise.all([
+          const [stats, progress, state] = await Promise.all([
             getLearnerStats(learner.id),
             getLearnerProgress(learner.id),
+            getLearnerState(learner.id),
           ])
-          applyServerProgress(stats, progress)
+          applyServerProgress(stats, progress, state)
+          const p = useMiloStore.getState().profile
+          await saveLearnerState(learner.id, {
+            coinsSpent:    p.coinsSpent,
+            ownedItems:    p.ownedItems,
+            equippedItems: p.equippedItems,
+          })
         } catch { /* offline — local profile stands until next online load */ }
       })()
 

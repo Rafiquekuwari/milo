@@ -5,7 +5,7 @@ import { toast } from '@/components/ui/Toast'
  * Supabase query helpers — all DB access goes through here
  */
 import { createClient } from './client'
-import type { ChapterType, Learner, LearnerStats, LearnerProgress, Session } from './types'
+import type { ChapterType, Learner, LearnerStats, LearnerProgress, LearnerState, Session } from './types'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function db(): any {
@@ -125,6 +125,36 @@ export async function getRecentSessions(learnerId: string, limit = 5): Promise<S
     .order('started_at', { ascending: false })
     .limit(limit)
   return (data ?? []) as Session[]
+}
+
+// ─── Shop / coins state (cross-device) ────────────────────────
+
+export async function getLearnerState(learnerId: string): Promise<LearnerState | null> {
+  const supabase = db()
+  const { data } = await supabase
+    .from('learner_state')
+    .select('*')
+    .eq('learner_id', learnerId)
+    .maybeSingle()
+  return (data ?? null) as LearnerState | null
+}
+
+export async function saveLearnerState(
+  learnerId: string,
+  state: { coinsSpent: number; ownedItems: string[]; equippedItems: Record<string, string> },
+): Promise<boolean> {
+  const supabase = db()
+  const { error } = await supabase
+    .from('learner_state')
+    .upsert({
+      learner_id:     learnerId,
+      coins_spent:    state.coinsSpent,
+      owned_items:    state.ownedItems,
+      equipped_items: state.equippedItems,
+      updated_at:     new Date().toISOString(),
+    }, { onConflict: 'learner_id' })
+  if (error) { console.error('[saveLearnerState] rpc failed:', error.message); return false }
+  return true
 }
 
 // ─── Session sync ─────────────────────────────────────────────
