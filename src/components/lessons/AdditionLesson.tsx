@@ -11,7 +11,7 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { speak, stopSpeech, afterSpeech } from '@/lib/useMiloSpeaker'
+import { speak, stopSpeech } from '@/lib/useMiloSpeaker'
 
 interface Props { childName: string; onLessonComplete: () => void }
 
@@ -297,25 +297,17 @@ export function WatchAdd({a,b,emoji,intro,outro,onDone}:{
 
   useEffect(()=>{
     alive.current=true
-    // Run cb when the current sentence FINISHES (no overlap), with a safety
-    // fallback timer so playback can never get stuck waiting on speech.
-    const afterSentence=(cb:()=>void,maxWait:number)=>{
-      let fired=false
-      const run=()=>{ if(fired||!alive.current)return; fired=true; cb() }
-      window.setTimeout(()=>{ if(alive.current) afterSpeech(run) },350)
-      window.setTimeout(run,maxWait)
-    }
     if(!ran.current){
       ran.current=true
+      // Plain fixed-timer pacing (like the Counting lesson) — no afterSpeech.
       speak(intro)
-      afterSentence(()=>{                                   // after the intro, count it out
-        let tt=300
-        for(let k=1;k<=total;k++){
-          // Each object POPS IN as it is counted (like the Counting chapter)
-          window.setTimeout(()=>{ if(!alive.current)return; setShown(k); setBigN(k); speak(String(k)) }, tt); tt+=1000
-        }
-        window.setTimeout(()=>{ if(!alive.current)return; setShowTotal(true); speak(outro); window.setTimeout(()=>{ if(alive.current) onDone() },3600) }, tt+200)
-      },3600)
+      let t=2200                                  // lead so the short intro finishes
+      for(let k=1;k<=total;k++){                   // each object pops in as it's counted
+        const kk=k
+        window.setTimeout(()=>{ if(!alive.current)return; setShown(kk); setBigN(kk); window.setTimeout(()=>{ if(alive.current) speak(String(kk)) },60) }, t); t+=1100
+      }
+      t+=500
+      window.setTimeout(()=>{ if(!alive.current)return; setShowTotal(true); speak(outro); window.setTimeout(()=>{ if(alive.current) onDone() },3800) }, t)
     }
     return ()=>{ alive.current=false }
   },[])
@@ -521,25 +513,17 @@ export function ChooseSum({a,b,emoji,intro,onDone}:{
 
   useEffect(()=>{
     alive.current=true
-    const afterSentence=(cb:()=>void,maxWait:number)=>{
-      let fired=false
-      const run=()=>{ if(fired||!alive.current)return; fired=true; cb() }
-      window.setTimeout(()=>{ if(alive.current) afterSpeech(run) },350)
-      window.setTimeout(run,maxWait)
-    }
     if(!ran.current){
       ran.current=true
+      // Plain fixed-timer pacing (like the Counting lesson) — no afterSpeech.
       speak(intro)
-      afterSentence(()=>{
-        let tt=200
-        // count group A (1..a)
-        for(let k=1;k<=a;k++){ window.setTimeout(()=>{ if(!alive.current)return; setShown(k); setBigN(k); speak(String(k)) }, tt); tt+=1000 }
-        // "and more!" then count group B (restarts at 1, so the total isn't given away)
-        window.setTimeout(()=>{ if(alive.current){ setBigN(0); speak('and more!') } }, tt); tt+=1100
-        for(let k=1;k<=b;k++){ window.setTimeout(()=>{ if(!alive.current)return; setShown(a+k); setBigN(k); speak(String(k)) }, tt); tt+=1000 }
-        // reveal the choices
-        window.setTimeout(()=>{ if(!alive.current)return; setBigN(0); setPhase('choose'); speak('How many altogether? Pick the answer!') }, tt+200)
-      }, 4000)
+      let t=2200
+      for(let k=1;k<=a;k++){ const kk=k; window.setTimeout(()=>{ if(!alive.current)return; setShown(kk); setBigN(kk); window.setTimeout(()=>{ if(alive.current) speak(String(kk)) },60) }, t); t+=1100 }
+      t+=400
+      window.setTimeout(()=>{ if(!alive.current)return; setBigN(0); speak('and more!') }, t); t+=1400
+      for(let k=1;k<=b;k++){ const kk=k; const gi=a+k; window.setTimeout(()=>{ if(!alive.current)return; setShown(gi); setBigN(kk); window.setTimeout(()=>{ if(alive.current) speak(String(kk)) },60) }, t); t+=1100 }
+      t+=400
+      window.setTimeout(()=>{ if(!alive.current)return; setBigN(0); setPhase('choose'); speak('How many altogether? Pick the answer!') }, t)
     }
     return ()=>{ alive.current=false }
   },[])
@@ -634,7 +618,7 @@ export function ChooseSum({a,b,emoji,intro,onDone}:{
 function Step({i,onDone}:{i:number,onDone:()=>void}) {
   switch(i){
     case 0: return <WatchAdd a={2} b={1} emoji="🍎"
-      intro="Adding means putting groups together! Milo has two apples…"
+      intro="Milo has two apples!"
       outro="Two apples and one more apple make three! Adding makes MORE!" onDone={onDone}/>
     case 1: return <SectionBreak emoji="🎉" title="Adding makes MORE!"
       subtitle="Two groups join together to make a bigger group!" onDone={onDone}/>
@@ -650,12 +634,12 @@ function Step({i,onDone}:{i:number,onDone:()=>void}) {
       intro="Milo has two cookies…"
       outro="Two cookies and two more make four cookies! Yummy!" onDone={onDone}/>
     case 6: return <ChooseSum a={3} b={1} emoji="🌸"
-      intro="Three flowers and one more flower. How many altogether? Pick the answer!" onDone={onDone}/>
+      intro="Three flowers and one more flower!" onDone={onDone}/>
     case 7: return <TapTotal a={3} b={2} emoji="🦋"
       intro="Tap all the butterflies! Count three and two more!"
       outro="Five butterflies! Three and two more make five! Amazing!" onDone={onDone}/>
     case 8: return <ChooseSum a={4} b={2} emoji="🎈"
-      intro="Four balloons and two more balloons. How many altogether? You choose!" onDone={onDone}/>
+      intro="Four balloons and two more balloons!" onDone={onDone}/>
     case 9: return <WatchAdd a={3} b={3} emoji="🍄"
       intro="Last one! Three mushrooms…"
       outro="Three and three more make six! You finished the whole lesson! Incredible!" onDone={onDone}/>
