@@ -3,12 +3,10 @@ import { useState, useEffect, useRef } from 'react'
 import { useMiloSpeaker, afterSpeech, speakAfterCurrent } from '@/lib/useMiloSpeaker'
 import { useAdaptive, addPair } from '@/lib/adaptive'
 import { DifficultyBadge } from '../ui/DifficultyBadge'
-import ChapterLesson from '@/components/ui/ChapterLesson'
-import { getLessonExamples } from '@/lib/lessons'
 import { useChapterPhase } from '@/lib/useChapterPhase'
 import SpeakingLock from '@/components/ui/SpeakingLock'
 import GameTopbar from '../ui/GameTopbar'
-import AdditionLesson from '../lessons/AdditionLesson'
+import AdditionLesson, { WatchAdd, ChooseSum, CSS as ADD_CSS } from '../lessons/AdditionLesson'
 
 
 interface Props{onComplete:(c:number,w:number)=>void;childName:string}
@@ -46,6 +44,9 @@ export default function AdditionChapter({onComplete,childName}:Props){
   const[selected,setSelected]=useState<number|null>(null)
   const[correct,setCorrect]=useState(0);const[wrong,setWrong]=useState(0)
   const[feedback,setFeedback]=useState<'correct'|'wrong'|null>(null)
+  // Adaptive remediation: after 3 wrong in a row, re-teach by counting the sum.
+  const[wrongRun,setWrongRun]=useState(0)
+  const[reMed,setReMed]=useState<{phase:'reteach'|'check';a:number;b:number;emoji:string}|null>(null)
   const timers=useRef<number[]>([])
   const clearT=()=>{timers.current.forEach(id=>window.clearTimeout(id));timers.current=[]}
 
@@ -72,10 +73,14 @@ export default function AdditionChapter({onComplete,childName}:Props){
     const ans=a+b;const ok=choice===ans
     setSelected(choice);setStage('answered');setFeedback(ok?'correct':'wrong')
     ada.record(ok)
+    const newRun=ok?0:wrongRun+1
+    setWrongRun(newRun)
     if(ok){setCorrect(c=>c+1);speak(`Yes! ${a} plus ${b} is ${ans}! ${ada.praise}`)}
     else  {setWrong(w=>w+1);speak(`${a} plus ${b} equals ${ans}. ${ada.encouragement}`)}
     afterSpeech(()=>{
       setFeedback(null)
+      // 3 wrong in a row → re-teach this sum by counting it, then check
+      if(!ok && newRun>=3){ setReMed({phase:'reteach',a,b,emoji:story.emoji}); return }
       const next=roundIdx+1
       if(next>=TOTAL_ROUNDS){
         onComplete(
@@ -87,6 +92,14 @@ export default function AdditionChapter({onComplete,childName}:Props){
       }
     })
     timers.current=[]
+  }
+
+  // Remediation finished (passed the check) → resume play. The triggering answer
+  // was wrong and already counted.
+  function finishReMed(){
+    setReMed(null); setWrongRun(0)
+    if(roundIdx+1>=TOTAL_ROUNDS) onComplete(correct, wrong)
+    else setRoundIdx(roundIdx+1)
   }
 
   const ans=a+b
@@ -199,6 +212,34 @@ export default function AdditionChapter({onComplete,childName}:Props){
         {feedback==='correct'?`✅ ${a} + ${b} = ${ans}!`:`The answer was ${ans}`}
       </div>}
       <p style={S.roundLabel}>Round {Math.min(roundIdx+1,TOTAL_ROUNDS)} of {TOTAL_ROUNDS}</p>
+
+      {reMed?.phase==='reteach' && (
+        <AddRemediationOverlay>
+          <WatchAdd a={reMed.a} b={reMed.b} emoji={reMed.emoji}
+            intro={`Let's count them together! ${reMed.a} and ${reMed.b} more.`}
+            outro={`${reMed.a} plus ${reMed.b} is ${reMed.a+reMed.b}! Now you try!`}
+            onDone={()=>setReMed({phase:'check',a:2,b:1,emoji:reMed.emoji})}/>
+        </AddRemediationOverlay>
+      )}
+      {reMed?.phase==='check' && (
+        <AddRemediationOverlay>
+          <ChooseSum a={reMed.a} b={reMed.b} emoji={reMed.emoji}
+            intro="Now you try! Count and pick how many altogether."
+            onDone={finishReMed}/>
+        </AddRemediationOverlay>
+      )}
+    </div>
+  )
+}
+
+// Overlay wrapper for the re-teach / check (carries the lesson's animation CSS).
+function AddRemediationOverlay({children}:{children:React.ReactNode}){
+  return (
+    <div style={{position:'fixed',inset:0,zIndex:200,background:'rgba(61,37,22,0.7)',display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+      <style>{ADD_CSS}</style>
+      <div style={{background:'var(--paper)',border:'4px solid var(--outline)',borderRadius:24,padding:'22px 14px 26px',maxWidth:480,width:'100%',boxShadow:'0 8px 0 rgba(61,37,22,.2)',maxHeight:'94vh',overflowY:'auto'}}>
+        {children}
+      </div>
     </div>
   )
 }

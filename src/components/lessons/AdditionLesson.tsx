@@ -11,7 +11,7 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { speak, stopSpeech } from '@/lib/useMiloSpeaker'
+import { speak, stopSpeech, afterSpeech } from '@/lib/useMiloSpeaker'
 
 interface Props { childName: string; onLessonComplete: () => void }
 
@@ -27,7 +27,7 @@ function numberWord(n: number): string {
 }
 
 // ─── Global CSS (shared keyframes) ────────────────────────────
-const CSS = `
+export const CSS = `
   @keyframes a_bounceIn {
     0%  { transform:scale(0) translateY(30px); opacity:0 }
     60% { transform:scale(1.25) translateY(-6px); opacity:1 }
@@ -145,6 +145,18 @@ function GroupBadge({n,color}:{n:number,color:string}) {
   )
 }
 
+// Big number that pops in the centre as counting progresses (one at a time).
+function BigCount({n}:{n:number}) {
+  if(n<=0) return null
+  return (
+    <div style={{
+      fontFamily:'var(--font-display)',fontWeight:900,fontSize:60,lineHeight:1,
+      color:'var(--milo-orange)',textShadow:'0 5px 0 rgba(61,37,22,.12)',
+      animation:'a_countBadge 0.4s cubic-bezier(.34,1.56,.64,1)',
+    }}>{n}</div>
+  )
+}
+
 function SectionBreak({emoji,title,subtitle,onDone}:{
   emoji:string,title:string,subtitle:string,onDone:()=>void
 }) {
@@ -168,10 +180,10 @@ function SectionBreak({emoji,title,subtitle,onDone}:{
 }
 
 // ─── Shell (back + progress + Milo bubble + Next) ────────────
-function Shell({step,miloMood,bubble,children,onNext,nextReady,onBack}:{
+function Shell({step,miloMood,bubble,children,onNext,nextReady,onBack,onSkip}:{
   step:number,miloMood:'happy'|'thinking'|'celebrate',
   bubble:string,children:React.ReactNode,
-  onNext:()=>void,nextReady:boolean,onBack:()=>void,
+  onNext:()=>void,nextReady:boolean,onBack:()=>void,onSkip:()=>void,
 }) {
   const src = miloMood==='thinking'
     ?'/assets/characters/milo-thinking.png'
@@ -197,7 +209,7 @@ function Shell({step,miloMood,bubble,children,onNext,nextReady,onBack}:{
             boxShadow:'0 3px 0 rgba(242,107,44,.25)',
           }}
         >← Menu</button>
-        <div style={{display:'flex',gap:4,flex:1,justifyContent:'center'}}>
+        <div style={{display:'flex',gap:4,flex:1,justifyContent:'center',flexWrap:'wrap'}}>
         {Array.from({length:TOTAL_STEPS}).map((_,i)=>(
           <div key={i} style={{
             width:i===step?22:8,height:8,borderRadius:4,transition:'all 0.3s ease',
@@ -205,6 +217,12 @@ function Shell({step,miloMood,bubble,children,onNext,nextReady,onBack}:{
           }}/>
         ))}
         </div>
+        <button onClick={onSkip} title="Skip the lesson and start playing" style={{
+          display:'flex',alignItems:'center',gap:4,padding:'7px 14px',borderRadius:50,flexShrink:0,
+          background:'var(--garden-green)',border:'3px solid var(--garden-green-deep)',color:'#fff',
+          fontFamily:'var(--font-display)',fontWeight:800,fontSize:13,cursor:'pointer',
+          boxShadow:'0 3px 0 var(--garden-green-deep)',
+        }}>Skip ▶</button>
       </div>
 
       <div style={{display:'flex',alignItems:'flex-end',gap:10,width:'100%',maxWidth:520}}>
@@ -267,68 +285,80 @@ function ItemSpan({emoji,size,highlight,badge,badgeColor,anim}:{
 // ═══════════════════════════════════════════════════════════
 // WATCH — Milo combines two groups and counts the total
 // ═══════════════════════════════════════════════════════════
-function WatchAdd({a,b,emoji,intro,outro,onDone}:{
+export function WatchAdd({a,b,emoji,intro,outro,onDone}:{
   a:number,b:number,emoji:string,intro:string,outro:string,onDone:()=>void
 }) {
   const total=a+b
-  const [bIn,setBIn]=useState(false)     // group B has dropped in
-  const [counted,setCounted]=useState(0) // how many counted so far (across both)
+  const [shown,setShown]=useState(0)      // items revealed so far (group A first, then B)
+  const [bigN,setBigN]=useState(0)        // big centre count number
   const [showTotal,setShowTotal]=useState(false)
   const ran=useRef(false)
+  const alive=useRef(false)
 
   useEffect(()=>{
-    if(ran.current)return; ran.current=true
-    speak(intro)
-    // Drop group B in
-    window.setTimeout(()=>{
-      setBIn(true)
-      speak(`and ${numberWord(b)} more!`)
-    },1900)
-    // Count every item one by one
-    const countStart=3200
-    for(let k=1;k<=total;k++){
-      window.setTimeout(()=>{
-        setCounted(k)
-        window.setTimeout(()=>speak(String(k)),60)
-      },countStart+(k-1)*700)
+    alive.current=true
+    // Run cb when the current sentence FINISHES (no overlap), with a safety
+    // fallback timer so playback can never get stuck waiting on speech.
+    const afterSentence=(cb:()=>void,maxWait:number)=>{
+      let fired=false
+      const run=()=>{ if(fired||!alive.current)return; fired=true; cb() }
+      window.setTimeout(()=>{ if(alive.current) afterSpeech(run) },350)
+      window.setTimeout(run,maxWait)
     }
-    // Reveal total + outro
-    window.setTimeout(()=>{
-      setShowTotal(true)
-      speak(outro)
-      window.setTimeout(onDone,3000)
-    },countStart+total*700+300)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    if(!ran.current){
+      ran.current=true
+      speak(intro)
+      afterSentence(()=>{                                   // after the intro, count it out
+        let tt=300
+        for(let k=1;k<=total;k++){
+          // Each object POPS IN as it is counted (like the Counting chapter)
+          window.setTimeout(()=>{ if(!alive.current)return; setShown(k); setBigN(k); speak(String(k)) }, tt); tt+=1000
+        }
+        window.setTimeout(()=>{ if(!alive.current)return; setShowTotal(true); speak(outro); window.setTimeout(()=>{ if(alive.current) onDone() },3600) }, tt+200)
+      },3600)
+    }
+    return ()=>{ alive.current=false }
   },[])
 
+  // Render a group's slots: empty outline until that object is counted, then it pops in.
+  const renderGroup = (count:number, offset:number) => (
+    <div style={{display:'flex',gap:6,flexWrap:'wrap',justifyContent:'center',maxWidth:150,minHeight:50}}>
+      {Array.from({length:count}).map((_,i)=>{
+        const idx=offset+i
+        const seen=shown>idx
+        const justNow=shown===idx+1 && !showTotal
+        return seen ? (
+          <span key={i} style={{
+            fontSize:40,display:'inline-block',
+            animation:'a_bounceIn 0.45s cubic-bezier(.34,1.56,.64,1)',
+            filter:justNow?'drop-shadow(0 0 12px rgba(255,200,0,0.9))':'none',
+          }}>{emoji}</span>
+        ) : (
+          <div key={i} style={{width:40,height:40,borderRadius:'50%',border:'2px dashed rgba(61,37,22,0.18)'}}/>
+        )
+      })}
+    </div>
+  )
+
   return (
-    <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:18,width:'100%'}}>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:14,flexWrap:'wrap'}}>
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:14,width:'100%'}}>
+      {/* big counting number */}
+      <div style={{height:58,display:'flex',alignItems:'center',justifyContent:'center'}}>
+        {bigN>0 && !showTotal && <BigCount key={bigN} n={bigN}/>}
+      </div>
+
+      <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:12,flexWrap:'wrap'}}>
         {/* Group A */}
         <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:8}}>
-          <div style={{display:'flex',gap:6,flexWrap:'wrap',justifyContent:'center',maxWidth:150,minHeight:50}}>
-            {Array.from({length:a}).map((_,i)=>(
-              <ItemSpan key={i} emoji={emoji} size={40}
-                highlight={counted===i+1}
-                badge={counted>i?i+1:undefined} badgeColor={BADGE_COLORS[i]}
-                anim={`a_dropIn 0.4s cubic-bezier(.34,1.56,.64,1) ${i*120}ms both`}/>
-            ))}
-          </div>
+          {renderGroup(a,0)}
           <GroupBadge n={a} color={GROUP_A_COLOR}/>
         </div>
 
         <div style={{fontFamily:'var(--font-display)',fontWeight:900,fontSize:40,color:'var(--milo-orange)'}}>+</div>
 
         {/* Group B */}
-        <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:8,opacity:bIn?1:0.15,transition:'opacity 0.3s ease'}}>
-          <div style={{display:'flex',gap:6,flexWrap:'wrap',justifyContent:'center',maxWidth:150,minHeight:50}}>
-            {Array.from({length:b}).map((_,i)=>(
-              <ItemSpan key={i} emoji={emoji} size={40}
-                highlight={counted===a+i+1}
-                badge={counted>a+i?a+i+1:undefined} badgeColor={BADGE_COLORS[(a+i)%BADGE_COLORS.length]}
-                anim={bIn?`a_slideInRight 0.45s cubic-bezier(.34,1.56,.64,1) ${i*120}ms both`:'none'}/>
-            ))}
-          </div>
+        <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:8}}>
+          {renderGroup(b,a)}
           <GroupBadge n={b} color={GROUP_B_COLOR}/>
         </div>
 
@@ -425,7 +455,6 @@ function TapTotal({a,b,emoji,intro,outro,onDone}:{
                   animationDelay:`${i*0.12}s`,pointerEvents:'none',
                 }}/>
               )}
-              {isTapped&&<CountBadge n={tapped.indexOf(i)+1} color={BADGE_COLORS[tapped.indexOf(i)%BADGE_COLORS.length]}/>}
             </button>
           )
         })}
@@ -442,6 +471,9 @@ function TapTotal({a,b,emoji,intro,outro,onDone}:{
         color:'var(--milo-orange)',background:'var(--milo-orange-soft)',
         borderRadius:50,padding:'6px 16px',border:'2px solid var(--milo-orange)',
       }}>Tap them ALL to count! 👆</div>
+      <div style={{height:50,display:'flex',alignItems:'center',justifyContent:'center'}}>
+        {tapped.length>0 && !done && <BigCount key={tapped.length} n={tapped.length}/>}
+      </div>
       <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',justifyContent:'center'}}>
         {renderGroup(a,0)}
         <div style={{fontFamily:'var(--font-display)',fontWeight:900,fontSize:34,color:'var(--milo-orange)'}}>+</div>
@@ -463,14 +495,18 @@ function TapTotal({a,b,emoji,intro,outro,onDone}:{
 // ═══════════════════════════════════════════════════════════
 // CHOOSE — show A + B, pick the total from 3 choices (gentle: retry until right)
 // ═══════════════════════════════════════════════════════════
-function ChooseSum({a,b,emoji,intro,onDone}:{
+export function ChooseSum({a,b,emoji,intro,onDone}:{
   a:number,b:number,emoji:string,intro:string,onDone:()=>void
 }) {
   const total=a+b
+  const [shown,setShown]=useState(0)       // objects revealed so far (A then B)
+  const [bigN,setBigN]=useState(0)
+  const [phase,setPhase]=useState<'count'|'choose'>('count')
   const [picked,setPicked]=useState<number|null>(null)
   const [wrongPick,setWrongPick]=useState<number|null>(null)
   const [burst,setBurst]=useState(false)
-  const spoken=useRef(false)
+  const ran=useRef(false)
+  const alive=useRef(false)
 
   const choices=useRef<number[]>((()=>{
     const opts=new Set<number>([total])
@@ -484,12 +520,32 @@ function ChooseSum({a,b,emoji,intro,onDone}:{
   })()).current
 
   useEffect(()=>{
-    if(spoken.current)return; spoken.current=true
-    speak(intro)
-  },[intro])
+    alive.current=true
+    const afterSentence=(cb:()=>void,maxWait:number)=>{
+      let fired=false
+      const run=()=>{ if(fired||!alive.current)return; fired=true; cb() }
+      window.setTimeout(()=>{ if(alive.current) afterSpeech(run) },350)
+      window.setTimeout(run,maxWait)
+    }
+    if(!ran.current){
+      ran.current=true
+      speak(intro)
+      afterSentence(()=>{
+        let tt=200
+        // count group A (1..a)
+        for(let k=1;k<=a;k++){ window.setTimeout(()=>{ if(!alive.current)return; setShown(k); setBigN(k); speak(String(k)) }, tt); tt+=1000 }
+        // "and more!" then count group B (restarts at 1, so the total isn't given away)
+        window.setTimeout(()=>{ if(alive.current){ setBigN(0); speak('and more!') } }, tt); tt+=1100
+        for(let k=1;k<=b;k++){ window.setTimeout(()=>{ if(!alive.current)return; setShown(a+k); setBigN(k); speak(String(k)) }, tt); tt+=1000 }
+        // reveal the choices
+        window.setTimeout(()=>{ if(!alive.current)return; setBigN(0); setPhase('choose'); speak('How many altogether? Pick the answer!') }, tt+200)
+      }, 4000)
+    }
+    return ()=>{ alive.current=false }
+  },[])
 
   function pick(c:number){
-    if(picked!=null)return
+    if(phase!=='choose'||picked!=null)return
     if(c===total){
       setPicked(c); setWrongPick(null); setBurst(true)
       speak(`Yes! ${a} plus ${b} equals ${total}! Wonderful!`)
@@ -501,17 +557,33 @@ function ChooseSum({a,b,emoji,intro,onDone}:{
     }
   }
 
+  const renderGroup = (count:number, offset:number) => (
+    <div style={{display:'flex',gap:5,flexWrap:'wrap',justifyContent:'center',maxWidth:130,minHeight:42}}>
+      {Array.from({length:count}).map((_,i)=>{
+        const idx=offset+i
+        const seen=shown>idx
+        const justNow=shown===idx+1 && phase==='count'
+        return seen ? (
+          <span key={i} style={{fontSize:34,display:'inline-block',animation:'a_bounceIn 0.45s cubic-bezier(.34,1.56,.64,1)',filter:justNow?'drop-shadow(0 0 10px rgba(255,200,0,0.9))':'none'}}>{emoji}</span>
+        ) : (
+          <div key={i} style={{width:34,height:34,borderRadius:'50%',border:'2px dashed rgba(61,37,22,0.18)'}}/>
+        )
+      })}
+    </div>
+  )
+
   return (
-    <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:16,position:'relative'}}>
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:14,position:'relative'}}>
       {burst&&<Confetti/>}
+
+      <div style={{height:46,display:'flex',alignItems:'center',justifyContent:'center'}}>
+        {bigN>0 && <BigCount key={bigN} n={bigN}/>}
+      </div>
+
       <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',justifyContent:'center'}}>
-        <div style={{display:'flex',gap:5,flexWrap:'wrap',justifyContent:'center',maxWidth:130}}>
-          {Array.from({length:a}).map((_,i)=><span key={i} style={{fontSize:34}}>{emoji}</span>)}
-        </div>
+        {renderGroup(a,0)}
         <div style={{fontFamily:'var(--font-display)',fontWeight:900,fontSize:32,color:'var(--milo-orange)'}}>+</div>
-        <div style={{display:'flex',gap:5,flexWrap:'wrap',justifyContent:'center',maxWidth:130}}>
-          {Array.from({length:b}).map((_,i)=><span key={i} style={{fontSize:34}}>{emoji}</span>)}
-        </div>
+        {renderGroup(b,a)}
         <div style={{fontFamily:'var(--font-display)',fontWeight:900,fontSize:32,color:'var(--milo-orange)'}}>=</div>
         <div style={{
           width:54,height:54,borderRadius:16,border:'3px solid var(--milo-orange-deep)',
@@ -522,26 +594,30 @@ function ChooseSum({a,b,emoji,intro,onDone}:{
         }}>{picked!=null?total:'?'}</div>
       </div>
 
-      <div style={{fontFamily:'var(--font-display)',fontWeight:800,fontSize:14,color:'var(--ink-soft)'}}>How many altogether?</div>
+      {phase==='choose' && !picked && (
+        <div style={{fontFamily:'var(--font-display)',fontWeight:800,fontSize:14,color:'var(--ink-soft)'}}>How many altogether?</div>
+      )}
 
-      <div style={{display:'flex',gap:14,justifyContent:'center',flexWrap:'wrap'}}>
-        {choices.map(c=>{
-          const isRight=picked===c
-          const isWrong=wrongPick===c
-          return (
-            <button key={c} onClick={()=>pick(c)} disabled={picked!=null} style={{
-              width:80,height:80,borderRadius:22,
-              background:isRight?'var(--garden-green-soft)':isWrong?'var(--apple-red-soft)':'var(--paper)',
-              border:`4px solid ${isRight?'var(--garden-green)':isWrong?'var(--apple-red)':'var(--outline)'}`,
-              boxShadow:isRight?'0 6px 0 var(--garden-green-deep)':isWrong?'0 6px 0 var(--apple-red-deep)':'0 6px 0 #c8ac79',
-              fontFamily:'var(--font-display)',fontWeight:900,fontSize:38,color:'var(--ink)',
-              cursor:picked!=null?'default':'pointer',
-              transform:isRight?'scale(1.1) translateY(-4px)':isWrong?'translateX(0)':'scale(1)',
-              transition:'transform 160ms cubic-bezier(.34,1.56,.64,1),background 160ms ease',
-            }}>{c}</button>
-          )
-        })}
-      </div>
+      {phase==='choose' && (
+        <div style={{display:'flex',gap:14,justifyContent:'center',flexWrap:'wrap'}}>
+          {choices.map(c=>{
+            const isRight=picked===c
+            const isWrong=wrongPick===c
+            return (
+              <button key={c} onClick={()=>pick(c)} disabled={picked!=null} style={{
+                width:80,height:80,borderRadius:22,
+                background:isRight?'var(--garden-green-soft)':isWrong?'var(--apple-red-soft)':'var(--paper)',
+                border:`4px solid ${isRight?'var(--garden-green)':isWrong?'var(--apple-red)':'var(--outline)'}`,
+                boxShadow:isRight?'0 6px 0 var(--garden-green-deep)':isWrong?'0 6px 0 var(--apple-red-deep)':'0 6px 0 #c8ac79',
+                fontFamily:'var(--font-display)',fontWeight:900,fontSize:38,color:'var(--ink)',
+                cursor:picked!=null?'default':'pointer',
+                transform:isRight?'scale(1.1) translateY(-4px)':isWrong?'translateX(0)':'scale(1)',
+                transition:'transform 160ms cubic-bezier(.34,1.56,.64,1),background 160ms ease',
+              }}>{c}</button>
+            )
+          })}
+        </div>
+      )}
 
       {picked!=null && (
         <div style={{
@@ -636,6 +712,7 @@ export default function AdditionLesson({childName,onLessonComplete}:Props) {
         onNext={next}
         nextReady={nextReady}
         onBack={()=>setConfirmBack(true)}
+        onSkip={()=>{stopSpeech();onLessonComplete()}}
       >
         <Step key={step} i={step} onDone={done}/>
       </Shell>
