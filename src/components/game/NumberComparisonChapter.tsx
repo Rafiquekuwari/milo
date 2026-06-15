@@ -2,13 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import { useMiloSpeaker, afterSpeech, speakAfterCurrent } from '@/lib/useMiloSpeaker'
-import { useAdaptive } from '@/lib/adaptive'
+import { useAdaptive, type Difficulty } from '@/lib/adaptive'
 
-import ChapterLesson from '@/components/ui/ChapterLesson'
-import { getLessonExamples } from '@/lib/lessons'
 import { useChapterPhase } from '@/lib/useChapterPhase'
 import SpeakingLock from '@/components/ui/SpeakingLock'
 import GameTopbar from '../ui/GameTopbar'
+import BiggerSmallerLesson, { CompareCards, CSS as LESSON_CSS } from '../lessons/BiggerSmallerLesson'
 
 import { DifficultyBadge } from '../ui/DifficultyBadge'
 interface Props {
@@ -17,22 +16,44 @@ interface Props {
 }
 
 type Key = 'a' | 'b' | 'c'
-interface Round { a: number; b: number; c?: number; answer: Key; question: string }
+type Mode = 'more' | 'less'
+interface Round { a: number; b: number; c?: number; answer: Key; question: string; mode: Mode }
 
-function buildRound(idx: number): Round {
-  const max = idx < 2 ? 6 : idx < 4 ? 9 : 10
-  const a = Math.floor(Math.random() * max) + 1
-  let b = Math.floor(Math.random() * max) + 1
-  while (b === a) b = Math.floor(Math.random() * max) + 1
+const rnd = (max: number) => Math.floor(Math.random() * max) + 1
 
-  if (idx < 4) {
-    return { a, b, answer: a > b ? 'a' : 'b', question: idx < 2 ? 'Which number is bigger?' : 'Which group has more?' }
+// Question difficulty now comes from the adaptive engine, not the round number:
+//   level 1 → 2 cards, numbers 1-5, clear gap, "bigger" only (easiest)
+//   level 2 → 2 cards, numbers 1-9, "more" or "fewer"
+//   level 3 → 3 cards, numbers 1-10, "most" or "least"
+function buildRound(diff: Difficulty): Round {
+  const max = diff === 1 ? 5 : diff === 2 ? 9 : 10
+  const three = diff >= 3
+  const want: Mode = diff === 1 ? 'more' : (Math.random() < 0.5 ? 'more' : 'less')
+  let a = rnd(max), b = rnd(max)
+  while (b === a) b = rnd(max)
+  if (diff === 1) { // make the easiest level an obvious gap
+    let guard = 0
+    while (Math.abs(a - b) < 2 && guard++ < 20) { b = rnd(max); if (b === a) b = rnd(max) }
   }
-  let c = Math.floor(Math.random() * max) + 1
-  while (c === a || c === b) c = Math.floor(Math.random() * max) + 1
-  const vals = [a, b, c]; const mx = Math.max(...vals)
-  return { a, b, c, answer: vals[0]===mx?'a':vals[1]===mx?'b':'c', question: 'Which has the most?' }
+
+  if (!three) {
+    const biggerKey: Key = a > b ? 'a' : 'b'
+    const smallerKey: Key = a < b ? 'a' : 'b'
+    return {
+      a, b, mode: want,
+      answer: want === 'more' ? biggerKey : smallerKey,
+      question: want === 'more' ? 'Which has more?' : 'Which has fewer?',
+    }
+  }
+  let c = rnd(max)
+  while (c === a || c === b) c = rnd(max)
+  const vals = [a, b, c]
+  const targetVal = want === 'more' ? Math.max(...vals) : Math.min(...vals)
+  const answer: Key = vals[0] === targetVal ? 'a' : vals[1] === targetVal ? 'b' : 'c'
+  return { a, b, c, answer, mode: want, question: want === 'more' ? 'Which has the most?' : 'Which has the least?' }
 }
+
+const EASY_PAIR = { a: 4, b: 1 }   // clear gap, used for the remediation check
 
 const TOTAL_ROUNDS = 10
 const EMOJIS = ['🌟','🍓','🐸','🎈','🦋']
@@ -42,34 +63,55 @@ export default function NumberComparisonChapter({ onComplete, childName }: Props
   const { speak } = useMiloSpeaker()
   const ada = useAdaptive('numberComparison')
   const [roundIdx, setRoundIdx] = useState(0)
-  const [round, setRound]       = useState<Round>(() => buildRound(0))
+  const [round, setRound]       = useState<Round>(() => buildRound(1))
   const [selected, setSelected] = useState<Key|null>(null)
   const [correct, setCorrect]   = useState(0)
   const [wrong, setWrong]       = useState(0)
   const [feedback, setFeedback] = useState<'correct'|'wrong'|null>(null)
   const [emoji]                 = useState(EMOJIS[Math.floor(Math.random()*EMOJIS.length)])
+  // Adaptive remediation: after 3 wrong in a row, re-teach by counting & comparing.
+  const [wrongRun, setWrongRun] = useState(0)
+  const [reMed, setReMed]       = useState<{ phase:'reteach'|'check'; a:number; b:number; mode:Mode }|null>(null)
 
   useEffect(() => {
-    const r = buildRound(roundIdx)
+    // Build each round from the CURRENT adaptive difficulty (read on round change).
+    const r = buildRound(ada.difficulty)
     setRound(r); setSelected(null)
     window.setTimeout(() => { speakAfterCurrent(roundIdx === 0 ? `Hi ${childName}! ${r.question}` : r.question) }, 300)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roundIdx])
 
+  function advance(ok: boolean) {
+    const next = roundIdx + 1
+    if (next >= TOTAL_ROUNDS) onComplete(ok?correct+1:correct, ok?wrong:wrong+1)
+    else window.setTimeout(() => setRoundIdx(next), 300)
+  }
+
   function handleSelect(key: Key) {
     if (selected) return
     setSelected(key)
     const ok = key === round.answer
+    ada.record(ok)                                   // ← feed the adaptive engine
     setFeedback(ok ? 'correct' : 'wrong')
-    const val = key==='a'?round.a:key==='b'?round.b:round.c!
+    const newRun = ok ? 0 : wrongRun + 1
+    setWrongRun(newRun)
     const correctVal = round.answer==='a'?round.a:round.answer==='b'?round.b:round.c!
-    if (ok) { setCorrect(c=>c+1); speak(`Yes! ${val} is more! Great job!`) }
-    else    { setWrong(w=>w+1);   speak(`Oops! ${correctVal} is the most!`) }
+    if (ok) { setCorrect(c=>c+1); speak(round.mode==='more' ? `Yes! ${correctVal} is more! Great job!` : `Yes! ${correctVal} is fewer! Great job!`) }
+    else    { setWrong(w=>w+1);   speak(round.mode==='more' ? `Oops! ${correctVal} is more.` : `Oops! ${correctVal} is fewer.`) }
     afterSpeech(() => {
-          setFeedback(null)
-              const next = roundIdx + 1
-              if (next >= TOTAL_ROUNDS) onComplete(ok?correct+1:correct, ok?wrong:wrong+1)
-              else window.setTimeout(() => setRoundIdx(next), 300)})
+      setFeedback(null)
+      if (!ok && newRun >= 3) {                      // struggling → re-teach this comparison
+        setReMed({ phase:'reteach', a:round.a, b:round.b, mode:round.mode })
+        return
+      }
+      advance(ok)
+    })
+  }
+
+  function finishReMed() {
+    setReMed(null); setWrongRun(0)
+    if (roundIdx + 1 >= TOTAL_ROUNDS) onComplete(correct, wrong)
+    else setRoundIdx(roundIdx + 1)
   }
 
   const options: { key: Key; val: number }[] = [
@@ -77,16 +119,9 @@ export default function NumberComparisonChapter({ onComplete, childName }: Props
     ...(round.c !== undefined ? [{ key:'c' as Key, val:round.c }] : []),
   ]
 
-  // ── Lesson phase (5 interactive examples) ──────────────────
+  // ── Lesson phase ───────────────────────────────────────────
   if (phase === 'lesson') {
-    return (
-      <ChapterLesson
-        chapterId="numberComparison"
-        childName={childName}
-        examples={getLessonExamples('numberComparison')}
-        onLessonComplete={startPractice}
-      />
-    )
+    return <BiggerSmallerLesson childName={childName} onLessonComplete={startPractice} />
   }
 
   // ── Practice phase (10 questions with adaptive engine) ─────
@@ -135,6 +170,41 @@ export default function NumberComparisonChapter({ onComplete, childName }: Props
         {feedback==='correct'?'✅ Correct!':'❌ Try again!'}
       </div>}
       <p style={S.label}>Round {Math.min(roundIdx+1, TOTAL_ROUNDS)} of {TOTAL_ROUNDS}</p>
+
+      {reMed?.phase === 'reteach' && (
+        <RemediationOverlay>
+          <CompareCards
+            mode="watch" target={reMed.mode} showNumber
+            items={[{count:reMed.a,emoji:'⭐',name:'stars'},{count:reMed.b,emoji:'⭐',name:'stars'}]}
+            prompt={reMed.mode==='more' ? "Let's count both groups and find which has MORE!" : "Let's count both groups and find which has FEWER!"}
+            outro={reMed.mode==='more' ? `${Math.max(reMed.a,reMed.b)} is more! Now you try!` : `${Math.min(reMed.a,reMed.b)} is fewer! Now you try!`}
+            onDone={() => setReMed({ phase:'check', a:EASY_PAIR.a, b:EASY_PAIR.b, mode:reMed.mode })}
+          />
+        </RemediationOverlay>
+      )}
+      {reMed?.phase === 'check' && (
+        <RemediationOverlay>
+          <CompareCards
+            mode="do" target={reMed.mode} showNumber
+            items={[{count:reMed.a,emoji:'🐸'},{count:reMed.b,emoji:'🐸'}]}
+            prompt={reMed.mode==='more' ? 'Now you! Tap the group with MORE' : 'Now you! Tap the group with FEWER'}
+            outro={reMed.mode==='more' ? "Yes! That's more! You've got it!" : "Yes! That's fewer! You've got it!"}
+            onDone={finishReMed}
+          />
+        </RemediationOverlay>
+      )}
+    </div>
+  )
+}
+
+// Overlay wrapper for the re-teach / check (carries the lesson's animation CSS).
+function RemediationOverlay({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ position:'fixed', inset:0, zIndex:200, background:'rgba(61,37,22,0.7)', display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
+      <style>{LESSON_CSS}</style>
+      <div style={{ background:'var(--paper)', border:'4px solid var(--outline)', borderRadius:24, padding:'22px 16px 26px', maxWidth:460, width:'100%', boxShadow:'0 8px 0 rgba(61,37,22,.2)', maxHeight:'94vh', overflowY:'auto' }}>
+        {children}
+      </div>
     </div>
   )
 }
