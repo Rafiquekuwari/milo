@@ -319,7 +319,7 @@ export default function MainMenu() {
         {/* CTA row — no duplicate Play button, green one in the ribbon already handles it */}
         <div style={{ display: 'flex', gap: 14, justifyContent: 'center', flexWrap: 'wrap' }}>
           <button className="milo-btn tone-purple size-lg" onClick={() => setShowPicker(true)}>📚 Chapter</button>
-          <button className="milo-btn tone-red size-lg" onClick={() => router.push('/play/finger-counting')}>✋ Finger Fun</button>
+          <button className="milo-btn tone-red size-lg" onClick={() => router.push('/play')}>✋ Hand Games</button>
           <button className="milo-btn tone-blue size-lg" onClick={() => router.push('/profile')}>👤 Profile</button>
           <button className="milo-btn tone-yellow size-lg" onClick={() => router.push('/shop')}>🛍 Shop</button>
         </div>
