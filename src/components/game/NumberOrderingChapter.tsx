@@ -4,11 +4,10 @@ import { useMiloSpeaker, afterSpeech, speakAfterCurrent } from '@/lib/useMiloSpe
 import { MiloProgressBar } from '@/components/ui/MiloUI'
 import { useAdaptive, seqStart, seqLength } from '@/lib/adaptive'
 import { DifficultyBadge } from '../ui/DifficultyBadge'
-import ChapterLesson from '@/components/ui/ChapterLesson'
-import { getLessonExamples } from '@/lib/lessons'
 import { useChapterPhase } from '@/lib/useChapterPhase'
 import SpeakingLock from '@/components/ui/SpeakingLock'
 import GameTopbar from '../ui/GameTopbar'
+import NumberOrderingLesson, { OrderReveal, ChooseOrder, CSS as ORDER_CSS } from '../lessons/NumberOrderingLesson'
 
 interface Props { onComplete:(c:number,w:number)=>void; childName:string }
 
@@ -54,6 +53,9 @@ export default function NumberOrderingChapter({ onComplete, childName }: Props) 
   const [correct, setCorrect]   = useState(0)
   const [wrong, setWrong]       = useState(0)
   const [feedback, setFeedback] = useState<'correct'|'wrong'|null>(null)
+  // Adaptive remediation: after 3 wrong in a row, re-teach the order then check.
+  const [wrongRun, setWrongRun] = useState(0)
+  const [reMed, setReMed] = useState<{phase:'reteach'|'check';seq:number[];hole:number;kind:'next'|'missing'}|null>(null)
   // Must be before any early return — hooks must always be called in same order
   const [shuffled] = useState(() => [...Array(6).keys()].sort(()=>Math.random()-.5))
 
@@ -69,8 +71,7 @@ export default function NumberOrderingChapter({ onComplete, childName }: Props) 
   }, [roundIdx, ada.difficulty])
 
   if (phase === 'lesson') return (
-    <ChapterLesson chapterId="numberOrdering" childName={childName}
-      examples={getLessonExamples('numberOrdering')} onLessonComplete={startPractice} />
+    <NumberOrderingLesson childName={childName} onLessonComplete={startPractice} />
   )
 
   function advance(ok: boolean) {
@@ -81,12 +82,18 @@ export default function NumberOrderingChapter({ onComplete, childName }: Props) 
               else window.setTimeout(() => setRoundIdx(next), 300)})
   }
 
+  function finishReMed(){
+    setReMed(null); setWrongRun(0)
+    if (roundIdx + 1 >= TOTAL_ROUNDS) onComplete(correct, wrong)
+    else setRoundIdx(roundIdx + 1)
+  }
+
   function handleTapOrder(num: number, ni: number) {
     if (answered || tapped.includes(ni)) return
     if (round.sequence[tapped.length] === num) {
       const next = [...tapped, ni]; setTapped(next); speak(String(num))
       if (next.length === round.sequence.length) {
-        setAnswered(true); setCorrect(c=>c+1); setFeedback('correct')
+        setAnswered(true); setCorrect(c=>c+1); setFeedback('correct'); setWrongRun(0)
         ada.record(true); speak(`Perfect! ${ada.praise}`); advance(true)
       }
     } else {
@@ -102,8 +109,16 @@ export default function NumberOrderingChapter({ onComplete, childName }: Props) 
     const ok = choice === round.answer
     setFeedback(ok?'correct':'wrong')
     ada.record(ok)
+    const newRun = ok ? 0 : wrongRun + 1
+    setWrongRun(newRun)
     if (ok) { setCorrect(c=>c+1); speak(`Yes! ${round.answer}! ${ada.praise}`) }
     else    { setWrong(w=>w+1);   speak(`The answer is ${round.answer}. ${ada.encouragement}`) }
+    // 3 wrong in a row → re-teach the order, then check
+    if (!ok && newRun >= 3) {
+      const hole = round.type==='fillMissing' ? (round.missingIndex ?? 2) : round.sequence.length-1
+      afterSpeech(() => { setFeedback(null); setReMed({ phase:'reteach', seq:round.sequence, hole, kind: round.type==='fillMissing'?'missing':'next' }) })
+      return
+    }
     advance(ok)
   }
 
@@ -177,6 +192,31 @@ export default function NumberOrderingChapter({ onComplete, childName }: Props) 
         {feedback==='correct'?'✅ Correct!':'❌ Try again!'}
       </div>}
       <p style={S.label}>Round {Math.min(roundIdx+1,TOTAL_ROUNDS)} of {TOTAL_ROUNDS}</p>
+
+      {reMed?.phase==='reteach' && (
+        <OrderRemediationOverlay>
+          <OrderReveal seq={reMed.seq} hole={reMed.hole} kind={reMed.kind}
+            onDone={()=>setReMed({phase:'check',seq:[1,2,3,4],hole:3,kind:'next'})}/>
+        </OrderRemediationOverlay>
+      )}
+      {reMed?.phase==='check' && (
+        <OrderRemediationOverlay>
+          <ChooseOrder seq={reMed.seq} hole={reMed.hole} kind={reMed.kind} choices={[3,4,5]}
+            prompt="Now you try! What comes next?" onDone={finishReMed}/>
+        </OrderRemediationOverlay>
+      )}
+    </div>
+  )
+}
+
+// Overlay wrapper for the re-teach / check (carries the lesson's animation CSS).
+function OrderRemediationOverlay({children}:{children:React.ReactNode}){
+  return (
+    <div style={{position:'fixed',inset:0,zIndex:200,background:'rgba(61,37,22,0.7)',display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+      <style>{ORDER_CSS}</style>
+      <div style={{background:'var(--paper)',border:'4px solid var(--outline)',borderRadius:24,padding:'22px 14px 26px',maxWidth:480,width:'100%',boxShadow:'0 8px 0 rgba(61,37,22,.2)',maxHeight:'94vh',overflowY:'auto'}}>
+        {children}
+      </div>
     </div>
   )
 }

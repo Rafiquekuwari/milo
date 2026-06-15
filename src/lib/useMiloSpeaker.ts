@@ -186,6 +186,40 @@ export function afterSpeech(cb: () => void) {
   }
 }
 
+/**
+ * Speak a list of phrases strictly one after another — each starts only when the
+ * previous one's `end` event fires, so words can never overlap or get cut off
+ * (regardless of device speech speed). `onWord(i)` fires when phrase i starts
+ * (use it to sync visuals). Returns a cancel function.
+ */
+export function speakSeq(
+  words: string[],
+  opts: { onWord?: (i: number) => void; onDone?: () => void; rate?: number; pitch?: number } = {},
+): () => void {
+  const { onWord, onDone, rate = 0.88, pitch = 1.05 } = opts
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) { onDone?.(); return () => {} }
+  if (_speakTimer) { clearTimeout(_speakTimer); _speakTimer = null }
+  let cancelled = false
+  let i = 0
+  const next = () => {
+    if (cancelled) return
+    if (i >= words.length) { _setSpeaking(false); onDone?.(); return }
+    const idx = i; i++
+    const txt = words[idx]
+    if (!txt || !txt.trim()) { next(); return }
+    const u = new SpeechSynthesisUtterance(txt)
+    u.rate = rate; u.pitch = pitch; u.volume = 1; u.lang = 'en-US'
+    const v = _pickVoice(); if (v) u.voice = v
+    u.onstart = () => { _setSpeaking(true); try { onWord?.(idx) } catch {} }
+    u.onend   = () => { if (!cancelled) next() }
+    u.onerror = () => { if (!cancelled) next() }
+    try { window.speechSynthesis.speak(u) } catch { next() }
+  }
+  try { window.speechSynthesis.cancel() } catch {}
+  _speakTimer = setTimeout(() => { _speakTimer = null; if (!cancelled) next() }, 120)
+  return () => { cancelled = true; try { window.speechSynthesis.cancel() } catch {}; _setSpeaking(false) }
+}
+
 export function useIsSpeaking(): boolean {
   return useSyncExternalStore(
     (cb) => { _subs.add(cb); return () => _subs.delete(cb) },
