@@ -20,27 +20,20 @@ const COLORS: ColorDef[] = [
   { name:'pink',   hex:'#F472B6' },
 ]
 
-type QType = 'matchColor'|'nameColor'|'mixColor'
-interface Round { type: QType; targetColor: ColorDef; choices: ColorDef[]; question: string; mixA?: ColorDef; mixB?: ColorDef }
+type QType = 'matchColor'|'nameColor'
+interface Round { type: QType; targetColor: ColorDef; choices: ColorDef[]; question: string; shapeKey: string }
 
 function buildRound(idx: number): Round {
-  const type: QType = idx < 2 ? 'matchColor' : idx < 4 ? 'nameColor' : 'mixColor'
+  // Pure colour recognition: alternate "match this colour" and "name this colour".
+  const type: QType = idx % 2 === 0 ? 'matchColor' : 'nameColor'
+  const shape = SHAPES[Math.floor(Math.random() * SHAPES.length)]   // random object
   const shuffled = [...COLORS].sort(() => Math.random()-.5)
   const target = shuffled[0]
   const choices = [target, shuffled[1], shuffled[2]].sort(() => Math.random()-.5)
-
-  if (type !== 'mixColor') {
-    return { type, targetColor: target, choices, question: type === 'matchColor' ? `Which paint bucket is ${target.name}?` : `What color is this flower?` }
+  return {
+    type, targetColor: target, choices, shapeKey: shape.key,
+    question: type === 'matchColor' ? `Which paint bucket is ${target.name}?` : `What color is this ${shape.label}?`,
   }
-
-  const mixes: [string,string,string][] = [['red','yellow','orange'],['red','blue','purple'],['blue','yellow','green']]
-  const mix = mixes[Math.floor(Math.random()*mixes.length)]
-  const mixA = COLORS.find(c=>c.name===mix[0])!
-  const mixB = COLORS.find(c=>c.name===mix[1])!
-  const result = COLORS.find(c=>c.name===mix[2])!
-  const w1 = shuffled.find(c=>c.name!==result.name&&c.name!==mix[0]&&c.name!==mix[1]) ?? shuffled[3]
-  const w2 = shuffled.find(c=>c.name!==result.name&&c.name!==mix[0]&&c.name!==mix[1]&&c.name!==w1.name) ?? shuffled[4]
-  return { type:'mixColor', targetColor:result, choices:[result,w1,w2].sort(()=>Math.random()-.5), question:`What color do you get when you mix ${mix[0]} and ${mix[1]}?`, mixA, mixB }
 }
 
 const TOTAL_ROUNDS = 10
@@ -57,6 +50,21 @@ const FLOWER = (color: string) => `<svg viewBox="0 0 100 100" xmlns="http://www.
   <circle cx="50" cy="50" r="14" fill="#FFC933" stroke="#E0A800" stroke-width="2"/>
 </svg>`
 
+// Recolorable garden objects — a random one is shown each round so the OBJECT
+// varies while the colour stays the thing being tested ("What colour is this …?").
+const SHAPES: { key:string; label:string; svg:(c:string)=>string }[] = [
+  { key:'flower', label:'flower', svg: FLOWER },
+  { key:'balloon', label:'balloon', svg:(c)=>`<svg viewBox="0 0 100 100"><ellipse cx="50" cy="40" rx="30" ry="36" fill="${c}"/><path d="M50 74 l-5 9 h10 z" fill="${c}"/><line x1="50" y1="82" x2="50" y2="98" stroke="#9a8" stroke-width="2"/><ellipse cx="40" cy="30" rx="8" ry="12" fill="#fff" opacity="0.35"/></svg>` },
+  { key:'star', label:'star', svg:(c)=>`<svg viewBox="0 0 100 100"><polygon points="50,8 61,38 94,38 67,58 77,90 50,70 23,90 33,58 6,38 39,38" fill="${c}" stroke="rgba(0,0,0,0.08)" stroke-width="1"/></svg>` },
+  { key:'heart', label:'heart', svg:(c)=>`<svg viewBox="0 0 100 100"><path d="M50 84 C18 60 10 40 24 28 C37 17 50 29 50 39 C50 29 63 17 76 28 C90 40 82 60 50 84 Z" fill="${c}"/></svg>` },
+  { key:'butterfly', label:'butterfly', svg:(c)=>`<svg viewBox="0 0 100 100"><ellipse cx="32" cy="36" rx="20" ry="22" fill="${c}"/><ellipse cx="68" cy="36" rx="20" ry="22" fill="${c}"/><ellipse cx="34" cy="66" rx="16" ry="18" fill="${c}"/><ellipse cx="66" cy="66" rx="16" ry="18" fill="${c}"/><rect x="48" y="28" width="4" height="46" rx="2" fill="#5a4632"/></svg>` },
+  { key:'fish', label:'fish', svg:(c)=>`<svg viewBox="0 0 100 100"><ellipse cx="46" cy="52" rx="34" ry="22" fill="${c}"/><polygon points="76,52 96,34 96,70" fill="${c}"/><circle cx="32" cy="46" r="4.5" fill="#fff"/><circle cx="32" cy="46" r="2" fill="#222"/></svg>` },
+  { key:'car', label:'car', svg:(c)=>`<svg viewBox="0 0 100 100"><rect x="12" y="50" width="76" height="22" rx="8" fill="${c}"/><path d="M28 50 q8 -18 22 -18 h12 q10 0 16 18 z" fill="${c}"/><circle cx="32" cy="74" r="9" fill="#3a3a3a"/><circle cx="68" cy="74" r="9" fill="#3a3a3a"/></svg>` },
+  { key:'ball', label:'ball', svg:(c)=>`<svg viewBox="0 0 100 100"><circle cx="50" cy="52" r="36" fill="${c}"/><ellipse cx="38" cy="40" rx="12" ry="8" fill="#fff" opacity="0.3"/></svg>` },
+  { key:'kite', label:'kite', svg:(c)=>`<svg viewBox="0 0 100 100"><polygon points="50,10 78,46 50,82 22,46" fill="${c}" stroke="rgba(0,0,0,0.08)"/><line x1="50" y1="82" x2="50" y2="96" stroke="#9a8" stroke-width="2"/></svg>` },
+]
+const SHAPE = (key:string) => SHAPES.find(s=>s.key===key) ?? SHAPES[0]
+
 export default function ColorGardenChapter({ onComplete, childName }: Props) {
   const { phase, startPractice } = useChapterPhase()
   const { speak } = useMiloSpeaker()
@@ -71,7 +79,10 @@ export default function ColorGardenChapter({ onComplete, childName }: Props) {
 
   useEffect(() => {
     const r = buildRound(roundIdx)
-    setRound(r); setSelected(null); setFlowerColor('#D1D5DB')
+    setRound(r); setSelected(null)
+    // "What colour is this flower?" must actually show the colour — otherwise it's
+    // unanswerable. Match/mix rounds keep the flower grey until the child answers.
+    setFlowerColor(r.type === 'nameColor' ? r.targetColor.hex : '#D1D5DB')
     window.setTimeout(() => { speakAfterCurrent(roundIdx === 0 ? `Hi ${childName}! ${r.question}` : r.question) }, 300)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roundIdx])
@@ -91,16 +102,9 @@ export default function ColorGardenChapter({ onComplete, childName }: Props) {
     })
   }
 
-  // ── Lesson phase (5 interactive examples) ──────────────────
+  // ── Lesson phase ───────────────────────────────────────────
   if (phase === 'lesson') {
-    return (
-      <ChapterLesson
-        chapterId="colors"
-        childName={childName}
-        examples={getLessonExamples('colors')}
-        onLessonComplete={startPractice}
-      />
-    )
+    return <ColorGardenLesson childName={childName} onLessonComplete={startPractice} />
   }
 
   // ── Practice phase (10 questions with adaptive engine) ─────
@@ -124,26 +128,8 @@ export default function ColorGardenChapter({ onComplete, childName }: Props) {
       </div>
       <div className="milo-bubble" style={{ width:'100%', maxWidth:480 }}>{round.question}</div>
 
-      {/* Mix row */}
-      {round.type === 'mixColor' && round.mixA && round.mixB && (
-        <div style={S.mixRow}>
-          {[round.mixA, round.mixB].map((c, i) => (
-            <React.Fragment key={c.name}>
-              <div style={{ ...S.mixSwatch, background: c.hex }}>
-                <span style={{ fontFamily:'var(--font-body)', fontSize:11, fontWeight:700, color:'#fff', textShadow:'0 1px 2px rgba(0,0,0,.5)', textTransform:'capitalize' }}>{c.name}</span>
-              </div>
-              {i === 0 && <span style={S.plusSign}>+</span>}
-            </React.Fragment>
-          ))}
-          <span style={S.plusSign}>=</span>
-          <div style={{ ...S.mixSwatch, background:'#D1D5DB', border:'3px dashed var(--outline)' }}>
-            <span style={{ fontSize:28 }}>?</span>
-          </div>
-        </div>
-      )}
-
-      {/* Flower */}
-      <div dangerouslySetInnerHTML={{ __html: FLOWER(flowerColor) }} style={{ width:180, height:180, transition:'all .4s ease' }} />
+      {/* Object (random per round) */}
+      <div dangerouslySetInnerHTML={{ __html: SHAPE(round.shapeKey).svg(flowerColor) }} style={{ width:180, height:180, transition:'all .4s ease' }} />
 
       {/* Target swatch for matchColor */}
       {round.type === 'matchColor' && (
@@ -183,16 +169,12 @@ export default function ColorGardenChapter({ onComplete, childName }: Props) {
 import React from 'react'
 import { useAdaptive } from '@/lib/adaptive'
 import { DifficultyBadge } from '../ui/DifficultyBadge'
-import ChapterLesson from '@/components/ui/ChapterLesson'
-import { getLessonExamples } from '@/lib/lessons'
+import ColorGardenLesson from '../lessons/ColorGardenLesson'
 import { useChapterPhase } from '@/lib/useChapterPhase'
 import SpeakingLock from '@/components/ui/SpeakingLock'
 import GameTopbar from '../ui/GameTopbar'
 const S: Record<string, React.CSSProperties> = {
   page:      { minHeight:'100dvh', display:'flex', flexDirection:'column', alignItems:'center', padding:'72px 24px 32px', gap:20, position:'relative' },
-  mixRow:    { display:'flex', alignItems:'center', gap:12 },
-  mixSwatch: { width:72, height:72, borderRadius:16, border:'3px solid var(--outline)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', boxShadow:'0 3px 0 var(--outline)' },
-  plusSign:  { fontFamily:'var(--font-display)', fontSize:'var(--t-h2)', fontWeight:700, color:'var(--ink)' },
   bucketsRow:{ display:'flex', gap:16, justifyContent:'center', flexWrap:'wrap' },
   bucket:    { width:90, height:100, borderRadius:20, border:'4px solid', cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:4, fontSize:38, position:'relative', transition:'transform .15s' },
   label:     { fontFamily:'var(--font-body)', fontSize:'var(--t-label)', color:'var(--ink-muted)', margin:0 },
