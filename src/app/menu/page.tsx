@@ -9,7 +9,8 @@ import BackButton from '@/components/ui/BackButton'
 import ChapterPicker from '@/components/ui/ChapterPicker'
 import PWAInstallBanner from '@/components/ui/PWAInstallBanner'
 import { getActiveLearner, clearActiveLearner } from '@/lib/supabase/useLearnerSession'
-import { getLearnerStats, getLearnerProgress, getLearnerState, saveLearnerState, getMyAccessRole } from '@/lib/supabase/queries'
+import { getLearnerBootstrap, saveLearnerState } from '@/lib/supabase/queries'
+import type { LearnerState } from '@/lib/supabase/types'
 import { getLastPlayed, setLastPlayed, reconcileLastPlayed } from '@/lib/lastPlayed'
 
 const AVATAR_SRCS = ['/assets/objects/fox.png','/assets/objects/bunny.png','/assets/objects/bear.png','/assets/objects/cat.png']
@@ -43,6 +44,27 @@ const CHAPTER_ASSETS: Record<ChapterType, string> = {
   measurement:        '/assets/objects/star.png',
 }
 
+// True when this device's shop state equals what's on the server, so we can skip
+// the write-back on a plain menu visit. (After applyServerProgress merges the
+// server in, local is always a superset, so equality means "nothing new here".)
+function shopStateMatchesServer(
+  p: { coinsSpent: number; ownedItems: string[]; equippedItems: Record<string, string> },
+  state: LearnerState | null,
+): boolean {
+  if (!state) {
+    return p.coinsSpent === 0 && p.ownedItems.length === 0 && Object.keys(p.equippedItems).length === 0
+  }
+  if ((state.coins_spent ?? 0) !== (p.coinsSpent ?? 0)) return false
+  const owned = [...p.ownedItems].sort()
+  const sOwned = [...(state.owned_items ?? [])].sort()
+  if (owned.length !== sOwned.length || owned.some((x, i) => x !== sOwned[i])) return false
+  const pe = p.equippedItems ?? {}
+  const se = state.equipped_items ?? {}
+  const keys = new Set([...Object.keys(pe), ...Object.keys(se)])
+  for (const k of keys) if (pe[k] !== se[k]) return false
+  return true
+}
+
 export default function MainMenu() {
   const router = useRouter()
   const { profile, startChapter, loadLearner, applyServerProgress } = useMiloStore()
@@ -68,39 +90,41 @@ export default function MainMenu() {
       // (propagates anything bought/earned offline). All merges are monotonic.
       ;(async () => {
         try {
-          // Guard against a stale active learner: a learner that was deleted, or
-          // belongs to a different account, is still sitting in sessionStorage.
-          // Playing as it makes every sync fail (FK on sessions, RLS on
-          // learner_state). If we're online and this account has no access to it,
-          // clear it and bounce to the picker. (Skip when offline — getUser would
-          // be unreliable and local play should continue.)
-          if (navigator.onLine) {
-            const role = await getMyAccessRole(learner.id)
-            if (!role) { clearActiveLearner(); router.replace('/parent'); return }
-          }
+          // Offline: local profile stands; nothing to pull/push.
+          if (!navigator.onLine) return
 
-          const [stats, progress, state] = await Promise.all([
-            getLearnerStats(learner.id),
-            getLearnerProgress(learner.id),
-            getLearnerState(learner.id),
-          ])
+          // One round trip pulls access role + stats + progress + shop state.
+          const boot = await getLearnerBootstrap(learner.id)
+          // Not signed in yet / transient — leave the active learner untouched.
+          if (boot.status === 'no-auth') return
+          // Signed in but no access → stale or foreign active learner. Clear it
+          // and bounce to the picker (stops the FK/RLS sync errors at the source).
+          if (boot.status === 'no-access') { clearActiveLearner(); router.replace('/parent'); return }
+
+          const { stats, progress, state } = boot.data
           applyServerProgress(stats, progress, state)
 
           // Continue-where-you-left-off, cross-device: progress is ordered by
           // last_played_at desc, so progress[0] is the most recently played
           // chapter on ANY device. Adopt it if it's newer than this device's
           // local open, so "Continue" follows the learner between devices.
-          const top = progress[0] as { chapter?: ChapterType; last_played_at?: string | null } | undefined
-          const resolved = reconcileLastPlayed(learner.id, top?.chapter, top?.last_played_at)
+          const top = progress[0]
+          const resolved = reconcileLastPlayed(learner.id, top?.chapter as ChapterType | undefined, top?.last_played_at)
           if (resolved) setLastPlayedState(resolved)
 
+          // Push shop state back ONLY when this device has something the server
+          // doesn't (offline purchases, etc.). applyServerProgress merges the
+          // server in monotonically, so equal state means a plain menu visit —
+          // no write needed, no needless mobile request.
           const p = useMiloStore.getState().profile
-          await saveLearnerState(learner.id, {
-            coinsSpent:    p.coinsSpent,
-            ownedItems:    p.ownedItems,
-            equippedItems: p.equippedItems,
-          })
-        } catch { /* offline — local profile stands until next online load */ }
+          if (!shopStateMatchesServer(p, state)) {
+            await saveLearnerState(learner.id, {
+              coinsSpent:    p.coinsSpent,
+              ownedItems:    p.ownedItems,
+              equippedItems: p.equippedItems,
+            })
+          }
+        } catch { /* offline / transient — local profile stands until next online load */ }
       })()
 
       // Personalised greeting based on whether they've played before

@@ -127,6 +127,42 @@ export async function getRecentSessions(learnerId: string, limit = 5): Promise<S
   return (data ?? []) as Session[]
 }
 
+// ─── Menu bootstrap (single round trip) ───────────────────────
+
+export interface LearnerBootstrap {
+  role:     'owner' | 'viewer'
+  stats:    LearnerStats | null
+  progress: LearnerProgress[]
+  state:    LearnerState | null
+}
+
+export type BootstrapResult =
+  | { status: 'ok'; data: LearnerBootstrap }
+  | { status: 'no-auth' }     // not signed in / session not hydrated / transient error — leave local state
+  | { status: 'no-access' }   // signed in, but this account has no access to the learner — stale/foreign
+
+/**
+ * One RPC for everything the menu needs: access role + stats + progress + shop
+ * state. Replaces getMyAccessRole + getLearnerStats + getLearnerProgress +
+ * getLearnerState (4 round trips → 1).
+ *
+ * Resolves the auth user first so we can tell "not signed in yet" (don't touch
+ * the active learner) apart from "signed in but no access" (evict the stale
+ * learner). A cold-start race must never bounce a valid learner.
+ */
+export async function getLearnerBootstrap(learnerId: string): Promise<BootstrapResult> {
+  const supabase = db()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { status: 'no-auth' }
+
+  const { data, error } = await supabase.rpc('get_learner_bootstrap', { p_learner_id: learnerId })
+  if (error) { console.error('[getLearnerBootstrap] rpc failed:', error.message); return { status: 'no-auth' } }
+  if (!data) return { status: 'no-access' }
+
+  const d = data as { role: 'owner' | 'viewer'; stats: LearnerStats | null; progress: LearnerProgress[] | null; state: LearnerState | null }
+  return { status: 'ok', data: { role: d.role, stats: d.stats ?? null, progress: d.progress ?? [], state: d.state ?? null } }
+}
+
 // ─── Shop / coins state (cross-device) ────────────────────────
 
 export async function getLearnerState(learnerId: string): Promise<LearnerState | null> {
@@ -244,44 +280,9 @@ export async function syncSession(payload: SessionPayload): Promise<SyncOutcome>
   return 'ok'
 }
 
-// ─── Offline queue ────────────────────────────────────────────
-
-export async function queueOfflineSession(payload: SessionPayload) {
-  const supabase = db()
-  await supabase
-    .from('offline_queue')
-    .insert({
-      learner_id: payload.learnerId,
-      payload:    payload as unknown as Record<string, unknown>,
-    })
-}
-
-export async function flushOfflineQueue(learnerId: string) {
-  const supabase = db()
-  const { data: queued } = await supabase
-    .from('offline_queue')
-    .select('*')
-    .eq('learner_id', learnerId)
-    .is('synced_at', null)
-    .order('queued_at', { ascending: true })
-
-  if (!queued || queued.length === 0) return
-
-  for (const item of queued as { id: string; payload: SessionPayload }[]) {
-    const outcome = await syncSession(item.payload)
-    if (outcome === 'retry') {
-      // Transient — leave synced_at null so it's picked up next flush.
-      await supabase.from('offline_queue').update({ error: 'sync_failed' }).eq('id', item.id)
-      continue
-    }
-    // 'ok' or 'drop' — both are terminal: stamp synced_at so we stop retrying.
-    // 'drop' can never succeed (learner gone / not owned), so discarding is correct.
-    await supabase
-      .from('offline_queue')
-      .update({ synced_at: new Date().toISOString(), error: outcome === 'drop' ? 'discarded_permanent' : null })
-      .eq('id', item.id)
-  }
-}
+// Offline queueing lives entirely in the browser (localStorage, see
+// useOfflineSync). The old DB-backed `offline_queue` table + its helpers were
+// dead code (only the removed sync.ts referenced them) and have been dropped.
 
 // ─── Invites ──────────────────────────────────────────────────
 
