@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { getActiveLearner } from './supabase/useLearnerSession'
+import type { LearnerStats, LearnerProgress, LearnerState } from './supabase/types'
 
 // ─────────────────────────────────────────────────────────────
 //  Types
@@ -24,7 +25,8 @@ export interface PlayerProfile {
   avatarIndex:       AvatarIndex
   hasCompletedSetup: boolean
   totalXP:           number
-  totalCoins:        number
+  totalCoins:        number      // spendable balance (earned − spent)
+  coinsSpent:        number      // monotonic; lets balance merge across devices
   currentLevel:      number
   currentStreak:     number
   lastPlayedDate:    string
@@ -124,7 +126,7 @@ const defaultChapterStars: ChapterStars = {
 
 const defaultProfile: PlayerProfile = {
   childName: '', avatarIndex: 0, hasCompletedSetup: false,
-  totalXP: 0, totalCoins: 0, currentLevel: 1, currentStreak: 0,
+  totalXP: 0, totalCoins: 0, coinsSpent: 0, currentLevel: 1, currentStreak: 0,
   lastPlayedDate: '',
   chapterStars: { ...defaultChapterStars },
   ownedItems: [], equippedItems: {},
@@ -167,6 +169,14 @@ interface MiloStore {
 
   // Load a learner's profile from localStorage into the store
   loadLearner: (learnerId: string, displayName: string, avatarIndex: number) => void
+
+  // Merge a learner's server-side state (cross-device) into the profile:
+  // progress (stars/XP/level/streak), coins balance, owned + equipped items.
+  applyServerProgress: (
+    stats: LearnerStats | null,
+    progress: LearnerProgress[],
+    state: LearnerState | null,
+  ) => void
 }
 
 export const useMiloStore = create<MiloStore>()(
@@ -219,6 +229,58 @@ export const useMiloStore = create<MiloStore>()(
           celebration:    null,
         })
       },
+
+      // Pull the learner's full state from Supabase so it appears on EVERY device
+      // they sign in on. Everything merges monotonically (never regresses):
+      //   stars/XP/streak → max(local, server)
+      //   coins balance   → earned (server learner_stats) − spent (max local/server)
+      //   owned items     → union; equipped → server when present
+      applyServerProgress: (stats, progress, state) =>
+        set(s => {
+          const cs = { ...s.profile.chapterStars }
+          for (const row of progress) {
+            const ch = row.chapter as ChapterType
+            if (ch in cs) cs[ch] = Math.max(cs[ch] ?? 0, row.best_stars ?? 0)
+          }
+          const totalXP        = Math.max(s.profile.totalXP, stats?.total_xp ?? 0)
+          const currentStreak  = Math.max(s.profile.currentStreak, stats?.current_streak ?? 0)
+          const lastPlayedDate = stats?.last_played_at
+            ? new Date(stats.last_played_at).toDateString()
+            : s.profile.lastPlayedDate
+
+          // ── Coins: balance = earned − spent, both monotonic so it never loses ──
+          const earned = stats?.total_coins ?? 0
+          // spent: from server when present; otherwise reconstruct from THIS device's
+          // known balance (handles existing users who spent before spent-tracking).
+          const spent = state
+            ? Math.max(s.profile.coinsSpent ?? 0, state.coins_spent ?? 0)
+            : Math.max(s.profile.coinsSpent ?? 0, earned - s.profile.totalCoins, 0)
+          // Keep at least the local balance so unsynced local earnings aren't lost.
+          const totalCoins = Math.max(s.profile.totalCoins, earned - spent)
+
+          // ── Shop items ──
+          const ownedItems = state
+            ? Array.from(new Set([...s.profile.ownedItems, ...(state.owned_items ?? [])]))
+            : s.profile.ownedItems
+          const equippedItems = state && state.equipped_items && Object.keys(state.equipped_items).length
+            ? { ...s.profile.equippedItems, ...state.equipped_items }
+            : s.profile.equippedItems
+
+          return {
+            profile: {
+              ...s.profile,
+              chapterStars: cs,
+              totalXP,
+              currentLevel: getLevelFromXP(totalXP),
+              currentStreak,
+              lastPlayedDate,
+              totalCoins,
+              coinsSpent: spent,
+              ownedItems,
+              equippedItems,
+            },
+          }
+        }),
 
       completeSetup: (name, avatarIndex) =>
         set(s => ({
@@ -278,6 +340,7 @@ export const useMiloStore = create<MiloStore>()(
           profile: {
             ...s.profile,
             totalCoins: s.profile.totalCoins - cost,
+            coinsSpent: (s.profile.coinsSpent ?? 0) + cost,   // monotonic — for cross-device merge
             ownedItems: [...s.profile.ownedItems, itemId],
           },
         }))
