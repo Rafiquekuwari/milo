@@ -39,8 +39,7 @@ async function flushLocalQueue(learnerId: string) {
       remaining.push(payload)
       continue
     }
-    const ok = await syncSession(payload)
-    if (!ok) remaining.push(payload)
+    if (await syncSession(payload) === 'retry') remaining.push(payload)
   }
 
   if (remaining.length === 0) {
@@ -84,9 +83,9 @@ export function useSessionSync(learnerId: string | null) {
       return
     }
 
-    const ok = await syncSession(full)
-    if (!ok) {
-      // Online but sync failed — queue locally for retry
+    // Online but sync failed transiently — queue locally for retry. A 'drop'
+    // (permanent rejection) is discarded rather than queued.
+    if (await syncSession(full) === 'retry') {
       addToLocalQueue(full)
     }
   }, [learnerId])

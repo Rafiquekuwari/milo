@@ -144,6 +144,16 @@ export async function saveLearnerState(
   state: { coinsSpent: number; ownedItems: string[]; equippedItems: Record<string, string> },
 ): Promise<boolean> {
   const supabase = db()
+
+  // learner_state is the only direct client write gated by RLS (progress/stats/
+  // sessions all go through the sync_session SECURITY DEFINER RPC). The policy
+  // requires auth.uid() to own the learner, so resolve the session first — this
+  // both forces the singleton client to hydrate its session before we write and
+  // lets us skip the write cleanly when genuinely signed out (expired token,
+  // stale sessionStorage learner) instead of throwing an RLS error.
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return false
+
   const { error } = await supabase
     .from('learner_state')
     .upsert({
@@ -153,7 +163,7 @@ export async function saveLearnerState(
       equipped_items: state.equippedItems,
       updated_at:     new Date().toISOString(),
     }, { onConflict: 'learner_id' })
-  if (error) { console.error('[saveLearnerState] rpc failed:', error.message); return false }
+  if (error) { console.error('[saveLearnerState] upsert failed:', error.message); return false }
   return true
 }
 
@@ -172,7 +182,37 @@ export interface SessionPayload {
   completedAt:  string
 }
 
-export async function syncSession(payload: SessionPayload): Promise<boolean> {
+/**
+ * Outcome of a session sync attempt:
+ *  - 'ok'    — saved (or already saved); remove from any queue
+ *  - 'retry' — transient failure (network/server); keep queued and try later
+ *  - 'drop'  — permanent failure (the row can never be accepted, e.g. the learner
+ *              no longer exists or isn't owned by this account); discard the item
+ *              so it doesn't loop forever in the offline queue
+ */
+export type SyncOutcome = 'ok' | 'retry' | 'drop'
+
+// SQLSTATE codes that a retry can never fix — the payload is fundamentally
+// rejected (missing FK target, RLS denial, bad data), not a transient hiccup.
+const NON_RETRYABLE_CODES = new Set([
+  '23503', // foreign_key_violation     — learner_id not in learners
+  '42501', // insufficient_privilege    — RLS: not owned by this account
+  '23502', // not_null_violation
+  '23514', // check_violation
+  '22P02', // invalid_text_representation — malformed uuid
+])
+
+function classifySyncError(error: { code?: string; message?: string }): SyncOutcome {
+  const code = error?.code ?? ''
+  if (code === '23505') return 'ok'               // unique_violation → already recorded
+  if (NON_RETRYABLE_CODES.has(code)) return 'drop'
+  // Fallback for drivers that don't surface a SQLSTATE on the error object.
+  const msg = (error?.message ?? '').toLowerCase()
+  if (msg.includes('foreign key') || msg.includes('row-level security')) return 'drop'
+  return 'retry'
+}
+
+export async function syncSession(payload: SessionPayload): Promise<SyncOutcome> {
   const supabase = db()
 
   // Single RPC call — replaces 3 separate upserts
@@ -191,13 +231,17 @@ export async function syncSession(payload: SessionPayload): Promise<boolean> {
   })
 
   if (error) {
+    const outcome = classifySyncError(error)
     // No toast here — this runs once PER queued item during a flush, which would
     // spam a toast per item. The OfflineBanner shows pending status instead.
-    console.error('[syncSession] rpc failed:', error.message)
-    return false
+    console.error(
+      `[syncSession] rpc failed (${outcome === 'drop' ? 'permanent — discarding' : 'will retry'}):`,
+      error.message,
+    )
+    return outcome
   }
 
-  return true
+  return 'ok'
 }
 
 // ─── Offline queue ────────────────────────────────────────────
@@ -224,14 +268,17 @@ export async function flushOfflineQueue(learnerId: string) {
   if (!queued || queued.length === 0) return
 
   for (const item of queued as { id: string; payload: SessionPayload }[]) {
-    const success = await syncSession(item.payload)
+    const outcome = await syncSession(item.payload)
+    if (outcome === 'retry') {
+      // Transient — leave synced_at null so it's picked up next flush.
+      await supabase.from('offline_queue').update({ error: 'sync_failed' }).eq('id', item.id)
+      continue
+    }
+    // 'ok' or 'drop' — both are terminal: stamp synced_at so we stop retrying.
+    // 'drop' can never succeed (learner gone / not owned), so discarding is correct.
     await supabase
       .from('offline_queue')
-      .update(
-        success
-          ? { synced_at: new Date().toISOString() }
-          : { error: 'sync_failed' }
-      )
+      .update({ synced_at: new Date().toISOString(), error: outcome === 'drop' ? 'discarded_permanent' : null })
       .eq('id', item.id)
   }
 }

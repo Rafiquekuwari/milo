@@ -8,8 +8,8 @@ import { useMiloSpeaker } from '@/lib/useMiloSpeaker'
 import BackButton from '@/components/ui/BackButton'
 import ChapterPicker from '@/components/ui/ChapterPicker'
 import PWAInstallBanner from '@/components/ui/PWAInstallBanner'
-import { getActiveLearner } from '@/lib/supabase/useLearnerSession'
-import { getLearnerStats, getLearnerProgress, getLearnerState, saveLearnerState } from '@/lib/supabase/queries'
+import { getActiveLearner, clearActiveLearner } from '@/lib/supabase/useLearnerSession'
+import { getLearnerStats, getLearnerProgress, getLearnerState, saveLearnerState, getMyAccessRole } from '@/lib/supabase/queries'
 
 const AVATAR_SRCS = ['/assets/objects/fox.png','/assets/objects/bunny.png','/assets/objects/bear.png','/assets/objects/cat.png']
 const LEVEL_NAMES   = ['Beginner','Counter','Explorer','Number Star','Math Wizard','Champion',"Milo's Champion",'Legend']
@@ -81,6 +81,17 @@ export default function MainMenu() {
       // (propagates anything bought/earned offline). All merges are monotonic.
       ;(async () => {
         try {
+          // Guard against a stale active learner: a learner that was deleted, or
+          // belongs to a different account, is still sitting in sessionStorage.
+          // Playing as it makes every sync fail (FK on sessions, RLS on
+          // learner_state). If we're online and this account has no access to it,
+          // clear it and bounce to the picker. (Skip when offline — getUser would
+          // be unreliable and local play should continue.)
+          if (navigator.onLine) {
+            const role = await getMyAccessRole(learner.id)
+            if (!role) { clearActiveLearner(); router.replace('/parent'); return }
+          }
+
           const [stats, progress, state] = await Promise.all([
             getLearnerStats(learner.id),
             getLearnerProgress(learner.id),
