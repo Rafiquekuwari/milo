@@ -169,7 +169,9 @@ export default function AdditionChapter({onComplete,childName}:Props){
           borderColor:feedback==='correct'?'var(--garden-green-deep)':feedback==='wrong'?'var(--apple-red-deep)':'var(--milo-orange-deep)',
           opacity:selected!==null?1:0.2,transform:selected!==null?'scale(1)':'scale(0.6)',
           transition:'all 400ms cubic-bezier(.34,1.56,.64,1)'}}>
-          <span style={{fontFamily:'var(--font-display)',fontWeight:900,fontSize:44,color:'#fff',lineHeight:1}}>{ans}</span>
+          {/* Hide the sum until the child answers — show '?' instead of the
+              faded answer, which was readable and spoiled the question. */}
+          <span style={{fontFamily:'var(--font-display)',fontWeight:900,fontSize:44,color:'#fff',lineHeight:1}}>{selected!==null?ans:'?'}</span>
         </div>
       </div>
       {/* Hint number line */}

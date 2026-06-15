@@ -135,7 +135,10 @@ export default function SubtractionChapter({onComplete,childName}:Props){
       </div>
       {/* Grid */}
       <div style={S.gridWrap}>
-        {(stage==='takeAway'||stage==='question'||stage==='answered')&&(
+        {/* Answer breakdown — only AFTER the child answers, so it confirms the
+            result instead of revealing it. The child counts the remaining
+            emojis to choose; this would otherwise spoil "{ans} left". */}
+        {stage==='answered'&&(
           <div style={S.sectionRow}>
             <span style={{...S.secTag,background:'var(--garden-green)',color:'#fff',flex:ans}}>{ans} left ✓</span>
             <span style={{...S.secTag,background:'var(--apple-red)',color:'#fff',flex:take}}>{take} away</span>
