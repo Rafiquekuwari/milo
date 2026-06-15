@@ -1,6 +1,4 @@
 'use client'
-import ChapterLesson from '@/components/ui/ChapterLesson'
-import { getLessonExamples } from '@/lib/lessons'
 import { useChapterPhase } from '@/lib/useChapterPhase'
 import SpeakingLock from '@/components/ui/SpeakingLock'
 import GameTopbar from '../ui/GameTopbar'
@@ -9,6 +7,7 @@ import{useState,useEffect,useRef}from'react'
 import{useMiloSpeaker}from'@/lib/useMiloSpeaker'
 import{useAdaptive,subPair,Difficulty}from'@/lib/adaptive'
 import { DifficultyBadge } from '../ui/DifficultyBadge'
+import SubtractionLesson, { WatchSub, ChooseDiff, CSS as SUB_CSS } from '../lessons/SubtractionLesson'
 
 interface Props{onComplete:(c:number,w:number)=>void;childName:string}
 
@@ -41,6 +40,9 @@ export default function SubtractionChapter({onComplete,childName}:Props){
   const[selected,setSelected]=useState<number|null>(null)
   const[correct,setCorrect]=useState(0);const[wrong,setWrong]=useState(0)
   const[feedback,setFeedback]=useState<'correct'|'wrong'|null>(null)
+  // Adaptive remediation: after 3 wrong in a row, re-teach by counting what's left.
+  const[wrongRun,setWrongRun]=useState(0)
+  const[reMed,setReMed]=useState<{phase:'reteach'|'check';total:number;take:number;emoji:string}|null>(null)
   const timers=useRef<number[]>([])
   const clearT=()=>{timers.current.forEach(id => window.clearTimeout(id));timers.current=[]}
 
@@ -50,11 +52,11 @@ export default function SubtractionChapter({onComplete,childName}:Props){
     const th=THEMES[idx%THEMES.length]
     setTotal(nt);setTake(nk);setTheme(th)
     setChoices(buildChoices(nt-nk));setSelected(null);setFeedback(null);setStage('showAll')
-    speakAfterCurrent(idx===0?`Hi ${childName}! Let's learn to take away!`
-      :ada.shouldHint?`Watch carefully — ${nt} ${th.subject}, then some go away!`
-      :`There are ${nt} ${th.subject}!`)
-    const t1=window.setTimeout(()=>{setStage('takeAway');speak(th.lineB(nk))},nt*200+800)
-    const t2=window.setTimeout(()=>{setStage('question');speak(`How many ${th.subject} are left?`)},nt*200+nk*240+1400)
+    // Keep spoken lines short and spaced so they never cut each other off.
+    speakAfterCurrent(idx===0?`Hi ${childName}! Let's take away!`:`There are ${nt} ${th.subject}!`)
+    const base=nt*200
+    const t1=window.setTimeout(()=>{setStage('takeAway');speak(th.lineB(nk))}, base+1800)
+    const t2=window.setTimeout(()=>{setStage('question');speak(`How many ${th.subject} are left?`)}, base+1800+nk*240+2200)
     timers.current=[t1,t2]
   }
 
@@ -66,19 +68,32 @@ export default function SubtractionChapter({onComplete,childName}:Props){
     const ans=total-take;const ok=choice===ans
     setSelected(choice);setStage('answered');setFeedback(ok?'correct':'wrong')
     ada.record(ok)
+    const newRun=ok?0:wrongRun+1
+    setWrongRun(newRun)
     if(ok){setCorrect(c=>c+1);speak(`Yes! ${total} minus ${take} is ${ans}! ${ada.praise}`)}
     else  {setWrong(w=>w+1);speak(`${total} take away ${take} equals ${ans}. ${ada.encouragement}`)}
     afterSpeech(()=>{
-      setFeedback(null);const next=roundIdx+1
+      setFeedback(null)
+      // 3 wrong in a row → re-teach this take-away, then check
+      if(!ok && newRun>=3){ setReMed({phase:'reteach',total,take,emoji:theme.emoji}); return }
+      const next=roundIdx+1
       if(next>=TOTAL_ROUNDS)onComplete(ok?correct+1:correct,ok?wrong:wrong+1)
      else window.setTimeout(() => setRoundIdx(next), 300)})
-    
+  }
 
+  function finishReMed(){
+    setReMed(null); setWrongRun(0)
+    if(roundIdx+1>=TOTAL_ROUNDS) onComplete(correct, wrong)
+    else setRoundIdx(roundIdx+1)
   }
 
   const ans=total-take
   const flown=new Set(stage==='takeAway'||stage==='question'||stage==='answered'
     ?Array.from({length:take},(_,i)=>total-take+i):[])
+
+  if(phase==='lesson') return(
+    <SubtractionLesson childName={childName} onLessonComplete={startPractice}/>
+  )
 
   return(
     <div style={{...S.page,background:'linear-gradient(180deg,var(--sky-blue-soft) 0%,var(--bg-page) 55%)'}}>
@@ -189,6 +204,34 @@ export default function SubtractionChapter({onComplete,childName}:Props){
         {feedback==='correct'?`✅ ${total} − ${take} = ${ans}!`:`The answer was ${ans}`}
       </div>}
       <p style={S.roundLabel}>Round {Math.min(roundIdx+1,TOTAL_ROUNDS)} of {TOTAL_ROUNDS}</p>
+
+      {reMed?.phase==='reteach' && (
+        <SubRemediationOverlay>
+          <WatchSub total={reMed.total} take={reMed.take} emoji={reMed.emoji}
+            intro={`Let's count what's left! ${reMed.total} ${theme.subject}.`}
+            outro={`${reMed.total} take away ${reMed.take} is ${reMed.total-reMed.take}! Now you try!`}
+            onDone={()=>setReMed({phase:'check',total:3,take:1,emoji:reMed.emoji})}/>
+        </SubRemediationOverlay>
+      )}
+      {reMed?.phase==='check' && (
+        <SubRemediationOverlay>
+          <ChooseDiff total={reMed.total} take={reMed.take} emoji={reMed.emoji}
+            intro="Now you try! How many are left?"
+            onDone={finishReMed}/>
+        </SubRemediationOverlay>
+      )}
+    </div>
+  )
+}
+
+// Overlay wrapper for the re-teach / check (carries the lesson's animation CSS).
+function SubRemediationOverlay({children}:{children:React.ReactNode}){
+  return (
+    <div style={{position:'fixed',inset:0,zIndex:200,background:'rgba(61,37,22,0.7)',display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+      <style>{SUB_CSS}</style>
+      <div style={{background:'var(--paper)',border:'4px solid var(--outline)',borderRadius:24,padding:'22px 14px 26px',maxWidth:480,width:'100%',boxShadow:'0 8px 0 rgba(61,37,22,.2)',maxHeight:'94vh',overflowY:'auto'}}>
+        {children}
+      </div>
     </div>
   )
 }
