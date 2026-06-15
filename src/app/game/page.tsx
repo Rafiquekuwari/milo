@@ -109,7 +109,7 @@ export default function GamePage() {
   async function handleComplete(correct: number, wrong: number) {
     if (!playingChapter) return
     setChapterDone(true)
-    // Works offline — queues to localStorage if no network
+    // Works offline — queues locally (IndexedDB via kv) if no network
     await finishAndSync(playingChapter, correct, wrong, 'practice')
   }
 
