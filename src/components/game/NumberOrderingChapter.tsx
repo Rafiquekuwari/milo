@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useMiloSpeaker, afterSpeech, speakAfterCurrent, speakAt } from '@/lib/useMiloSpeaker'
 import { MiloProgressBar } from '@/components/ui/MiloUI'
 import { useAdaptive, seqStart, seqLength } from '@/lib/adaptive'
@@ -57,8 +57,14 @@ export default function NumberOrderingChapter({ onComplete, childName }: Props) 
   const [wrongRun, setWrongRun] = useState(0)
   const [reMed, setReMed] = useState<{phase:'reteach'|'check';seq:number[];hole:number;kind:'next'|'missing'}|null>(null)
   const answerRef = useRef<HTMLElement|null>(null)   // the correct choice (for the pointer)
-  // Must be before any early return — hooks must always be called in same order
-  const [shuffled] = useState(() => [...Array(6).keys()].sort(()=>Math.random()-.5))
+  // Shuffle the tap-grid tiles ONCE per round. Doing this inline in render
+  // reshuffled the tiles on every re-render (speech, feedback, pointer), making
+  // the numbers appear to randomly jump around. Keyed on `round` so it's stable
+  // for the whole round and only reshuffles when a new round is built.
+  const tapTiles = useMemo(
+    () => round.sequence.map((n,i)=>({n,i})).sort(()=>Math.random()-.5),
+    [round],
+  )
 
   useEffect(() => {
     const r = buildRound(roundIdx % 5, ada.difficulty)
@@ -164,9 +170,7 @@ export default function NumberOrderingChapter({ onComplete, childName }: Props) 
       {/* Tap grid */}
       {round.type==='tapInOrder'&&(
         <div style={S.tapGrid}>
-          {round.sequence
-            .map((n,i)=>({n,i}))
-            .sort(()=>Math.random()-.5)
+          {tapTiles
             .map(({n,i})=>(
               <button key={i} className={`milo-btn ${tapped.includes(i)?'tone-green':'tone-cream'}`}
                 onClick={()=>handleTapOrder(n,i)} disabled={answered||tapped.includes(i)}
