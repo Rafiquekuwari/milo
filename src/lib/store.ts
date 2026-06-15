@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { getActiveLearner } from './supabase/useLearnerSession'
+import type { LearnerStats, LearnerProgress } from './supabase/types'
 
 // ─────────────────────────────────────────────────────────────
 //  Types
@@ -167,6 +168,9 @@ interface MiloStore {
 
   // Load a learner's profile from localStorage into the store
   loadLearner: (learnerId: string, displayName: string, avatarIndex: number) => void
+
+  // Merge a learner's server-side progress (cross-device) into the profile
+  applyServerProgress: (stats: LearnerStats | null, progress: LearnerProgress[]) => void
 }
 
 export const useMiloStore = create<MiloStore>()(
@@ -219,6 +223,38 @@ export const useMiloStore = create<MiloStore>()(
           celebration:    null,
         })
       },
+
+      // Pull the learner's progress from Supabase so it appears on EVERY device
+      // they sign in on (not just the one that earned it). Merge, never regress:
+      // take the higher of local vs server so unsynced local progress isn't lost.
+      applyServerProgress: (stats, progress) =>
+        set(s => {
+          const cs = { ...s.profile.chapterStars }
+          for (const row of progress) {
+            const ch = row.chapter as ChapterType
+            if (ch in cs) cs[ch] = Math.max(cs[ch] ?? 0, row.best_stars ?? 0)
+          }
+          // XP only ever grows → max is correct. Coins are spent locally (and the
+          // shop isn't server-synced), so only seed coins from the server on a
+          // fresh device (local 0) to avoid "refunding" spent coins.
+          const totalXP     = Math.max(s.profile.totalXP, stats?.total_xp ?? 0)
+          const totalCoins  = s.profile.totalCoins > 0 ? s.profile.totalCoins : (stats?.total_coins ?? 0)
+          const currentStreak = Math.max(s.profile.currentStreak, stats?.current_streak ?? 0)
+          const lastPlayedDate = stats?.last_played_at
+            ? new Date(stats.last_played_at).toDateString()
+            : s.profile.lastPlayedDate
+          return {
+            profile: {
+              ...s.profile,
+              chapterStars:   cs,
+              totalXP,
+              totalCoins,
+              currentLevel:   getLevelFromXP(totalXP),
+              currentStreak,
+              lastPlayedDate,
+            },
+          }
+        }),
 
       completeSetup: (name, avatarIndex) =>
         set(s => ({
