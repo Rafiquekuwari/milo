@@ -1,6 +1,7 @@
 'use client'
-import { useState, useEffect } from 'react'
-import { useMiloSpeaker, afterSpeech, speakSeq } from '@/lib/useMiloSpeaker'
+import { useState, useEffect, useRef } from 'react'
+import { useMiloSpeaker, afterSpeech, speakSeq, speakAt } from '@/lib/useMiloSpeaker'
+import { pointAt } from '@/lib/miloPointer'
 import { MiloProgressBar } from '@/components/ui/MiloUI'
 import { useAdaptive, matchTarget, Difficulty } from '@/lib/adaptive'
 import { DifficultyBadge } from '../ui/DifficultyBadge'
@@ -36,6 +37,7 @@ export default function MatchingQuantitiesChapter({ onComplete, childName }: Pro
   // the basket, then check with a small, confidence-building number.
   const [wrongRun, setWrongRun] = useState(0)
   const [reMed, setReMed] = useState<{phase:'reteach'|'check'; target:number}|null>(null)
+  const basketRef = useRef<HTMLDivElement | null>(null)   // pointer target (the basket)
 
   useEffect(() => {
     const r = buildRound(ada.difficulty)
@@ -48,7 +50,7 @@ export default function MatchingQuantitiesChapter({ onComplete, childName }: Pro
     // Speak the instruction first; only unlock tapping once it has finished, so a
     // number can never be spoken before the instruction.
     let started = false
-    const cancel = speakSeq([prompt], { onWord: () => { started = true }, onDone: () => setReady(true) })
+    const cancel = speakSeq([prompt], { onWord: () => { started = true; pointAt(basketRef.current) }, onDone: () => setReady(true) })
     // Fallback: if speech never starts (blocked autoplay, muted device…), unlock
     // anyway so the round can never get stuck with the apples disabled.
     const fb = window.setTimeout(() => { if (!started) setReady(true) }, 2000)
@@ -75,8 +77,8 @@ export default function MatchingQuantitiesChapter({ onComplete, childName }: Pro
     ada.record(ok)
     const newRun = ok ? 0 : wrongRun + 1
     setWrongRun(newRun)
-    if (ok) { setCorrect(c=>c+1); speak(`Yes! ${round.target} apples! ${ada.praise}`) }
-    else { setWrong(w=>w+1); setShaking(true); speak(`We needed ${round.target}. ${ada.encouragement}`); window.setTimeout(()=>setShaking(false),500) }
+    if (ok) { setCorrect(c=>c+1); speakAt(`Yes! ${round.target} apples! ${ada.praise}`, basketRef.current) }
+    else { setWrong(w=>w+1); setShaking(true); speakAt(`We needed ${round.target}. ${ada.encouragement}`, basketRef.current); window.setTimeout(()=>setShaking(false),500) }
     afterSpeech(() => {
           setFeedback(null)
           // 3 wrong in a row → re-teach this target, then check with a small one.
@@ -123,7 +125,7 @@ export default function MatchingQuantitiesChapter({ onComplete, childName }: Pro
           ))}
         </div>
       </div>
-      <div style={{...S.basketArea, animation:shaking?'shake 400ms ease both':'none'}}>
+      <div ref={basketRef} style={{...S.basketArea, animation:shaking?'shake 400ms ease both':'none'}}>
         <p style={S.areaLabel}>Your basket: <strong>{basket}</strong> / {round.target}</p>
         <div style={S.basketRow}>
           <span style={{fontSize:48}}>🧺</span>

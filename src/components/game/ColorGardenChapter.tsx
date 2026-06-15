@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { useMiloSpeaker, afterSpeech, speakAfterCurrent, speak, speakSeq } from '@/lib/useMiloSpeaker'
+import { useMiloSpeaker, afterSpeech, speakAfterCurrent, speak, speakSeq, speakAt } from '@/lib/useMiloSpeaker'
 
 interface Props {
   onComplete: (correct: number, wrong: number) => void
@@ -82,6 +82,7 @@ export default function ColorGardenChapter({ onComplete, childName }: Props) {
   // Adaptive remediation: after 3 wrong in a row, re-teach the colour, then check.
   const [wrongRun, setWrongRun] = useState(0)
   const [reMed, setReMed] = useState<{phase:'reteach'|'check'; color:ColorDef; shapeKey:string}|null>(null)
+  const answerRef = useRef<HTMLElement | null>(null)   // the correct bucket (for the pointer)
 
   useEffect(() => {
     const r = buildRound(roundIdx, ada.difficulty)
@@ -101,8 +102,8 @@ export default function ColorGardenChapter({ onComplete, childName }: Props) {
     ada.record(ok)
     const newRun = ok ? 0 : wrongRun + 1
     setWrongRun(newRun)
-    if (ok) { setCorrect(c=>c+1); speak(`Yes! ${color.name}! ${ada.praise}`) }
-    else    { setWrong(w=>w+1);   speak(`Oops! The answer was ${round.targetColor.name}. ${ada.encouragement}`); window.setTimeout(()=>setFlowerColor(round.targetColor.hex), 500) }
+    if (ok) { setCorrect(c=>c+1); speakAt(`Yes! ${color.name}! ${ada.praise}`, answerRef.current) }
+    else    { setWrong(w=>w+1);   speakAt(`Oops! The answer was ${round.targetColor.name}. ${ada.encouragement}`, answerRef.current); window.setTimeout(()=>setFlowerColor(round.targetColor.hex), 500) }
     afterSpeech(() => {
       setFeedback(null)
       // 3 wrong in a row → re-teach this colour, then check
@@ -163,7 +164,9 @@ export default function ColorGardenChapter({ onComplete, childName }: Props) {
           const isSel = selected === color.name
           const isOk  = color.name === round.targetColor.name
           return (
-            <button key={color.name} onClick={() => handleChoice(color)} disabled={!!selected} style={{
+            <button key={color.name} onClick={() => handleChoice(color)} disabled={!!selected}
+              ref={isOk ? (el)=>{answerRef.current=el} : undefined}
+              style={{
               ...S.bucket,
               background: color.hex,
               borderColor: isSel ? (isOk?'var(--garden-green)':'var(--apple-red)') : 'var(--outline)',

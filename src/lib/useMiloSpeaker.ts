@@ -15,6 +15,7 @@
  */
 
 import { useCallback, useSyncExternalStore } from 'react'
+import { pointAt, clearPointer } from './miloPointer'
 
 // ─── Singleton state ──────────────────────────────────────────────────────────
 let _voices: SpeechSynthesisVoice[] = []
@@ -153,10 +154,21 @@ function _actuallySpeak(text: string, rate: number, pitch: number) {
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 export function speak(text: string, rate = 0.88, pitch = 1.05) {
+  clearPointer()          // a plain line isn't about any specific element
   _doSpeak(text, rate, pitch)
 }
 
+/**
+ * Speak a line AND point Milo's hand at the element it's about. The pointer shows
+ * while the line plays and hides when Milo stops. Pass null to just speak.
+ */
+export function speakAt(text: string, target: HTMLElement | null, rate = 0.88, pitch = 1.05) {
+  _doSpeak(text, rate, pitch)
+  pointAt(target)
+}
+
 export function speakAfterCurrent(text: string, rate = 0.88, pitch = 1.05) {
+  clearPointer()
   if (_speaking) {
     _onEndCbs.push(() => setTimeout(() => _doSpeak(text, rate, pitch), 200))
   } else {
@@ -174,6 +186,7 @@ export function replayLast() {
 export function stopSpeech() {
   if (_speakTimer) { clearTimeout(_speakTimer); _speakTimer = null }
   _onEndCbs = []
+  clearPointer()
   _setSpeaking(false)
   try { window.speechSynthesis.cancel() } catch {}
 }
@@ -198,6 +211,7 @@ export function speakSeq(
 ): () => void {
   const { onWord, onDone, rate = 0.88, pitch = 1.05 } = opts
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) { onDone?.(); return () => {} }
+  clearPointer()   // callers re-point per word via onWord if they want a pointer
   if (_speakTimer) { clearTimeout(_speakTimer); _speakTimer = null }
   let cancelled = false
   let i = 0

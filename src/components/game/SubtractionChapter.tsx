@@ -2,7 +2,7 @@
 import { useChapterPhase } from '@/lib/useChapterPhase'
 import SpeakingLock from '@/components/ui/SpeakingLock'
 import GameTopbar from '../ui/GameTopbar'
-import { afterSpeech, speakAfterCurrent } from '@/lib/useMiloSpeaker'
+import { afterSpeech, speakAfterCurrent, speakAt } from '@/lib/useMiloSpeaker'
 import{useState,useEffect,useRef}from'react'
 import{useMiloSpeaker}from'@/lib/useMiloSpeaker'
 import{useAdaptive,subPair,Difficulty}from'@/lib/adaptive'
@@ -43,6 +43,7 @@ export default function SubtractionChapter({onComplete,childName}:Props){
   // Adaptive remediation: after 3 wrong in a row, re-teach by counting what's left.
   const[wrongRun,setWrongRun]=useState(0)
   const[reMed,setReMed]=useState<{phase:'reteach'|'check';total:number;take:number;emoji:string}|null>(null)
+  const answerRef=useRef<HTMLElement|null>(null)   // the correct answer choice (for the pointer)
   const timers=useRef<number[]>([])
   const clearT=()=>{timers.current.forEach(id => window.clearTimeout(id));timers.current=[]}
 
@@ -70,8 +71,8 @@ export default function SubtractionChapter({onComplete,childName}:Props){
     ada.record(ok)
     const newRun=ok?0:wrongRun+1
     setWrongRun(newRun)
-    if(ok){setCorrect(c=>c+1);speak(`Yes! ${total} minus ${take} is ${ans}! ${ada.praise}`)}
-    else  {setWrong(w=>w+1);speak(`${total} take away ${take} equals ${ans}. ${ada.encouragement}`)}
+    if(ok){setCorrect(c=>c+1);speakAt(`Yes! ${total} minus ${take} is ${ans}! ${ada.praise}`, answerRef.current)}
+    else  {setWrong(w=>w+1);speakAt(`${total} take away ${take} equals ${ans}. ${ada.encouragement}`, answerRef.current)}
     afterSpeech(()=>{
       setFeedback(null)
       // 3 wrong in a row → re-teach this take-away, then check
@@ -184,7 +185,8 @@ export default function SubtractionChapter({onComplete,childName}:Props){
           {choices.map(ch=>{
             const isSel=selected===ch;const isOk=ch===ans
             return(
-              <button key={ch} disabled={selected!==null} onClick={()=>handleAnswer(ch)} style={{
+              <button key={ch} disabled={selected!==null} onClick={()=>handleAnswer(ch)}
+                ref={isOk ? (el)=>{answerRef.current=el} : undefined} style={{
                 width:96,height:96,background:isSel?(isOk?'var(--garden-green-soft)':'var(--apple-red-soft)'):'var(--paper)',
                 border:`4px solid ${isSel?(isOk?'var(--garden-green)':'var(--apple-red)'):'var(--outline)'}`,
                 borderRadius:24,boxShadow:isSel?`0 6px 0 ${isOk?'var(--garden-green-deep)':'var(--apple-red-deep)'}`:'0 6px 0 #c8ac79',

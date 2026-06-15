@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useMiloSpeaker, afterSpeech, speakAfterCurrent } from '@/lib/useMiloSpeaker'
+import { useState, useEffect, useRef } from 'react'
+import { useMiloSpeaker, afterSpeech, speakAfterCurrent, speakAt } from '@/lib/useMiloSpeaker'
 import { useAdaptive, patternUnitLen } from '@/lib/adaptive'
 import { DifficultyBadge } from '../ui/DifficultyBadge'
 import PatternsLesson, { WatchPattern, TapNext, CSS as PAT_CSS } from '../lessons/PatternsLesson'
@@ -116,6 +116,7 @@ export default function PatternsChapter({ onComplete, childName }: Props) {
   // Adaptive remediation: after 3 wrong in a row, re-teach the pattern, then check.
   const [wrongRun, setWrongRun] = useState(0)
   const [reMed, setReMed] = useState<{ phase: 'reteach' | 'check'; round: Round } | null>(null)
+  const answerRef = useRef<HTMLElement | null>(null)   // the correct choice (for the pointer)
 
   useEffect(() => {
     const r = buildRound(roundIdx, ada.difficulty)
@@ -140,10 +141,10 @@ export default function PatternsChapter({ onComplete, childName }: Props) {
 
     if (ok) {
       setCorrect(c => c + 1)
-      speak(roundIdx % 3 === 0 ? `Amazing! You found the pattern! ${ada.praise}` : `Yes! Great pattern thinking! ${ada.praise}`)
+      speakAt(roundIdx % 3 === 0 ? `Amazing! You found the pattern! ${ada.praise}` : `Yes! Great pattern thinking! ${ada.praise}`, answerRef.current)
     } else {
       setWrong(w => w + 1)
-      speak(`Not quite! The answer was ${round.answer}. ${ada.encouragement}`)
+      speakAt(`Not quite! The answer was ${round.answer}. ${ada.encouragement}`, answerRef.current)
     }
 
     afterSpeech(() => {
@@ -293,6 +294,7 @@ export default function PatternsChapter({ onComplete, childName }: Props) {
               key={ch}
               onClick={() => handleChoice(ch)}
               disabled={selected !== null}
+              ref={isCorrect ? (el) => { answerRef.current = el } : undefined}
               style={{
                 ...S.choiceBtn,
                 background: bg,

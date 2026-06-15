@@ -1,6 +1,6 @@
 'use client'
-import { useState, useEffect } from 'react'
-import { useMiloSpeaker, afterSpeech, speakAfterCurrent } from '@/lib/useMiloSpeaker'
+import { useState, useEffect, useRef } from 'react'
+import { useMiloSpeaker, afterSpeech, speakAfterCurrent, speakAt } from '@/lib/useMiloSpeaker'
 import { MiloProgressBar } from '@/components/ui/MiloUI'
 import { useAdaptive, Difficulty } from '@/lib/adaptive'
 import { DifficultyBadge } from '../ui/DifficultyBadge'
@@ -48,6 +48,7 @@ export default function ShapeHouseChapter({ onComplete, childName }: Props) {
   // Adaptive remediation: after 3 wrong in a row, re-teach the shape then check.
   const [wrongRun, setWrongRun] = useState(0)
   const [reMed, setReMed] = useState<{ phase:'reteach'|'check'; target: ShapeName } | null>(null)
+  const answerRef = useRef<HTMLElement | null>(null)   // the correct shape button (for the pointer)
 
   useEffect(() => {
     const r = buildRound(roundIdx, ada.difficulty)
@@ -75,10 +76,10 @@ export default function ShapeHouseChapter({ onComplete, childName }: Props) {
     setWrongRun(newRun)
     if (ok) {
       setCorrect(c => c + 1)
-      speak(`Yes! That's the ${SHAPES[round.target].label}! ${ada.praise}`)
+      speakAt(`Yes! That's the ${SHAPES[round.target].label}! ${ada.praise}`, answerRef.current)
     } else {
       setWrong(w => w + 1)
-      speak(`That's a ${SHAPES[name].label}. We wanted the ${SHAPES[round.target].label}. ${ada.encouragement}`)
+      speakAt(`That's a ${SHAPES[name].label}. We wanted the ${SHAPES[round.target].label}. ${ada.encouragement}`, answerRef.current)
     }
     afterSpeech(() => {
       setFeedback(null)
@@ -140,7 +141,9 @@ export default function ShapeHouseChapter({ onComplete, childName }: Props) {
           const isTarget = n === round.target
           const showRight = picked && isTarget   // reveal the right one after a wrong pick
           return (
-            <button key={n} onClick={() => handlePick(n)} disabled={!!picked} style={{
+            <button key={n} onClick={() => handlePick(n)} disabled={!!picked}
+              ref={isTarget ? (el) => { answerRef.current = el } : undefined}
+              style={{
               ...S.optBtn,
               background: isPicked
                 ? (isTarget ? 'var(--garden-green-soft)' : 'var(--apple-red-soft)')

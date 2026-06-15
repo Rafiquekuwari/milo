@@ -6,7 +6,7 @@ import MeasurementLesson, { WatchCompare, ChooseCompare, CSS as MEAS_CSS, type C
 import { useChapterPhase } from '@/lib/useChapterPhase'
 import SpeakingLock from '@/components/ui/SpeakingLock'
 import GameTopbar from '@/components/ui/GameTopbar'
-import { afterSpeech, speakAfterCurrent, useMiloSpeaker } from '@/lib/useMiloSpeaker'
+import { afterSpeech, speakAfterCurrent, speakAt, useMiloSpeaker } from '@/lib/useMiloSpeaker'
 import { DifficultyBadge } from '../ui/DifficultyBadge'
 
 interface Props {
@@ -193,13 +193,13 @@ function LengthBar({ opt, max }: { opt: Item; max: number }) {
 }
 
 // ─── Choice button ───────────────────────────────────────────────
-function ChoiceBtn({ opt, chosen, isCorrect, revealed, onClick }:
-  { opt: Item; chosen: boolean; isCorrect: boolean; revealed: boolean; onClick: () => void }) {
+function ChoiceBtn({ opt, chosen, isCorrect, revealed, onClick, innerRef }:
+  { opt: Item; chosen: boolean; isCorrect: boolean; revealed: boolean; onClick: () => void; innerRef?: (el: HTMLButtonElement | null) => void }) {
   const correct = chosen && isCorrect
   const wrong   = chosen && !isCorrect
   const showRight = revealed && isCorrect && !chosen
   return (
-    <button onClick={onClick} disabled={revealed} style={{
+    <button ref={innerRef} onClick={onClick} disabled={revealed} style={{
       flex:1, minWidth:130, maxWidth:220, padding:'18px 12px',
       background: correct ? 'var(--garden-green-soft)' : wrong ? 'var(--apple-red-soft)' : showRight ? 'var(--garden-green-soft)' : 'var(--paper)',
       border: `4px solid ${correct ? 'var(--garden-green)' : wrong ? 'var(--apple-red)' : showRight ? 'var(--garden-green)' : opt.color}`,
@@ -239,6 +239,7 @@ export default function MeasurementChapter({ onComplete, childName }: Props) {
   // Adaptive remediation: after 3 wrong in a row, re-teach with an obvious gap, then check.
   const [wrongRun, setWrongRun] = useState(0)
   const [reMed, setReMed] = useState<{ phase:'reteach'|'check'; round: Round } | null>(null)
+  const answerRef = useRef<HTMLButtonElement | null>(null)   // the winning choice (for the pointer)
   const timers = useRef<number[]>([])
 
   function clearT() { timers.current.forEach(id => window.clearTimeout(id)); timers.current = [] }
@@ -273,10 +274,10 @@ export default function MeasurementChapter({ onComplete, childName }: Props) {
     const word = wordFor(round.category, round.ask)
     if (ok) {
       setCorrect(c => c + 1)
-      speak(`Yes! The ${winner.label} is ${word}! ${ada.praise}`)
+      speakAt(`Yes! The ${winner.label} is ${word}! ${ada.praise}`, answerRef.current)
     } else {
       setWrong(w => w + 1)
-      speak(`Not quite! The ${winner.label} was ${word}. ${ada.encouragement}`)
+      speakAt(`Not quite! The ${winner.label} was ${word}. ${ada.encouragement}`, answerRef.current)
     }
 
     afterSpeech(() => {
@@ -361,8 +362,8 @@ export default function MeasurementChapter({ onComplete, childName }: Props) {
       </div>
 
       <div style={S.choicesRow}>
-        <ChoiceBtn opt={round.a} chosen={selected==='a'} isCorrect={round.answer==='a'} revealed={!!selected} onClick={() => handleChoice('a')} />
-        <ChoiceBtn opt={round.b} chosen={selected==='b'} isCorrect={round.answer==='b'} revealed={!!selected} onClick={() => handleChoice('b')} />
+        <ChoiceBtn opt={round.a} chosen={selected==='a'} isCorrect={round.answer==='a'} revealed={!!selected} onClick={() => handleChoice('a')} innerRef={round.answer==='a' ? (el)=>{answerRef.current=el} : undefined} />
+        <ChoiceBtn opt={round.b} chosen={selected==='b'} isCorrect={round.answer==='b'} revealed={!!selected} onClick={() => handleChoice('b')} innerRef={round.answer==='b' ? (el)=>{answerRef.current=el} : undefined} />
       </div>
 
       {feedback && (

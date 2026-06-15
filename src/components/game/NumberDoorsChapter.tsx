@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
-import { useMiloSpeaker, afterSpeech, speakAfterCurrent, speak, speakSeq } from '@/lib/useMiloSpeaker'
+import { useMiloSpeaker, afterSpeech, speakAfterCurrent, speak, speakSeq, speakAt } from '@/lib/useMiloSpeaker'
 import { MiloProgressBar } from '@/components/ui/MiloUI'
 import { useAdaptive } from '@/lib/adaptive'
 import { DifficultyBadge } from '../ui/DifficultyBadge'
@@ -41,6 +41,7 @@ export default function NumberDoorsChapter({ onComplete, childName }: Props) {
   // Adaptive remediation: after 3 wrong in a row, re-teach the number, then check.
   const [wrongRun, setWrongRun] = useState(0)
   const [reMed, setReMed] = useState<{phase:'reteach'|'check'; target:number}|null>(null)
+  const answerRef = useRef<HTMLElement | null>(null)   // the correct door (for the pointer)
 
   useEffect(() => {
     const r = buildRound(ada.difficulty)
@@ -67,8 +68,8 @@ export default function NumberDoorsChapter({ onComplete, childName }: Props) {
     ada.record(ok)
     const newRun = ok ? 0 : wrongRun + 1
     setWrongRun(newRun)
-    if (ok) { setCorrect(c=>c+1); speak(`Yes! Number ${round.correct}! ${ada.praise}`) }
-    else    { setWrong(w=>w+1);   speak(`Door ${round.correct} was right! ${ada.encouragement}`) }
+    if (ok) { setCorrect(c=>c+1); speakAt(`Yes! Number ${round.correct}! ${ada.praise}`, answerRef.current) }
+    else    { setWrong(w=>w+1);   speakAt(`Door ${round.correct} was right! ${ada.encouragement}`, answerRef.current) }
     afterSpeech(() => {
           setFeedback(null)
           // 3 wrong in a row → re-teach the number, then check
@@ -106,7 +107,9 @@ export default function NumberDoorsChapter({ onComplete, childName }: Props) {
           const col = DOOR_COLORS[i%DOOR_COLORS.length]
           const isSel = selected===num; const isOk=num===round.correct
           return (
-            <button key={num} onClick={()=>handleDoor(num)} disabled={selected!==null} style={{
+            <button key={num} onClick={()=>handleDoor(num)} disabled={selected!==null}
+              ref={isOk ? (el)=>{answerRef.current=el} : undefined}
+              style={{
               ...S.door,
               background:isSel?(isOk?'var(--garden-green-soft)':'var(--apple-red-soft)'):col.bg,
               borderColor:isSel?(isOk?'var(--garden-green)':'var(--apple-red)'):col.border,
