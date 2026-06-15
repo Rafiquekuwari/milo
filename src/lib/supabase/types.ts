@@ -107,18 +107,6 @@ export interface Database {
         Insert: Omit<Database['public']['Tables']['learner_stats']['Row'], 'updated_at'>
         Update: Partial<Database['public']['Tables']['learner_stats']['Insert']>
       }
-      offline_queue: {
-        Row: {
-          id:         string
-          learner_id: string
-          payload:    Record<string, unknown>
-          queued_at:  string
-          synced_at:  string | null
-          error:      string | null
-        }
-        Insert: Omit<Database['public']['Tables']['offline_queue']['Row'], 'id' | 'queued_at'>
-        Update: Partial<Database['public']['Tables']['offline_queue']['Insert']>
-      }
       learner_state: {
         Row: {
           learner_id:     string
@@ -142,7 +130,6 @@ export type LearnerInvite  = Database['public']['Tables']['learner_invites']['Ro
 export type Session        = Database['public']['Tables']['sessions']['Row']
 export type LearnerProgress = Database['public']['Tables']['learner_progress']['Row']
 export type LearnerStats   = Database['public']['Tables']['learner_stats']['Row']
-export type OfflineQueue   = Database['public']['Tables']['offline_queue']['Row']
 export type LearnerState   = Database['public']['Tables']['learner_state']['Row']
 
 // Invite with optional learner name (joined query result)
