@@ -68,8 +68,10 @@ export function useChapterSync() {
       return
     }
 
-    const ok = await syncSession(payload)
-    if (!ok) {
+    const outcome = await syncSession(payload)
+    // Only queue for retry on a transient failure. A 'drop' (learner gone / not
+    // owned) can never succeed, so queueing it would just loop forever.
+    if (outcome === 'retry') {
       enqueueSession(payload)
     }
   }, [finishChapter])

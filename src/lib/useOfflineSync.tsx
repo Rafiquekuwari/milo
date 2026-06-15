@@ -37,10 +37,12 @@ export async function flushQueue(): Promise<number> {
     const remaining: SessionPayload[] = []
     for (const payload of q) {
       try {
-        const ok = await syncSession(payload)
-        if (ok) flushed++
-        else remaining.push(payload)
-      } catch { remaining.push(payload) }
+        const outcome = await syncSession(payload)
+        if (outcome === 'ok') flushed++
+        else if (outcome === 'retry') remaining.push(payload)
+        // 'drop' — permanent failure (learner gone / not owned); discard so it
+        // doesn't re-error on every flush forever.
+      } catch { remaining.push(payload) }   // threw → transient (network); keep
     }
     if (remaining.length === 0) localStorage.removeItem(QUEUE_KEY)
     else localStorage.setItem(QUEUE_KEY, JSON.stringify(remaining))
