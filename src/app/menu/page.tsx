@@ -10,6 +10,7 @@ import ChapterPicker from '@/components/ui/ChapterPicker'
 import PWAInstallBanner from '@/components/ui/PWAInstallBanner'
 import { getActiveLearner, clearActiveLearner } from '@/lib/supabase/useLearnerSession'
 import { getLearnerStats, getLearnerProgress, getLearnerState, saveLearnerState, getMyAccessRole } from '@/lib/supabase/queries'
+import { getLastPlayed, setLastPlayed, reconcileLastPlayed } from '@/lib/lastPlayed'
 
 const AVATAR_SRCS = ['/assets/objects/fox.png','/assets/objects/bunny.png','/assets/objects/bear.png','/assets/objects/cat.png']
 const LEVEL_NAMES   = ['Beginner','Counter','Explorer','Number Star','Math Wizard','Champion',"Milo's Champion",'Legend']
@@ -42,20 +43,6 @@ const CHAPTER_ASSETS: Record<ChapterType, string> = {
   measurement:        '/assets/objects/star.png',
 }
 
-// Per-learner last played chapter stored in localStorage
-function getLastPlayed(learnerId: string): ChapterType | null {
-  try {
-    const key = `milo-last-played-${learnerId}`
-    return localStorage.getItem(key) as ChapterType | null
-  } catch { return null }
-}
-
-function setLastPlayed(learnerId: string, chapter: ChapterType) {
-  try {
-    localStorage.setItem(`milo-last-played-${learnerId}`, chapter)
-  } catch {}
-}
-
 export default function MainMenu() {
   const router = useRouter()
   const { profile, startChapter, loadLearner, applyServerProgress } = useMiloStore()
@@ -71,7 +58,7 @@ export default function MainMenu() {
     if (learner) {
       loadLearner(learner.id, learner.display_name, learner.avatar_index)
       setLearnerId(learner.id)
-      const lp = getLastPlayed(learner.id)
+      const lp = getLastPlayed(learner.id)?.chapter ?? null
       setLastPlayedState(lp)
       setReady(true)
 
@@ -98,6 +85,15 @@ export default function MainMenu() {
             getLearnerState(learner.id),
           ])
           applyServerProgress(stats, progress, state)
+
+          // Continue-where-you-left-off, cross-device: progress is ordered by
+          // last_played_at desc, so progress[0] is the most recently played
+          // chapter on ANY device. Adopt it if it's newer than this device's
+          // local open, so "Continue" follows the learner between devices.
+          const top = progress[0] as { chapter?: ChapterType; last_played_at?: string | null } | undefined
+          const resolved = reconcileLastPlayed(learner.id, top?.chapter, top?.last_played_at)
+          if (resolved) setLastPlayedState(resolved)
+
           const p = useMiloStore.getState().profile
           await saveLearnerState(learner.id, {
             coinsSpent:    p.coinsSpent,

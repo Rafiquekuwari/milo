@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useMiloStore } from '@/lib/store'
 
 import { getActiveLearner } from '@/lib/supabase/useLearnerSession'
+import { setLastPlayed } from '@/lib/lastPlayed'
 import CountingChapter from '@/components/game/CountingChapter'
 import NumberOrderingChapter from '@/components/game/NumberOrderingChapter'
 import NumberDoorsChapter from '@/components/game/NumberDoorsChapter'
@@ -83,10 +84,9 @@ export default function GamePage() {
     const learner = getActiveLearner()
     if (learner) {
       setChildName(learner.display_name)
-      // Save last played chapter for resume flow
-      if (currentChapter) {
-        try { localStorage.setItem(`milo-last-played-${learner.id}`, currentChapter) } catch {}
-      }
+      // Save last played chapter for resume flow (timestamped; reconciled with
+      // the server on the menu so "Continue" syncs across devices).
+      if (currentChapter) setLastPlayed(learner.id, currentChapter)
     }
     if (navigator.onLine) flushQueue()
   // eslint-disable-next-line react-hooks/exhaustive-deps
