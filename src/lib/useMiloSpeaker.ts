@@ -27,6 +27,10 @@ let _lastPitch  = 1.05
 let _speakTimer: ReturnType<typeof setTimeout> | null = null
 let _onEndCbs: Array<() => void> = []
 let _keepalive: ReturnType<typeof setInterval> | null = null
+// Cancel fn for an in-flight speakSeq(). stopSpeech()/speak() call this so a
+// sequence is truly stopped — otherwise cancelling its current utterance just
+// makes it advance to the next line (it would keep talking after Skip).
+let _activeSeqCancel: (() => void) | null = null
 
 const _subs = new Set<() => void>()
 function _notify() { _subs.forEach(f => f()) }
@@ -83,6 +87,9 @@ function _pickVoice(): SpeechSynthesisVoice | null {
 function _doSpeak(text: string, rate: number, pitch: number) {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) return
   if (!text?.trim()) return
+
+  // A new single utterance supersedes any running sequence (stop it for real).
+  if (_activeSeqCancel) { const c = _activeSeqCancel; _activeSeqCancel = null; c() }
 
   _lastText  = text
   _lastRate  = rate
@@ -187,6 +194,8 @@ export function stopSpeech() {
   if (_speakTimer) { clearTimeout(_speakTimer); _speakTimer = null }
   _onEndCbs = []
   clearPointer()
+  // Truly stop any running sequence so it can't advance to its next line.
+  if (_activeSeqCancel) { const c = _activeSeqCancel; _activeSeqCancel = null; c() }
   _setSpeaking(false)
   try { window.speechSynthesis.cancel() } catch {}
 }
@@ -212,12 +221,24 @@ export function speakSeq(
   const { onWord, onDone, rate = 0.88, pitch = 1.05 } = opts
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) { onDone?.(); return () => {} }
   clearPointer()   // callers re-point per word via onWord if they want a pointer
+  // Supersede any previous sequence cleanly.
+  if (_activeSeqCancel) { const c = _activeSeqCancel; _activeSeqCancel = null; c() }
   if (_speakTimer) { clearTimeout(_speakTimer); _speakTimer = null }
   let cancelled = false
   let i = 0
+  const cancel = () => {
+    if (cancelled) return
+    cancelled = true
+    if (_activeSeqCancel === cancel) _activeSeqCancel = null
+    try { window.speechSynthesis.cancel() } catch {}
+    _setSpeaking(false)
+  }
   const next = () => {
     if (cancelled) return
-    if (i >= words.length) { _setSpeaking(false); onDone?.(); return }
+    if (i >= words.length) {
+      if (_activeSeqCancel === cancel) _activeSeqCancel = null
+      _setSpeaking(false); onDone?.(); return
+    }
     const idx = i; i++
     const txt = words[idx]
     if (!txt || !txt.trim()) { next(); return }
@@ -229,9 +250,10 @@ export function speakSeq(
     u.onerror = () => { if (!cancelled) next() }
     try { window.speechSynthesis.speak(u) } catch { next() }
   }
+  _activeSeqCancel = cancel
   try { window.speechSynthesis.cancel() } catch {}
   _speakTimer = setTimeout(() => { _speakTimer = null; if (!cancelled) next() }, 120)
-  return () => { cancelled = true; try { window.speechSynthesis.cancel() } catch {}; _setSpeaking(false) }
+  return cancel
 }
 
 export function useIsSpeaking(): boolean {
