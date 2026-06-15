@@ -22,22 +22,32 @@ export function getQueuedSessions(): SessionPayload[] {
   try { return JSON.parse(localStorage.getItem(QUEUE_KEY) ?? '[]') } catch { return [] }
 }
 
+// App-wide lock: the banner, the hook, and chapter-sync all call flushQueue;
+// this guarantees only ONE flush runs at a time across the whole app, so the
+// same queued items aren't processed concurrently (which multiplied the errors).
+let _flushing = false
+
 export async function flushQueue(): Promise<number> {
-  if (!navigator.onLine) return 0
-  const q = getQueuedSessions()
-  if (q.length === 0) return 0
-  let flushed = 0
-  const remaining: SessionPayload[] = []
-  for (const payload of q) {
-    try {
-      const ok = await syncSession(payload)
-      if (ok) flushed++
-      else remaining.push(payload)
-    } catch { remaining.push(payload) }
+  if (_flushing || !navigator.onLine) return 0
+  _flushing = true
+  try {
+    const q = getQueuedSessions()
+    if (q.length === 0) return 0
+    let flushed = 0
+    const remaining: SessionPayload[] = []
+    for (const payload of q) {
+      try {
+        const ok = await syncSession(payload)
+        if (ok) flushed++
+        else remaining.push(payload)
+      } catch { remaining.push(payload) }
+    }
+    if (remaining.length === 0) localStorage.removeItem(QUEUE_KEY)
+    else localStorage.setItem(QUEUE_KEY, JSON.stringify(remaining))
+    return flushed
+  } finally {
+    _flushing = false
   }
-  if (remaining.length === 0) localStorage.removeItem(QUEUE_KEY)
-  else localStorage.setItem(QUEUE_KEY, JSON.stringify(remaining))
-  return flushed
 }
 
 // ─── Hook ─────────────────────────────────────────────────────
@@ -159,7 +169,7 @@ export function OfflineBanner(): React.ReactElement | null {
       padding: '12px 20px',
       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
       fontSize: 14, fontWeight: 600, color: '#fff',
-      background: !isOnline ? '#1f2937' : '#166534',
+      background: !isOnline ? '#1f2937' : syncing ? '#166534' : '#92400e',
       transition: 'background 0.3s ease',
     }}>
       {!isOnline ? (
@@ -174,11 +184,11 @@ export function OfflineBanner(): React.ReactElement | null {
         </>
       ) : (
         <>
-          <span>{syncing ? '🔄' : '✅'}</span>
+          <span>{syncing ? '🔄' : '⏳'}</span>
           <span>
             {syncing
               ? 'Syncing your progress...'
-              : `${pendingCount} session${pendingCount !== 1 ? 's' : ''} synced!`}
+              : `${pendingCount} session${pendingCount !== 1 ? 's' : ''} waiting to sync…`}
           </span>
         </>
       )}

@@ -161,8 +161,9 @@ export async function syncSession(payload: SessionPayload): Promise<boolean> {
   })
 
   if (error) {
+    // No toast here — this runs once PER queued item during a flush, which would
+    // spam a toast per item. The OfflineBanner shows pending status instead.
     console.error('[syncSession] rpc failed:', error.message)
-    toast.error('Progress sync failed — will retry when online')
     return false
   }
 
