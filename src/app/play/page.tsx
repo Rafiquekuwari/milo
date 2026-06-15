@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation'
 const GAMES = [
   { emoji: '✋', title: 'Finger Counting', desc: 'Count with your fingers!', href: '/play/finger-counting' },
   { emoji: '➕', title: 'Add with Fingers', desc: 'Show the answer on your hands!', href: '/play/finger-addition' },
+  { emoji: '🧺', title: 'Catch It!', desc: 'Catch the falling apples!', href: '/play/catch-it' },
 ]
 
 export default function HandGamesHub() {

@@ -14,6 +14,7 @@ import { useChapterSync } from '@/lib/supabase/useChapterSync'
 import { useFingerCounter } from '@/lib/ar/useFingerCounter'
 import { useAdaptive } from '@/lib/adaptive'
 import { DifficultyBadge } from '@/components/ui/DifficultyBadge'
+import CelebrationModal from '@/components/ui/CelebrationModal'
 import { kv } from '@/lib/kv'
 
 const TOTAL_ROUNDS = 6
@@ -25,9 +26,7 @@ export default function FingerCountingActivity() {
   const router = useRouter()
   const { speak } = useMiloSpeaker()
   const { finishAndSync } = useChapterSync()
-  const childName = useMiloStore(s => s.profile.childName)
   const startChapter = useMiloStore(s => s.startChapter)
-  const dismissCelebration = useMiloStore(s => s.dismissCelebration)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -119,13 +118,15 @@ export default function FingerCountingActivity() {
 
   function finish() {
     stop()
-    setPhase('done')
-    // Record into the same progress/coins pipeline as the Counting chapter,
-    // then clear the celebration state (we show our own summary here, and the
-    // global CelebrationModal only renders inside /game).
+    // Record into the same progress/coins pipeline as the Counting chapter; this
+    // sets the celebration state, which CelebrationModal (rendered below) shows.
     finishAndSync('counting', TOTAL_ROUNDS, 0)
-    dismissCelebration()
-    speak(`Woohoo! You counted them all, ${childName || 'friend'}!`)
+    setPhase('done')
+  }
+  function replay() {
+    setCorrect(0); setMatched(false); setRoundIdx(0)
+    startedRef.current = false
+    setPhase('playing')
   }
 
   function begin() {
@@ -168,12 +169,7 @@ export default function FingerCountingActivity() {
   if (phase === 'done') {
     return (
       <Shell>
-        <div style={card}>
-          <div style={{ fontSize: 64 }}>🎉</div>
-          <h1 style={{ fontFamily: 'var(--font-display)', color: 'var(--ink)', margin: '8px 0' }}>Great counting!</h1>
-          <p style={{ fontSize: 40 }}>⭐⭐⭐</p>
-          <button className="milo-btn tone-green size-lg" onClick={() => router.push('/menu')}>Back to menu</button>
-        </div>
+        <CelebrationModal hideNext onPlayAgain={replay} onExit={() => router.push('/play')} exitLabel="← Back to games" />
       </Shell>
     )
   }

@@ -6,7 +6,14 @@ import { useMiloSpeaker } from '@/lib/useMiloSpeaker'
 
 const STAR_MSGS = ['', 'Keep practising — you can do it!', 'Well done! You are getting there!', 'Amazing! You are a star!']
 
-export default function CelebrationModal() {
+interface Props {
+  onPlayAgain?: () => void   // override the default "play again" (chapter restart)
+  onExit?: () => void        // override the default "back to menu"
+  exitLabel?: string         // label for the exit button
+  hideNext?: boolean         // hide the "next chapter" button (e.g. AR activities)
+}
+
+export default function CelebrationModal({ onPlayAgain, onExit, exitLabel, hideNext }: Props = {}) {
   const router = useRouter()
   const { celebration, dismissCelebration, startChapter } = useMiloStore()
   const { speak } = useMiloSpeaker()
@@ -33,12 +40,12 @@ export default function CelebrationModal() {
 
   function handleMenu() {
     dismissCelebration()
-    router.push('/menu')
+    if (onExit) onExit(); else router.push('/menu')
   }
 
   function handlePlayAgain() {
     dismissCelebration()
-    startChapter(completedChapter)
+    if (onPlayAgain) onPlayAgain(); else startChapter(completedChapter)
   }
 
   function handleNextChapter() {
@@ -112,8 +119,8 @@ export default function CelebrationModal() {
 
         {/* Buttons */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {/* Next chapter — primary if available */}
-          {nextChapter && (
+          {/* Next chapter — primary if available (hidden for AR activities) */}
+          {!hideNext && nextChapter && (
             <button className="milo-btn tone-green size-lg" onClick={handleNextChapter}
               style={{ width: '100%' }}>
               Next: {CHAPTER_NAMES[nextChapter]} →
@@ -126,10 +133,10 @@ export default function CelebrationModal() {
             🔁 Play again
           </button>
 
-          {/* Back to menu */}
+          {/* Back to menu (or custom exit) */}
           <button className="milo-btn tone-cream" onClick={handleMenu}
             style={{ width: '100%', fontSize: 15 }}>
-            ← Back to menu
+            {exitLabel ?? '← Back to menu'}
           </button>
         </div>
       </div>
