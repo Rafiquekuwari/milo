@@ -51,7 +51,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <ToastProvider />
         </MiloErrorBoundary>
         <script dangerouslySetInnerHTML={{ __html: `
-          if ('serviceWorker' in navigator) {
+          var isLocalDev = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+          if (isLocalDev && 'serviceWorker' in navigator) {
+            // In local dev, make sure no stale SW is intercepting requests
+            // (it caches prod chunks and returns 503s once the dev server restarts).
+            navigator.serviceWorker.getRegistrations().then(function(regs) {
+              regs.forEach(function(r) { r.unregister(); });
+            });
+          }
+          if (!isLocalDev && 'serviceWorker' in navigator) {
             window.addEventListener('load', function() {
               navigator.serviceWorker.register('/sw.js')
                 .then(function(reg) {
