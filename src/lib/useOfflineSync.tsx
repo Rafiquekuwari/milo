@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { syncSession } from './supabase/queries'
 import type { SessionPayload } from './supabase/queries'
+import { kv } from './kv'
 
 const QUEUE_KEY = 'milo_offline_queue'
 
@@ -10,16 +11,16 @@ const QUEUE_KEY = 'milo_offline_queue'
 
 export function enqueueSession(payload: SessionPayload) {
   try {
-    const q: SessionPayload[] = JSON.parse(localStorage.getItem(QUEUE_KEY) ?? '[]')
+    const q: SessionPayload[] = JSON.parse(kv.get(QUEUE_KEY) ?? '[]')
     if (!q.find(p => p.clientId === payload.clientId)) {
       q.push(payload)
-      localStorage.setItem(QUEUE_KEY, JSON.stringify(q))
+      kv.set(QUEUE_KEY, JSON.stringify(q))
     }
   } catch {}
 }
 
 export function getQueuedSessions(): SessionPayload[] {
-  try { return JSON.parse(localStorage.getItem(QUEUE_KEY) ?? '[]') } catch { return [] }
+  try { return JSON.parse(kv.get(QUEUE_KEY) ?? '[]') } catch { return [] }
 }
 
 // App-wide lock: the banner, the hook, and chapter-sync all call flushQueue;
@@ -44,8 +45,8 @@ export async function flushQueue(): Promise<number> {
         // doesn't re-error on every flush forever.
       } catch { remaining.push(payload) }   // threw → transient (network); keep
     }
-    if (remaining.length === 0) localStorage.removeItem(QUEUE_KEY)
-    else localStorage.setItem(QUEUE_KEY, JSON.stringify(remaining))
+    if (remaining.length === 0) kv.remove(QUEUE_KEY)
+    else kv.set(QUEUE_KEY, JSON.stringify(remaining))
     return flushed
   } finally {
     _flushing = false

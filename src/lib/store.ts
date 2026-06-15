@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
+import { kv } from './kv'
 import { getActiveLearner } from './supabase/useLearnerSession'
 import type { LearnerStats, LearnerProgress, LearnerState } from './supabase/types'
 
@@ -133,7 +134,7 @@ const defaultProfile: PlayerProfile = {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  Per-learner localStorage key
+//  Per-learner local store key (IndexedDB via kv)
 //  Each child gets their own isolated storage bucket.
 // ─────────────────────────────────────────────────────────────
 
@@ -167,7 +168,7 @@ interface MiloStore {
   setIsSpeaking:      (v: boolean) => void
   getNextChapter:     (chapter: ChapterType) => ChapterType | null
 
-  // Load a learner's profile from localStorage into the store
+  // Load a learner's profile from the local store (kv) into the store
   loadLearner: (learnerId: string, displayName: string, avatarIndex: number) => void
 
   // Merge a learner's server-side state (cross-device) into the profile:
@@ -188,10 +189,11 @@ export const useMiloStore = create<MiloStore>()(
       celebration:    null,
 
       loadLearner: (learnerId, displayName, avatarIndex) => {
-        // Read this learner's saved profile from their own localStorage key
+        // Read this learner's saved profile from their own local store key.
+        // Synchronous: kv is hydrated by StorageGate before any page mounts.
         const key = `milo-profile-${learnerId}`
         try {
-          const raw = localStorage.getItem(key)
+          const raw = kv.get(key)
           if (raw) {
             const saved = JSON.parse(raw)
             const savedProfile = saved?.state?.profile
@@ -367,21 +369,25 @@ export const useMiloStore = create<MiloStore>()(
     {
       // Key is dynamic — resolved at runtime based on active learner
       name:    'milo-profile-v2', // fallback, overridden by loadLearner
+      // kv is async (IndexedDB-backed) and only safe to read after it hydrates,
+      // so we skip auto-hydration here and trigger it from StorageGate once
+      // kv.ready() resolves. See src/lib/kv.ts and StorageGate.
+      skipHydration: true,
       storage: createJSONStorage(() => {
-        // Custom storage that writes to the learner-specific key
+        // Custom storage that reads/writes the learner-specific key via kv.
         return {
           getItem: (name) => {
             const key = getLearnerStorageKey()
-            return localStorage.getItem(key) ?? localStorage.getItem(name)
+            return kv.get(key) ?? kv.get(name)
           },
           setItem: (name, value) => {
             const key = getLearnerStorageKey()
-            localStorage.setItem(key, value)
+            kv.set(key, value)
           },
           removeItem: (name) => {
             const key = getLearnerStorageKey()
-            localStorage.removeItem(key)
-            localStorage.removeItem(name)
+            kv.remove(key)
+            kv.remove(name)
           },
         }
       }),

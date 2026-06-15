@@ -280,7 +280,7 @@ export async function syncSession(payload: SessionPayload): Promise<SyncOutcome>
   return 'ok'
 }
 
-// Offline queueing lives entirely in the browser (localStorage, see
+// Offline queueing lives entirely in the browser (IndexedDB via kv, see
 // useOfflineSync). The old DB-backed `offline_queue` table + its helpers were
 // dead code (only the removed sync.ts referenced them) and have been dropped.
 

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { MiloErrorBoundary } from '@/components/ui/ErrorBoundary'
+import StorageGate from '@/components/ui/StorageGate'
 
 import { OfflineBanner } from '@/lib/useOfflineSync'
 import './globals.css'
@@ -46,8 +47,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <MiloErrorBoundary>
-          {children}
-          <OfflineBanner />
+          <StorageGate>
+            {children}
+            <OfflineBanner />
+          </StorageGate>
           <ToastProvider />
         </MiloErrorBoundary>
         <script dangerouslySetInnerHTML={{ __html: `
