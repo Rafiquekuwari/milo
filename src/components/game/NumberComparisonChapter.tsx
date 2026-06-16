@@ -75,12 +75,13 @@ export default function NumberComparisonChapter({ onComplete, childName }: Props
   const answerRef = useRef<HTMLElement|null>(null)   // the correct group (for the pointer)
 
   useEffect(() => {
+    if (phase !== 'practice') return   // don't build/speak a round over the lesson
     // Build each round from the CURRENT adaptive difficulty (read on round change).
     const r = buildRound(ada.difficulty)
     setRound(r); setSelected(null)
     window.setTimeout(() => { speakAfterCurrent(roundIdx === 0 ? `Hi ${childName}! ${r.question}` : r.question) }, 300)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roundIdx])
+  }, [roundIdx, phase])
 
   function advance(ok: boolean) {
     const next = roundIdx + 1

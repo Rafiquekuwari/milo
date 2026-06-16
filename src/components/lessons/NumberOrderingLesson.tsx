@@ -9,10 +9,11 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { speak, stopSpeech } from '@/lib/useMiloSpeaker'
 import ScaleToFill from './ScaleToFill'
+import { AdvancePopup, ListeningHint, cheerFor } from './_kit'
 
 interface Props { childName: string; onLessonComplete: () => void }
 
-const TOTAL_STEPS = 13
+const TOTAL_STEPS = 10
 function numberWord(n:number){ return ['zero','one','two','three','four','five','six','seven','eight','nine','ten'][n] ?? String(n) }
 
 export const CSS = `
@@ -35,18 +36,6 @@ function Confetti() {
           borderRadius:i%2===0?'50%':'3px',background:colors[i%colors.length],
           animation:`no_confetti ${0.8+(i%3)*0.2}s ease-in ${(i%6)*0.07}s both`}}/>
       ))}
-    </div>
-  )
-}
-
-function SectionBreak({emoji,title,subtitle,onDone}:{emoji:string,title:string,subtitle:string,onDone:()=>void}) {
-  useEffect(()=>{ const t=window.setTimeout(onDone,2800); return ()=>window.clearTimeout(t) },[onDone])
-  return (
-    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:16,padding:'20px 0',position:'relative'}}>
-      <Confetti/>
-      <div style={{fontSize:72,animation:'no_jump 0.8s ease-in-out infinite'}}>{emoji}</div>
-      <div style={{fontFamily:'var(--font-display)',fontWeight:900,fontSize:28,color:'var(--milo-orange)',textAlign:'center',lineHeight:1.2,animation:'no_sectionIn 0.6s cubic-bezier(.34,1.56,.64,1)',textShadow:'0 3px 0 rgba(61,37,22,.1)'}}>{title}</div>
-      <div style={{fontFamily:'var(--font-body)',fontSize:16,color:'var(--ink-soft)',textAlign:'center',animation:'no_slideUp 0.5s ease 0.2s both'}}>{subtitle}</div>
     </div>
   )
 }
@@ -224,9 +213,9 @@ function TapOrder({nums,onDone}:{nums:number[],onDone:()=>void}){
 }
 
 // ─── Shell ───────────────────────────────────────────────────
-function Shell({step,miloMood,bubble,children,onNext,nextReady,onBack,onSkip}:{
+function Shell({step,miloMood,bubble,children,nextReady,onBack,onSkip}:{
   step:number,miloMood:'happy'|'thinking'|'celebrate',bubble:string,children:React.ReactNode,
-  onNext:()=>void,nextReady:boolean,onBack:()=>void,onSkip:()=>void,
+  nextReady:boolean,onBack:()=>void,onSkip:()=>void,
 }) {
   const src = miloMood==='thinking'?'/assets/characters/milo-thinking.png':'/assets/characters/milo-happy.png'
   return (
@@ -251,31 +240,28 @@ function Shell({step,miloMood,bubble,children,onNext,nextReady,onBack,onSkip}:{
         <ScaleToFill>{children}</ScaleToFill>
       </div>
 
-      <button onClick={onNext} disabled={!nextReady} style={{width:'100%',maxWidth:520,padding:'15px',background:nextReady?'linear-gradient(135deg,var(--milo-orange) 0%,var(--milo-orange-deep) 100%)':'rgba(61,37,22,0.1)',color:nextReady?'#fff':'rgba(61,37,22,0.25)',border:'none',borderRadius:50,fontFamily:'var(--font-display)',fontWeight:900,fontSize:18,cursor:nextReady?'pointer':'not-allowed',boxShadow:nextReady?'0 4px 18px rgba(242,107,44,0.35)':'none',transition:'all 0.3s ease',transform:nextReady?'scale(1)':'scale(0.97)'}}>{nextReady?'Next →':'🎧 Listen to Milo...'}</button>
+      <ListeningHint show={!nextReady}/>
     </div>
   )
 }
 
-// ─── The 11 steps ────────────────────────────────────────────
+// ─── The 10 steps ────────────────────────────────────────────
 function Step({i,onDone}:{i:number,onDone:()=>void}){
   switch(i){
     // ── numbers go 1 to 10 in order ──
     case 0:  return <CountOrder nums={[1,2,3,4,5]} onDone={onDone}/>
     case 1:  return <CountOrder nums={[6,7,8,9,10]} onDone={onDone}/>
-    case 2:  return <SectionBreak emoji="🔢" title="1 to 10 in order!" subtitle="Each number has its place, smallest to biggest." onDone={onDone}/>
     // ── what comes next (across the range) ──
-    case 3:  return <OrderReveal seq={[3,4,5,6,7]} hole={4} kind="next" onDone={onDone}/>
-    case 4:  return <ChooseOrder seq={[5,6,7,8]} hole={3} kind="next" choices={[7,8,9]} prompt="Five, six, seven… what comes next? Pick it!" onDone={onDone}/>
-    case 5:  return <ChooseOrder seq={[6,7,8,9]} hole={3} kind="next" choices={[8,9,10]} prompt="What comes after eight? Pick it!" onDone={onDone}/>
+    case 2:  return <OrderReveal seq={[3,4,5,6,7]} hole={4} kind="next" onDone={onDone}/>
+    case 3:  return <ChooseOrder seq={[5,6,7,8]} hole={3} kind="next" choices={[7,8,9]} prompt="Five, six, seven… what comes next? Pick it!" onDone={onDone}/>
+    case 4:  return <ChooseOrder seq={[6,7,8,9]} hole={3} kind="next" choices={[8,9,10]} prompt="What comes after eight? Pick it!" onDone={onDone}/>
     // ── what's missing ──
-    case 6:  return <SectionBreak emoji="🔎" title="Find the missing one!" subtitle="A number hides in the middle — which is it?" onDone={onDone}/>
-    case 7:  return <OrderReveal seq={[4,5,6,7,8]} hole={2} kind="missing" onDone={onDone}/>
-    case 8:  return <ChooseOrder seq={[6,7,8,9,10]} hole={2} kind="missing" choices={[7,8,9]} prompt="Six, seven, then what? Which is missing?" onDone={onDone}/>
+    case 5:  return <OrderReveal seq={[4,5,6,7,8]} hole={2} kind="missing" onDone={onDone}/>
+    case 6:  return <ChooseOrder seq={[6,7,8,9,10]} hole={2} kind="missing" choices={[7,8,9]} prompt="Six, seven, then what? Which is missing?" onDone={onDone}/>
     // ── tap in order ──
-    case 9:  return <SectionBreak emoji="👆" title="Tap them in order!" subtitle="Smallest first, then up!" onDone={onDone}/>
-    case 10: return <TapOrder nums={[3,4,5,6]} onDone={onDone}/>
-    case 11: return <TapOrder nums={[6,7,8,9]} onDone={onDone}/>
-    case 12: return <ChooseOrder seq={[7,8,9,10]} hole={3} kind="next" choices={[8,9,10]} prompt="Last one! What comes after nine? Pick it!" onDone={onDone}/>
+    case 7:  return <TapOrder nums={[3,4,5,6]} onDone={onDone}/>
+    case 8:  return <TapOrder nums={[6,7,8,9]} onDone={onDone}/>
+    case 9:  return <ChooseOrder seq={[7,8,9,10]} hole={3} kind="next" choices={[8,9,10]} prompt="Last one! What comes after nine? Pick it!" onDone={onDone}/>
     default: return null
   }
 }
@@ -287,28 +273,27 @@ export default function NumberOrderingLesson({childName,onLessonComplete}:Props)
   const router=useRouter()
   const [step,setStep]=useState(0)
   const [nextReady,setNextReady]=useState(false)
+  const [retry,setRetry]=useState(0)
   const [confirmBack,setConfirmBack]=useState(false)
 
   const BUBBLES=[
     `Hi ${childName}! Let's put numbers in ORDER! Count 1 to 5! 🔢`,
     'Now the bigger ones — 6 to 10! 🔢',
-    '🔢 1 to 10, all in order!',
     'What number comes next? Watch! ➡️',
     'Your turn! What comes next? 👆',
     'Again — what comes next? 👆',
-    '🔎 Now find the missing number!',
     'Watch — which number is missing? 👀',
     'Your turn! Which is missing? 👆',
-    '👆 Now tap them in order!',
     'Tap smallest to biggest! 🟢',
     'Again! Tap them in order! 🟢',
     'Last one! What comes next? 🏆',
   ]
   const MOODS:Array<'happy'|'thinking'|'celebrate'>=[
-    'happy','happy','celebrate','happy','thinking','thinking','celebrate','happy','thinking','celebrate','thinking','thinking','happy',
+    'happy','happy','happy','thinking','thinking','happy','thinking','thinking','thinking','happy',
   ]
 
   function done(){ setNextReady(true) }
+  function retryStep(){ stopSpeech(); setNextReady(false); setRetry(r=>r+1) }
   function next(){
     if(!nextReady)return
     stopSpeech()
@@ -322,10 +307,11 @@ export default function NumberOrderingLesson({childName,onLessonComplete}:Props)
 
   return (
     <>
-      <Shell step={step} miloMood={MOODS[step]} bubble={BUBBLES[step]} onNext={next} nextReady={nextReady}
+      <Shell step={step} miloMood={MOODS[step]} bubble={BUBBLES[step]} nextReady={nextReady}
         onBack={()=>setConfirmBack(true)} onSkip={()=>{stopSpeech();onLessonComplete()}}>
-        <Step key={step} i={step} onDone={done}/>
+        <Step key={`${step}-${retry}`} i={step} onDone={done}/>
       </Shell>
+      {nextReady && <AdvancePopup onRetry={retryStep} onNext={next} cheer={cheerFor(step)} />}
 
       {confirmBack && (
         <div style={{position:'fixed',inset:0,zIndex:200,background:'rgba(61,37,22,0.65)',display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>

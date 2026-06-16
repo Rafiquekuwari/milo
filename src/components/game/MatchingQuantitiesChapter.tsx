@@ -40,6 +40,7 @@ export default function MatchingQuantitiesChapter({ onComplete, childName }: Pro
   const basketRef = useRef<HTMLDivElement | null>(null)   // pointer target (the basket)
 
   useEffect(() => {
+    if (phase !== 'practice') return   // don't build/speak a round over the lesson
     const r = buildRound(ada.difficulty)
     setRound(r); setBasket(0); setSubmitted(false); setReady(false)
     const apples = `apple${r.target > 1 ? 's' : ''}`
@@ -55,8 +56,14 @@ export default function MatchingQuantitiesChapter({ onComplete, childName }: Pro
     // anyway so the round can never get stuck with the apples disabled.
     const fb = window.setTimeout(() => { if (!started) setReady(true) }, 2000)
     return () => { cancel(); window.clearTimeout(fb) }
+  // Build the round once per roundIdx, reading the current difficulty then. We
+  // deliberately do NOT depend on ada.difficulty: ada.record() can change it
+  // mid-round (promotion/demotion), and re-firing here would reset the basket,
+  // pick a new target, and re-lock the apple tapping under the child — which
+  // could leave the round stuck with the apples disabled. Gated on the practice
+  // phase so the prompt isn't spoken over the lesson.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roundIdx, ada.difficulty])
+  }, [roundIdx, phase])
 
   if (phase === 'lesson') return (
     <MatchingQuantitiesLesson childName={childName} onLessonComplete={startPractice} />

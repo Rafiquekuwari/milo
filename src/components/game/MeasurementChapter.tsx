@@ -245,6 +245,7 @@ export default function MeasurementChapter({ onComplete, childName }: Props) {
   function clearT() { timers.current.forEach(id => window.clearTimeout(id)); timers.current = [] }
 
   useEffect(() => {
+    if (phase !== 'practice') return   // don't build/speak a round over the lesson
     clearT()
     const r = buildRound(roundIdx, ada.difficulty)
     setRound(r); setSelected(null); setFeedback(null); setScaleReveal(false)
@@ -253,7 +254,7 @@ export default function MeasurementChapter({ onComplete, childName }: Props) {
       : ada.shouldHint ? `${r.miloHint}` : r.question)
     return clearT
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roundIdx, ada.difficulty])
+  }, [roundIdx, ada.difficulty, phase])
 
   function handleChoice(key: 'a'|'b') {
     if (selected) return

@@ -12,10 +12,11 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { speak, speakSeq, stopSpeech } from '@/lib/useMiloSpeaker'
 import ScaleToFill from './ScaleToFill'
+import { AdvancePopup, ListeningHint, cheerFor } from './_kit'
 
 interface Props { childName: string; onLessonComplete: () => void }
 
-const TOTAL_STEPS = 10
+const TOTAL_STEPS = 7
 
 export type Category = 'height' | 'weight' | 'length'
 export type Ask = 'more' | 'less'
@@ -49,18 +50,6 @@ function Confetti() {
           borderRadius:i%2===0?'50%':'3px',background:colors[i%colors.length],
           animation:`me_confetti ${0.8+(i%3)*0.2}s ease-in ${(i%6)*0.07}s both`}}/>
       ))}
-    </div>
-  )
-}
-
-function SectionBreak({emoji,title,subtitle,onDone}:{emoji:string,title:string,subtitle:string,onDone:()=>void}) {
-  useEffect(()=>{ const t=window.setTimeout(onDone,2800); return ()=>window.clearTimeout(t) },[onDone])
-  return (
-    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:16,padding:'20px 0',position:'relative'}}>
-      <Confetti/>
-      <div style={{fontSize:72,animation:'me_jump 0.8s ease-in-out infinite'}}>{emoji}</div>
-      <div style={{fontFamily:'var(--font-display)',fontWeight:900,fontSize:28,color:'var(--milo-orange)',textAlign:'center',lineHeight:1.2,animation:'me_sectionIn 0.6s cubic-bezier(.34,1.56,.64,1)',textShadow:'0 3px 0 rgba(61,37,22,.1)'}}>{title}</div>
-      <div style={{fontFamily:'var(--font-body)',fontSize:16,color:'var(--ink-soft)',textAlign:'center',animation:'me_slideUp 0.5s ease 0.2s both'}}>{subtitle}</div>
     </div>
   )
 }
@@ -251,9 +240,9 @@ export function ChooseCompare({category,a,b,ask,intro,onDone}:{
 }
 
 // ─── Shell ───────────────────────────────────────────────────
-function Shell({step,miloMood,bubble,children,onNext,nextReady,onBack,onSkip}:{
+function Shell({step,miloMood,bubble,children,nextReady,onBack,onSkip}:{
   step:number,miloMood:'happy'|'thinking'|'celebrate',bubble:string,children:React.ReactNode,
-  onNext:()=>void,nextReady:boolean,onBack:()=>void,onSkip:()=>void,
+  nextReady:boolean,onBack:()=>void,onSkip:()=>void,
 }) {
   const src = miloMood==='thinking'?'/assets/characters/milo-thinking.png':'/assets/characters/milo-happy.png'
   return (
@@ -278,7 +267,7 @@ function Shell({step,miloMood,bubble,children,onNext,nextReady,onBack,onSkip}:{
         <ScaleToFill>{children}</ScaleToFill>
       </div>
 
-      <button onClick={onNext} disabled={!nextReady} style={{width:'100%',maxWidth:520,padding:'15px',background:nextReady?'linear-gradient(135deg,var(--milo-orange) 0%,var(--milo-orange-deep) 100%)':'rgba(61,37,22,0.1)',color:nextReady?'#fff':'rgba(61,37,22,0.25)',border:'none',borderRadius:50,fontFamily:'var(--font-display)',fontWeight:900,fontSize:18,cursor:nextReady?'pointer':'not-allowed',boxShadow:nextReady?'0 4px 18px rgba(242,107,44,0.35)':'none',transition:'all 0.3s ease',transform:nextReady?'scale(1)':'scale(0.97)'}}>{nextReady?'Next →':'🎧 Listen to Milo...'}</button>
+      <ListeningHint show={!nextReady}/>
     </div>
   )
 }
@@ -297,25 +286,22 @@ const WORM :Item={emoji:'🪱',label:'Worm', color:'#D97706',value:3}
 const TRAIN:Item={emoji:'🚂',label:'Train',color:'var(--apple-red)',value:8}
 const CAR  :Item={emoji:'🚗',label:'Car',  color:'var(--sky-blue)',value:3}
 
-// ─── The 10 steps ────────────────────────────────────────────
+// ─── The 7 steps ─────────────────────────────────────────────
 function Step({i,onDone}:{i:number,onDone:()=>void}){
   switch(i){
     case 0: return <WatchCompare category="height" a={RED} b={BLUE} ask="more"
       intro="Look at the two towers. One is bigger!" outro="The red tower is taller — it goes higher up!" onDone={onDone}/>
-    case 1: return <SectionBreak emoji="📏" title="Taller means HIGHER UP!" subtitle="Shorter means closer to the ground." onDone={onDone}/>
-    case 2: return <WatchCompare category="height" a={GREEN} b={ORANGE} ask="less"
+    case 1: return <WatchCompare category="height" a={GREEN} b={ORANGE} ask="less"
       intro="Now find the small one. Which is shorter?" outro="The green tower is shorter — it is the little one!" onDone={onDone}/>
-    case 3: return <ChooseCompare category="height" a={BLUE} b={ORANGE} ask="more"
+    case 2: return <ChooseCompare category="height" a={BLUE} b={ORANGE} ask="more"
       intro="Your turn! Tap the tower that is taller." onDone={onDone}/>
-    case 4: return <SectionBreak emoji="⚖️" title="Now let's weigh things!" subtitle="Heavier things push the seesaw DOWN." onDone={onDone}/>
-    case 5: return <WatchCompare category="weight" a={ELEPHANT} b={MOUSE} ask="more"
+    case 3: return <WatchCompare category="weight" a={ELEPHANT} b={MOUSE} ask="more"
       intro="An elephant and a mouse on the seesaw. Watch!" outro="The elephant is heavier — its side goes down!" onDone={onDone}/>
-    case 6: return <ChooseCompare category="weight" a={LION} b={RABBIT} ask="more"
+    case 4: return <ChooseCompare category="weight" a={LION} b={RABBIT} ask="more"
       intro="Tap the animal that is heavier!" onDone={onDone}/>
-    case 7: return <SectionBreak emoji="📐" title="Now let's measure length!" subtitle="Longer things stretch out further." onDone={onDone}/>
-    case 8: return <WatchCompare category="length" a={SNAKE} b={WORM} ask="more"
+    case 5: return <WatchCompare category="length" a={SNAKE} b={WORM} ask="more"
       intro="A snake and a worm. Which stretches further?" outro="The snake is longer — it reaches way out!" onDone={onDone}/>
-    case 9: return <ChooseCompare category="length" a={TRAIN} b={CAR} ask="more"
+    case 6: return <ChooseCompare category="length" a={TRAIN} b={CAR} ask="more"
       intro="Last one! Tap the one that is longer." onDone={onDone}/>
     default: return null
   }
@@ -328,22 +314,20 @@ export default function MeasurementLesson({childName,onLessonComplete}:Props){
   const router=useRouter()
   const [step,setStep]=useState(0)
   const [nextReady,setNextReady]=useState(false)
+  const [retry,setRetry]=useState(0)
   const [confirmBack,setConfirmBack]=useState(false)
 
   const BUBBLES=[
     `Hi ${childName}! Let's measure and compare! Which is taller? 📏`,
-    '📏 Taller means higher up!',
     'Now find the shorter one! 🟩',
     'Your turn! Tap the taller tower! 👆',
-    '⚖️ Heavier things go DOWN!',
     'Watch the elephant and the mouse! 🐘🐭',
     'Tap the heavier animal! 🦁',
-    '📐 Longer things stretch out!',
     'Watch the snake and the worm! 🐍🪱',
     'Last one! Tap the longer one! 🚂',
   ]
   const MOODS:Array<'happy'|'thinking'|'celebrate'>=[
-    'happy','celebrate','happy','thinking','celebrate','happy','thinking','celebrate','happy','thinking',
+    'happy','happy','thinking','happy','thinking','happy','thinking',
   ]
 
   function done(){ setNextReady(true) }
@@ -357,13 +341,16 @@ export default function MeasurementLesson({childName,onLessonComplete}:Props){
     }
     setStep(s=>s+1); setNextReady(false)
   }
+  function retryStep(){ stopSpeech(); setNextReady(false); setRetry(r=>r+1) }
 
   return (
     <>
-      <Shell step={step} miloMood={MOODS[step]} bubble={BUBBLES[step]} onNext={next} nextReady={nextReady}
+      <Shell step={step} miloMood={MOODS[step]} bubble={BUBBLES[step]} nextReady={nextReady}
         onBack={()=>setConfirmBack(true)} onSkip={()=>{stopSpeech();onLessonComplete()}}>
-        <Step key={step} i={step} onDone={done}/>
+        <Step key={`${step}-${retry}`} i={step} onDone={done}/>
       </Shell>
+
+      {nextReady && <AdvancePopup onRetry={retryStep} onNext={next} cheer={cheerFor(step)} />}
 
       {confirmBack && (
         <div style={{position:'fixed',inset:0,zIndex:200,background:'rgba(61,37,22,0.65)',display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>

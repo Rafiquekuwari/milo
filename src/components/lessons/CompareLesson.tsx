@@ -7,7 +7,7 @@
  */
 import React, { useState, useEffect, useRef } from 'react'
 import { speak, speakSeq } from '@/lib/useMiloSpeaker'
-import { LessonScaffold, SectionBreak, Confetti, numberToWords, type LessonStep } from './_kit'
+import { LessonScaffold, Confetti, numberToWords, type LessonStep } from './_kit'
 
 interface Props { childName: string; onLessonComplete: () => void }
 
@@ -100,9 +100,6 @@ export default function CompareLesson({ childName, onLessonComplete }: Props) {
       render: d => <CompareWatch a={42} b={37} onDone={d} /> },
     { bubble: 'Watch one more! 👀', mood: 'happy',
       render: d => <CompareWatch a={18} b={61} onDone={d} /> },
-
-    { bubble: '🌟 Now YOU pick the sign!', mood: 'celebrate',
-      render: d => <SectionBreak emoji="⚖️" title="Your turn!" subtitle="> bigger · < smaller · = same" onDone={d} /> },
 
     { bubble: 'Which sign is right? 🤔', mood: 'thinking',
       render: d => <CompareAsk a={7} b={4} intro="Seven and four. Which sign is right?" outro="Yes! Seven is greater than four!" onDone={d} /> },

@@ -10,10 +10,11 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { speak, stopSpeech } from '@/lib/useMiloSpeaker'
 import ScaleToFill from './ScaleToFill'
+import { AdvancePopup, ListeningHint, cheerFor } from './_kit'
 
 interface Props { childName: string; onLessonComplete: () => void }
 
-const TOTAL_STEPS = 10
+const TOTAL_STEPS = 8
 
 function numberWord(n:number){ return ['zero','one','two','three','four','five','six','seven','eight','nine','ten'][n] ?? String(n) }
 
@@ -49,18 +50,6 @@ function BigCount({n}:{n:number}) {
     <div style={{fontFamily:'var(--font-display)',fontWeight:900,fontSize:60,lineHeight:1,
       color:'var(--milo-orange)',textShadow:'0 5px 0 rgba(61,37,22,.12)',
       animation:'s_pop 0.4s cubic-bezier(.34,1.56,.64,1)'}}>{n}</div>
-  )
-}
-
-function SectionBreak({emoji,title,subtitle,onDone}:{emoji:string,title:string,subtitle:string,onDone:()=>void}) {
-  useEffect(()=>{ const t=window.setTimeout(onDone,2800); return ()=>window.clearTimeout(t) },[onDone])
-  return (
-    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:16,padding:'20px 0',position:'relative'}}>
-      <Confetti/>
-      <div style={{fontSize:72,animation:'s_jump 0.8s ease-in-out infinite'}}>{emoji}</div>
-      <div style={{fontFamily:'var(--font-display)',fontWeight:900,fontSize:28,color:'var(--milo-orange)',textAlign:'center',lineHeight:1.2,animation:'s_sectionIn 0.6s cubic-bezier(.34,1.56,.64,1)',textShadow:'0 3px 0 rgba(61,37,22,.1)'}}>{title}</div>
-      <div style={{fontFamily:'var(--font-body)',fontSize:16,color:'var(--ink-soft)',textAlign:'center',animation:'s_slideUp 0.5s ease 0.2s both'}}>{subtitle}</div>
-    </div>
   )
 }
 
@@ -282,9 +271,9 @@ export function ChooseDiff({total,take,emoji,intro,onDone}:{
 }
 
 // ─── Shell ───────────────────────────────────────────────────
-function Shell({step,miloMood,bubble,children,onNext,nextReady,onBack,onSkip}:{
+function Shell({step,miloMood,bubble,children,nextReady,onBack,onSkip}:{
   step:number,miloMood:'happy'|'thinking'|'celebrate',bubble:string,children:React.ReactNode,
-  onNext:()=>void,nextReady:boolean,onBack:()=>void,onSkip:()=>void,
+  nextReady:boolean,onBack:()=>void,onSkip:()=>void,
 }) {
   const src = miloMood==='thinking'?'/assets/characters/milo-thinking.png':'/assets/characters/milo-happy.png'
   return (
@@ -309,31 +298,29 @@ function Shell({step,miloMood,bubble,children,onNext,nextReady,onBack,onSkip}:{
         <ScaleToFill>{children}</ScaleToFill>
       </div>
 
-      <button onClick={onNext} disabled={!nextReady} style={{width:'100%',maxWidth:520,padding:'15px',background:nextReady?'linear-gradient(135deg,var(--milo-orange) 0%,var(--milo-orange-deep) 100%)':'rgba(61,37,22,0.1)',color:nextReady?'#fff':'rgba(61,37,22,0.25)',border:'none',borderRadius:50,fontFamily:'var(--font-display)',fontWeight:900,fontSize:18,cursor:nextReady?'pointer':'not-allowed',boxShadow:nextReady?'0 4px 18px rgba(242,107,44,0.35)':'none',transition:'all 0.3s ease',transform:nextReady?'scale(1)':'scale(0.97)'}}>{nextReady?'Next →':'🎧 Listen to Milo...'}</button>
+      <ListeningHint show={!nextReady}/>
     </div>
   )
 }
 
-// ─── The 10 steps ────────────────────────────────────────────
+// ─── The 8 steps ─────────────────────────────────────────────
 function Step({i,onDone}:{i:number,onDone:()=>void}){
   switch(i){
     case 0: return <WatchSub total={3} take={1} emoji="🍪"
       intro="Milo has three cookies!" outro="Three take away one is two! Two cookies left!" onDone={onDone}/>
-    case 1: return <SectionBreak emoji="🍃" title="Taking away makes FEWER!" subtitle="Some go away, so there are less left." onDone={onDone}/>
-    case 2: return <WatchSub total={5} take={2} emoji="🎈"
+    case 1: return <WatchSub total={5} take={2} emoji="🎈"
       intro="Five balloons! Watch what happens." outro="Five take away two is three! Three balloons left!" onDone={onDone}/>
-    case 3: return <TapAway total={4} take={1} emoji="🐦"
+    case 2: return <TapAway total={4} take={1} emoji="🐦"
       intro="Four birds. Take one away — tap a bird to fly off!" outro="Four take away one is three! Three birds left!" onDone={onDone}/>
-    case 4: return <SectionBreak emoji="🌟" title="You're taking away!" subtitle="Now let's pick how many are left!" onDone={onDone}/>
-    case 5: return <WatchSub total={5} take={2} emoji="🐸"
+    case 3: return <WatchSub total={5} take={2} emoji="🐸"
       intro="Five frogs sit by the pond." outro="Five take away two is three! Three frogs left!" onDone={onDone}/>
-    case 6: return <ChooseDiff total={4} take={1} emoji="🍎"
+    case 4: return <ChooseDiff total={4} take={1} emoji="🍎"
       intro="Four apples, one is taken away. How many are left? Pick the answer!" onDone={onDone}/>
-    case 7: return <TapAway total={5} take={2} emoji="✨"
+    case 5: return <TapAway total={5} take={2} emoji="✨"
       intro="Five fireflies. Take two away — tap two to fly off!" outro="Five take away two is three! Three left!" onDone={onDone}/>
-    case 8: return <ChooseDiff total={6} take={2} emoji="🍪"
+    case 6: return <ChooseDiff total={6} take={2} emoji="🍪"
       intro="Six cookies, two are eaten. How many are left? You choose!" onDone={onDone}/>
-    case 9: return <WatchSub total={6} take={3} emoji="🐦"
+    case 7: return <WatchSub total={6} take={3} emoji="🐦"
       intro="Last one! Six birds in the tree." outro="Six take away three is three! You finished the whole lesson!" onDone={onDone}/>
     default: return null
   }
@@ -346,14 +333,13 @@ export default function SubtractionLesson({childName,onLessonComplete}:Props){
   const router=useRouter()
   const [step,setStep]=useState(0)
   const [nextReady,setNextReady]=useState(false)
+  const [retry,setRetry]=useState(0)
   const [confirmBack,setConfirmBack]=useState(false)
 
   const BUBBLES=[
     `Hi ${childName}! Let's learn TAKING AWAY! Watch the cookies! 🍪`,
-    '🍃 Taking away makes FEWER!',
     'Watch the balloons — some pop away! 🎈',
     'Your turn! Tap a bird to fly away! 🐦',
-    '🌟 You\'re taking away! Now pick the answer!',
     'Watch the frogs hop into the pond! 🐸',
     'How many apples are left? Pick it! 🍎',
     'Tap two fireflies to fly away! ✨',
@@ -361,10 +347,11 @@ export default function SubtractionLesson({childName,onLessonComplete}:Props){
     'Last one! Three birds fly off! 🐦',
   ]
   const MOODS:Array<'happy'|'thinking'|'celebrate'>=[
-    'happy','celebrate','happy','thinking','celebrate','happy','thinking','thinking','thinking','happy',
+    'happy','happy','thinking','happy','thinking','thinking','thinking','happy',
   ]
 
   function done(){ setNextReady(true) }
+  function retryStep(){ stopSpeech(); setNextReady(false); setRetry(r=>r+1) }
   function next(){
     if(!nextReady)return
     stopSpeech()
@@ -378,10 +365,11 @@ export default function SubtractionLesson({childName,onLessonComplete}:Props){
 
   return (
     <>
-      <Shell step={step} miloMood={MOODS[step]} bubble={BUBBLES[step]} onNext={next} nextReady={nextReady}
+      <Shell step={step} miloMood={MOODS[step]} bubble={BUBBLES[step]} nextReady={nextReady}
         onBack={()=>setConfirmBack(true)} onSkip={()=>{stopSpeech();onLessonComplete()}}>
-        <Step key={step} i={step} onDone={done}/>
+        <Step key={`${step}-${retry}`} i={step} onDone={done}/>
       </Shell>
+      {nextReady && <AdvancePopup onRetry={retryStep} onNext={next} cheer={cheerFor(step)} />}
 
       {confirmBack && (
         <div style={{position:'fixed',inset:0,zIndex:200,background:'rgba(61,37,22,0.65)',display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>

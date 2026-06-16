@@ -7,7 +7,7 @@
  */
 import React, { useState, useEffect, useRef } from 'react'
 import { speak, speakSeq } from '@/lib/useMiloSpeaker'
-import { LessonScaffold, SectionBreak, Confetti, numberToWords, type LessonStep } from './_kit'
+import { LessonScaffold, Confetti, numberToWords, type LessonStep } from './_kit'
 
 interface Props { childName: string; onLessonComplete: () => void }
 
@@ -128,16 +128,12 @@ export default function SkipCountingLesson({ childName, onLessonComplete }: Prop
   const steps: LessonStep[] = [
     { bubble: `Hi ${childName}! Skip counting means we JUMP! Count by twos! 🐰`, mood: 'happy',
       render: d => <SkipWatch step={2} terms={5} intro="Count by twos! We skip every other number." outro="Great counting by twos!" onDone={d} /> },
-    { bubble: '🎉 Skip counting — we jump ahead!', mood: 'celebrate',
-      render: d => <SectionBreak emoji="🐸" title="Skip counting!" subtitle="Jump by the same amount each time." onDone={d} /> },
 
     { bubble: 'Count by tens! 🔟', mood: 'happy',
       render: d => <SkipWatch step={10} terms={10} intro="Count by tens!" outro="All the way to one hundred!" onDone={d} /> },
     { bubble: 'Your turn — what comes next? 🤔', mood: 'thinking',
       render: d => <SkipPick seq={[2, 4, 6, 8]} blankIndex={3} step={2} intro="Count by twos. Two, four, six… what comes next?" outro="Yes! Eight!" onDone={d} /> },
 
-    { bubble: '🌟 Now count by fives!', mood: 'celebrate',
-      render: d => <SectionBreak emoji="🖐️" title="Count by fives!" subtitle="Five, ten, fifteen…" onDone={d} /> },
     { bubble: 'Count by fives! ✋', mood: 'happy',
       render: d => <SkipWatch step={5} terms={6} intro="Count by fives!" outro="Great counting by fives!" onDone={d} /> },
     { bubble: 'What number is missing? 🤔', mood: 'thinking',

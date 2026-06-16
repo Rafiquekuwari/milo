@@ -51,6 +51,7 @@ export default function ShapeHouseChapter({ onComplete, childName }: Props) {
   const answerRef = useRef<HTMLElement | null>(null)   // the correct shape button (for the pointer)
 
   useEffect(() => {
+    if (phase !== 'practice') return   // don't build/speak a round over the lesson
     const r = buildRound(roundIdx, ada.difficulty)
     setRound(r); setPicked(null); setFeedback(null)
     window.setTimeout(() => speakAfterCurrent(
@@ -60,7 +61,7 @@ export default function ShapeHouseChapter({ onComplete, childName }: Props) {
         : `Tap the ${SHAPES[r.target].label}!`
     ), 300)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roundIdx, ada.difficulty])
+  }, [roundIdx, ada.difficulty, phase])
 
   if (phase === 'lesson') return (
     <ShapesLesson childName={childName} onLessonComplete={startPractice} />

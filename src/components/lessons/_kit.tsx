@@ -27,6 +27,11 @@ export function numberToWords(n: number): string {
   return o === 0 ? TENS[t] : `${TENS[t]}-${ONES[o]}`
 }
 
+// ─── Grammar: singular/plural agreement ──────────────────────
+// Lives in '@/lib/grammar' (shared with the practice chapters); re-exported here
+// so lessons can keep importing nounFor / singular / countNoun from './_kit'.
+export { singular, nounFor, countNoun } from '@/lib/grammar'
+
 // ─── Shared keyframes ────────────────────────────────────────
 export const CSS = `
   @keyframes k_bounceIn { 0%{transform:scale(0) translateY(30px);opacity:0} 60%{transform:scale(1.25) translateY(-6px);opacity:1} 100%{transform:scale(1) translateY(0);opacity:1} }
@@ -106,6 +111,40 @@ export function SectionBreak({emoji,title,subtitle,onDone}:{
   )
 }
 
+// ─── Advance pop-up: appears when a slide finishes (Retry + Next) ──
+// A bottom button that quietly switches from "Listen…" to "Next" is easy for a
+// young child to miss, so the controls POP UP over the slide the moment it's
+// done. Retry replays the whole slide (the caller remounts it). Rendered through
+// a portal so it overlays full-screen, unaffected by the lesson's scaling.
+const CHEERS = ['Nice! 🌟','Great! 🎉','Well done! ⭐','Lovely! 🌈','Yay! 🎈','Super! 💫','Brilliant! ✨']
+export function cheerFor(step:number){ return CHEERS[step % CHEERS.length] }
+
+export function AdvancePopup({onRetry,onNext,cheer}:{onRetry:()=>void,onNext:()=>void,cheer:string}) {
+  if (typeof document === 'undefined') return null
+  return createPortal(
+    <div style={{position:'fixed',inset:0,zIndex:240,background:'rgba(61,37,22,0.45)',display:'flex',alignItems:'center',justifyContent:'center',padding:'24px 20px'}}>
+      <style>{CSS}</style>
+      <div style={{background:'var(--paper)',border:'4px solid var(--outline)',borderRadius:28,padding:'20px 22px 24px',maxWidth:380,width:'100%',textAlign:'center',boxShadow:'0 8px 0 rgba(61,37,22,.2)',animation:'k_bounceIn 0.45s cubic-bezier(.34,1.56,.64,1)'}}>
+        <div style={{fontFamily:'var(--font-display)',fontWeight:900,fontSize:24,color:'var(--milo-orange)',marginBottom:16}}>{cheer}</div>
+        <div style={{display:'flex',gap:12,justifyContent:'center'}}>
+          <button onClick={onRetry} style={{flex:'0 0 auto',padding:'14px 22px',borderRadius:50,background:'var(--paper)',border:'3px solid var(--milo-orange)',color:'var(--milo-orange)',fontFamily:'var(--font-display)',fontWeight:900,fontSize:17,cursor:'pointer',boxShadow:'0 4px 0 rgba(242,107,44,.3)'}}>🔄 Retry</button>
+          <button onClick={onNext} style={{flex:'1 1 auto',padding:'14px 22px',borderRadius:50,background:'linear-gradient(135deg,var(--milo-orange) 0%,var(--milo-orange-deep) 100%)',color:'#fff',border:'none',fontFamily:'var(--font-display)',fontWeight:900,fontSize:18,cursor:'pointer',boxShadow:'0 4px 18px rgba(242,107,44,0.4)'}}>Next →</button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  )
+}
+
+/** Bottom-of-screen hint shown while Milo is still talking (before the popup). */
+export function ListeningHint({show}:{show:boolean}) {
+  return (
+    <div style={{height:54,display:'flex',alignItems:'center',justifyContent:'center'}}>
+      {show && <span style={{fontFamily:'var(--font-display)',fontWeight:800,fontSize:15,color:'var(--ink-muted)'}}>🎧 Listen to Milo…</span>}
+    </div>
+  )
+}
+
 // ─── A lesson step: a render fn + the bubble/mood shown alongside it ──
 export type LessonStep = {
   bubble: string
@@ -115,9 +154,9 @@ export type LessonStep = {
 }
 
 // ─── Shell: back + progress dots + Milo bubble + Next ────────
-function Shell({step,total,miloMood,bubble,children,onNext,nextReady,onBack,onSkip,onChart}:{
+function Shell({step,total,miloMood,bubble,children,nextReady,onBack,onSkip,onChart}:{
   step:number,total:number,miloMood:'happy'|'thinking'|'celebrate',bubble:string,
-  children:React.ReactNode,onNext:()=>void,nextReady:boolean,onBack:()=>void,onSkip:()=>void,
+  children:React.ReactNode,nextReady:boolean,onBack:()=>void,onSkip:()=>void,
   onChart?:()=>void,
 }) {
   const src = miloMood==='thinking' ? '/assets/characters/milo-thinking.png' : '/assets/characters/milo-happy.png'
@@ -160,11 +199,9 @@ function Shell({step,total,miloMood,bubble,children,onNext,nextReady,onBack,onSk
         <ScaleToFill>{children}</ScaleToFill>
       </div>
 
-      <button onClick={onNext} disabled={!nextReady} style={{width:'100%',maxWidth:520,padding:'15px',
-        background:nextReady?'linear-gradient(135deg,var(--milo-orange) 0%,var(--milo-orange-deep) 100%)':'rgba(61,37,22,0.1)',
-        color:nextReady?'#fff':'rgba(61,37,22,0.25)',border:'none',borderRadius:50,fontFamily:'var(--font-display)',fontWeight:900,
-        fontSize:18,cursor:nextReady?'pointer':'not-allowed',boxShadow:nextReady?'0 4px 18px rgba(242,107,44,0.35)':'none',
-        transition:'all 0.3s ease',transform:nextReady?'scale(1)':'scale(0.97)'}}>{nextReady?'Next →':'🎧 Listen to Milo...'}</button>
+      {/* Advancing is handled by the AdvancePopup that appears when the slide
+          finishes; while Milo is still talking we just show a gentle hint. */}
+      <ListeningHint show={!nextReady}/>
     </div>
   )
 }
@@ -178,6 +215,7 @@ export function LessonScaffold({childName,onLessonComplete,steps,finalSpeech,cha
   const router = useRouter()
   const [step,setStep] = useState(0)
   const [nextReady,setNextReady] = useState(false)
+  const [retry,setRetry] = useState(0)   // bumping this remounts the step → replays it
   const [confirmBack,setConfirmBack] = useState(false)
   const [showChart,setShowChart] = useState(false)
   const cur = steps[step]
@@ -195,14 +233,20 @@ export function LessonScaffold({childName,onLessonComplete,steps,finalSpeech,cha
     setStep(s=>s+1); setNextReady(false)
   }
 
+  // Retry = replay the current slide: re-mount it (key change re-runs its
+  // animation + speech) and hide the popup until it finishes again.
+  function retryStep(){ stopSpeech(); setNextReady(false); setRetry(r=>r+1) }
+
   return (
     <>
       <Shell step={step} total={steps.length} miloMood={cur.mood??'happy'} bubble={cur.bubble}
-        onNext={next} nextReady={nextReady} onBack={()=>setConfirmBack(true)}
+        nextReady={nextReady} onBack={()=>setConfirmBack(true)}
         onSkip={()=>{stopSpeech();onLessonComplete()}}
         onChart={chart ? ()=>setShowChart(true) : undefined}>
-        <StepHost key={step} render={cur.render} onDone={onStepDone}/>
+        <StepHost key={`${step}-${retry}`} render={cur.render} onDone={onStepDone}/>
       </Shell>
+
+      {nextReady && <AdvancePopup onRetry={retryStep} onNext={next} cheer={cheerFor(step)}/>}
 
       {chart && showChart && typeof document !== 'undefined' && createPortal(
         <div style={{position:'fixed',inset:0,zIndex:250,background:'rgba(61,37,22,0.7)',display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>

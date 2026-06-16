@@ -8,7 +8,7 @@
  */
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { speak, speakSeq } from '@/lib/useMiloSpeaker'
-import { LessonScaffold, SectionBreak, Confetti, type LessonStep } from './_kit'
+import { LessonScaffold, Confetti, type LessonStep } from './_kit'
 
 interface Props { childName: string; onLessonComplete: () => void }
 
@@ -125,9 +125,6 @@ export default function Shapes2D3DLesson({ childName, onLessonComplete }: Props)
       render: d => <ShapeWatch name="cube" onDone={d} /> },
     { bubble: 'A sphere is round like a ball! ⚽', mood: 'happy',
       render: d => <ShapeWatch name="sphere" onDone={d} /> },
-
-    { bubble: '🌟 Now YOU name the shapes!', mood: 'celebrate',
-      render: d => <SectionBreak emoji="🔷" title="Your turn!" subtitle="Name the shape and count its sides." onDone={d} /> },
 
     { bubble: 'What shape is this? 🤔', mood: 'thinking',
       render: d => <ShapeAsk name="triangle" mode="name" answer="triangle" choices={C.tri} intro="What shape is this?" outro="Yes! A triangle!" onDone={d} /> },

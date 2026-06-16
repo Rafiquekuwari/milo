@@ -85,6 +85,7 @@ export default function ColorGardenChapter({ onComplete, childName }: Props) {
   const answerRef = useRef<HTMLElement | null>(null)   // the correct bucket (for the pointer)
 
   useEffect(() => {
+    if (phase !== 'practice') return   // don't build/speak a round over the lesson
     const r = buildRound(roundIdx, ada.difficulty)
     setRound(r); setSelected(null)
     // "What colour is this flower?" must actually show the colour — otherwise it's
@@ -92,7 +93,7 @@ export default function ColorGardenChapter({ onComplete, childName }: Props) {
     setFlowerColor(r.type === 'nameColor' ? r.targetColor.hex : '#D1D5DB')
     window.setTimeout(() => { speakAfterCurrent(roundIdx === 0 ? `Hi ${childName}! ${r.question}` : r.question) }, 300)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roundIdx, ada.difficulty])
+  }, [roundIdx, ada.difficulty, phase])
 
   function handleChoice(color: ColorDef) {
     if (selected) return

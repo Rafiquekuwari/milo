@@ -119,6 +119,7 @@ export default function PatternsChapter({ onComplete, childName }: Props) {
   const answerRef = useRef<HTMLElement | null>(null)   // the correct choice (for the pointer)
 
   useEffect(() => {
+    if (phase !== 'practice') return   // don't build/speak a round over the lesson
     const r = buildRound(roundIdx, ada.difficulty)
     setRound(r)
     setSelected(null)
@@ -128,7 +129,7 @@ export default function PatternsChapter({ onComplete, childName }: Props) {
       : ada.shouldHint ? `Take your time. ${r.hint}` : r.hint
     window.setTimeout(() => { speakAfterCurrent(intro) }, 300)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roundIdx, ada.difficulty])
+  }, [roundIdx, ada.difficulty, phase])
 
   function handleChoice(choice: string) {
     if (selected !== null) return

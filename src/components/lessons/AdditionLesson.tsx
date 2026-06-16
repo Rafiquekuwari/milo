@@ -13,10 +13,11 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { speak, stopSpeech } from '@/lib/useMiloSpeaker'
 import ScaleToFill from './ScaleToFill'
+import { AdvancePopup, ListeningHint, cheerFor } from './_kit'
 
 interface Props { childName: string; onLessonComplete: () => void }
 
-const TOTAL_STEPS = 10
+const TOTAL_STEPS = 8
 
 const GROUP_A_COLOR = 'var(--sky-blue)'
 const GROUP_B_COLOR = 'var(--garden-green)'
@@ -158,33 +159,11 @@ function BigCount({n}:{n:number}) {
   )
 }
 
-function SectionBreak({emoji,title,subtitle,onDone}:{
-  emoji:string,title:string,subtitle:string,onDone:()=>void
-}) {
-  useEffect(()=>{ const t=window.setTimeout(onDone,2800); return ()=>window.clearTimeout(t) },[onDone])
-  return (
-    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:16,padding:'20px 0',position:'relative'}}>
-      <Confetti/>
-      <div style={{fontSize:72,animation:'a_miloJump 0.8s ease-in-out infinite'}}>{emoji}</div>
-      <div style={{
-        fontFamily:'var(--font-display)',fontWeight:900,fontSize:28,
-        color:'var(--milo-orange)',textAlign:'center',lineHeight:1.2,
-        animation:'a_sectionIn 0.6s cubic-bezier(.34,1.56,.64,1)',
-        textShadow:'0 3px 0 rgba(61,37,22,.1)',
-      }}>{title}</div>
-      <div style={{
-        fontFamily:'var(--font-body)',fontSize:16,color:'var(--ink-soft)',
-        textAlign:'center',animation:'a_slideUp 0.5s ease 0.2s both',
-      }}>{subtitle}</div>
-    </div>
-  )
-}
-
 // ─── Shell (back + progress + Milo bubble + Next) ────────────
-function Shell({step,miloMood,bubble,children,onNext,nextReady,onBack,onSkip}:{
+function Shell({step,miloMood,bubble,children,nextReady,onBack,onSkip}:{
   step:number,miloMood:'happy'|'thinking'|'celebrate',
   bubble:string,children:React.ReactNode,
-  onNext:()=>void,nextReady:boolean,onBack:()=>void,onSkip:()=>void,
+  nextReady:boolean,onBack:()=>void,onSkip:()=>void,
 }) {
   const src = miloMood==='thinking'
     ?'/assets/characters/milo-thinking.png'
@@ -252,16 +231,7 @@ function Shell({step,miloMood,bubble,children,onNext,nextReady,onBack,onSkip}:{
         <ScaleToFill>{children}</ScaleToFill>
       </div>
 
-      <button onClick={onNext} disabled={!nextReady} style={{
-        width:'100%',maxWidth:520,padding:'15px',
-        background:nextReady?'linear-gradient(135deg,var(--milo-orange) 0%,var(--milo-orange-deep) 100%)':'rgba(61,37,22,0.1)',
-        color:nextReady?'#fff':'rgba(61,37,22,0.25)',
-        border:'none',borderRadius:50,
-        fontFamily:'var(--font-display)',fontWeight:900,fontSize:18,
-        cursor:nextReady?'pointer':'not-allowed',
-        boxShadow:nextReady?'0 4px 18px rgba(242,107,44,0.35)':'none',
-        transition:'all 0.3s ease',transform:nextReady?'scale(1)':'scale(0.97)',
-      }}>{nextReady?'Next →':'🎧 Listen to Milo...'}</button>
+      <ListeningHint show={!nextReady}/>
     </div>
   )
 }
@@ -615,33 +585,29 @@ export function ChooseSum({a,b,emoji,intro,onDone}:{
   )
 }
 
-// ─── The 10 steps ────────────────────────────────────────────
+// ─── The 8 steps ─────────────────────────────────────────────
 function Step({i,onDone}:{i:number,onDone:()=>void}) {
   switch(i){
     case 0: return <WatchAdd a={2} b={1} emoji="🍎"
       intro="Milo has two apples!"
       outro="Two apples and one more apple make three! Adding makes MORE!" onDone={onDone}/>
-    case 1: return <SectionBreak emoji="🎉" title="Adding makes MORE!"
-      subtitle="Two groups join together to make a bigger group!" onDone={onDone}/>
-    case 2: return <WatchAdd a={1} b={2} emoji="⭐"
+    case 1: return <WatchAdd a={1} b={2} emoji="⭐"
       intro="Watch again! One star…"
       outro="One star and two more stars make three stars! Let's count together!" onDone={onDone}/>
-    case 3: return <TapTotal a={2} b={1} emoji="🐸"
+    case 2: return <TapTotal a={2} b={1} emoji="🐸"
       intro="Now YOU try! Tap every frog to count them all together!"
       outro="Three frogs! Two and one more make three! You added!" onDone={onDone}/>
-    case 4: return <SectionBreak emoji="🌟" title="You're adding!"
-      subtitle="Now let's pick the answer ourselves!" onDone={onDone}/>
-    case 5: return <WatchAdd a={2} b={2} emoji="🍪"
+    case 3: return <WatchAdd a={2} b={2} emoji="🍪"
       intro="Milo has two cookies…"
       outro="Two cookies and two more make four cookies! Yummy!" onDone={onDone}/>
-    case 6: return <ChooseSum a={3} b={1} emoji="🌸"
+    case 4: return <ChooseSum a={3} b={1} emoji="🌸"
       intro="Three flowers and one more flower!" onDone={onDone}/>
-    case 7: return <TapTotal a={3} b={2} emoji="🦋"
+    case 5: return <TapTotal a={3} b={2} emoji="🦋"
       intro="Tap all the butterflies! Count three and two more!"
       outro="Five butterflies! Three and two more make five! Amazing!" onDone={onDone}/>
-    case 8: return <ChooseSum a={4} b={2} emoji="🎈"
+    case 6: return <ChooseSum a={4} b={2} emoji="🎈"
       intro="Four balloons and two more balloons!" onDone={onDone}/>
-    case 9: return <WatchAdd a={3} b={3} emoji="🍄"
+    case 7: return <WatchAdd a={3} b={3} emoji="🍄"
       intro="Last one! Three mushrooms…"
       outro="Three and three more make six! You finished the whole lesson! Incredible!" onDone={onDone}/>
     default: return null
@@ -655,14 +621,13 @@ export default function AdditionLesson({childName,onLessonComplete}:Props) {
   const router=useRouter()
   const [step,setStep]=useState(0)
   const [nextReady,setNextReady]=useState(false)
+  const [retry,setRetry]=useState(0)
   const [confirmBack,setConfirmBack]=useState(false)
 
   const BUBBLES=[
     `Hi ${childName}! Let's learn ADDING! Watch Milo put groups together! 🍎`,
-    '🎉 Adding makes MORE! Two groups join into one!',
     'Watch again — one star plus two more! ⭐',
     'Your turn! Tap every frog to count them all! 🐸',
-    '🌟 You\'re adding! Now pick the answers yourself!',
     'Watch Milo add two cookies and two more! 🍪',
     'How many flowers altogether? Pick the answer! 🌸',
     'Tap all the butterflies — three and two more! 🦋',
@@ -670,11 +635,13 @@ export default function AdditionLesson({childName,onLessonComplete}:Props) {
     'Last one! Three mushrooms and three more! 🍄',
   ]
   const MOODS:Array<'happy'|'thinking'|'celebrate'>=[
-    'happy','celebrate','happy','thinking','celebrate',
-    'happy','thinking','thinking','thinking','happy',
+    'happy','happy','thinking','happy',
+    'thinking','thinking','thinking','happy',
   ]
 
   function done(){ setNextReady(true) }
+
+  function retryStep(){ stopSpeech(); setNextReady(false); setRetry(r=>r+1) }
 
   function next(){
     if(!nextReady)return
@@ -694,13 +661,14 @@ export default function AdditionLesson({childName,onLessonComplete}:Props) {
         step={step}
         miloMood={MOODS[step]}
         bubble={BUBBLES[step]}
-        onNext={next}
         nextReady={nextReady}
         onBack={()=>setConfirmBack(true)}
         onSkip={()=>{stopSpeech();onLessonComplete()}}
       >
-        <Step key={step} i={step} onDone={done}/>
+        <Step key={`${step}-${retry}`} i={step} onDone={done}/>
       </Shell>
+
+      {nextReady && <AdvancePopup onRetry={retryStep} onNext={next} cheer={cheerFor(step)} />}
 
       {confirmBack && (
         <div style={{

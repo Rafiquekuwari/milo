@@ -67,6 +67,7 @@ export default function NumberOrderingChapter({ onComplete, childName }: Props) 
   )
 
   useEffect(() => {
+    if (phase !== 'practice') return   // don't build/speak a round over the lesson
     const r = buildRound(roundIdx % 5, ada.difficulty)
     setRound(r); setTapped([]); setAnswered(false)
     window.setTimeout(() => {
@@ -75,7 +76,7 @@ export default function NumberOrderingChapter({ onComplete, childName }: Props) 
       else speakAfterCurrent(`What number comes next?`)
     }, 300)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roundIdx, ada.difficulty])
+  }, [roundIdx, ada.difficulty, phase])
 
   if (phase === 'lesson') return (
     <NumberOrderingLesson childName={childName} onLessonComplete={startPractice} />

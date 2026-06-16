@@ -10,7 +10,7 @@
  */
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { speak, speakSeq } from '@/lib/useMiloSpeaker'
-import { LessonScaffold, SectionBreak, Confetti, type LessonStep } from './_kit'
+import { LessonScaffold, Confetti, nounFor, type LessonStep } from './_kit'
 
 interface Props { childName: string; onLessonComplete: () => void }
 
@@ -47,13 +47,13 @@ export function buildStoryChoices(answer: number, trap: number): number[] {
 export function makeProblem(type: StoryType, a: number, b: number, theme: Theme, name: string, friend: string, showScene: boolean): Problem {
   let story: string, question: string, answer: number
   if (type === 'add') {
-    story = `${name} has ${a} ${theme.noun}. ${name} ${theme.add} ${b} more. How many ${theme.noun} now?`
+    story = `${name} has ${a} ${nounFor(a, theme.noun)}. ${name} ${theme.add} ${b} more. How many ${theme.noun} now?`
     question = 'How many now?'; answer = a + b
   } else if (type === 'sub') {
-    story = `${name} has ${a} ${theme.noun}. ${name} ${theme.sub} ${b}. How many ${theme.noun} are left?`
+    story = `${name} has ${a} ${nounFor(a, theme.noun)}. ${name} ${theme.sub} ${b}. How many ${theme.noun} are left?`
     question = 'How many are left?'; answer = a - b
   } else {
-    story = `${name} has ${a} ${theme.noun}. ${friend} has ${b}. How many more ${theme.noun} does ${name} have?`
+    story = `${name} has ${a} ${nounFor(a, theme.noun)}. ${friend} has ${b}. How many more ${theme.noun} does ${name} have?`
     question = 'How many more?'; answer = a - b
   }
   const trap = type === 'add' ? a - b : a + b   // the classic "did the opposite operation" error
@@ -182,16 +182,12 @@ export default function StoryProblemsLesson({ childName, onLessonComplete }: Pro
   const steps: LessonStep[] = [
     { bubble: `Hi ${childName}! Listen to the story, then solve it! 📖`, mood: 'happy',
       render: d => <StoryWatch problem={P.intro} onDone={d} /> },
-    { bubble: '🎉 Find the clue words!', mood: 'celebrate',
-      render: d => <SectionBreak emoji="🔎" title="Clue words!" subtitle="“more / altogether” = ADD ➕   ·   “eats / gives / left” = TAKE AWAY ➖" onDone={d} /> },
 
     { bubble: '“gets more” means ADD! Try it. ➕', mood: 'thinking',
       render: d => <StoryAsk problem={P.addEx} outro="Yes! Four and three more makes seven!" onDone={d} /> },
     { bubble: '“eats” means TAKE AWAY! Try it. ➖', mood: 'thinking',
       render: d => <StoryAsk problem={P.subEx} outro="Yes! Seven take away two is five!" onDone={d} /> },
 
-    { bubble: '🌟 Now — how many MORE?', mood: 'celebrate',
-      render: d => <SectionBreak emoji="⚖️" title="How many more?" subtitle="Compare two groups — find the difference." onDone={d} /> },
     { bubble: 'Who has more, and how many more? 👀', mood: 'thinking',
       render: d => <StoryWatch problem={P.cmpWatch} onDone={d} /> },
     { bubble: 'Your turn — how many more? 🤔', mood: 'thinking',

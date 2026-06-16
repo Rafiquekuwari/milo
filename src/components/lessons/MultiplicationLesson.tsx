@@ -9,7 +9,7 @@
  */
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { speak, speakSeq } from '@/lib/useMiloSpeaker'
-import { LessonScaffold, SectionBreak, Confetti, BigCount, numberToWords, type LessonStep } from './_kit'
+import { LessonScaffold, Confetti, BigCount, numberToWords, type LessonStep } from './_kit'
 
 interface Props { childName: string; onLessonComplete: () => void }
 
@@ -161,21 +161,15 @@ export default function MultiplicationLesson({ childName, onLessonComplete }: Pr
       render: d => <GroupsWatch groups={2} per={5} emoji="🎈" onDone={d} /> },
     { bubble: 'Five groups of two! ✖️', mood: 'happy',
       render: d => <GroupsWatch groups={5} per={2} emoji="🐟" onDone={d} /> },
-    { bubble: '🎉 Equal groups, counted together!', mood: 'celebrate',
-      render: d => <SectionBreak emoji="🧺" title="Equal groups!" subtitle="Count by the group size: 2, 4, 6…" onDone={d} /> },
 
     { bubble: 'Two groups of four — how many? 🤔', mood: 'thinking',
       render: d => <MultAsk mode="groups" groups={2} per={4} emoji="🍪" choices={C.g2x4}
         intro="Two groups of four. Count them. How many altogether?" outro="Yes! Two groups of four is eight!" onDone={d} /> },
 
-    { bubble: '🌟 Rows and columns make an ARRAY!', mood: 'celebrate',
-      render: d => <SectionBreak emoji="🔵" title="Arrays!" subtitle="Rows of dots — count them in groups." onDone={d} /> },
     { bubble: 'Three rows of three — how many dots? 🤔', mood: 'thinking',
       render: d => <MultAsk mode="array" groups={3} per={3} emoji="🔵" choices={C.a3x3}
         intro="Three rows of three. How many dots altogether?" outro="Yes! Three rows of three is nine!" onDone={d} /> },
 
-    { bubble: '✖️ The times sign! 3 groups of 2 is 3 × 2.', mood: 'celebrate',
-      render: d => <SectionBreak emoji="✖️" title="The × sign!" subtitle="“3 × 2” means 3 groups of 2." onDone={d} /> },
     { bubble: 'What is 3 × 2? 🤔', mood: 'thinking',
       render: d => <MultAsk mode="symbol" groups={3} per={2} emoji="⭐" choices={C.s3x2}
         intro="Three times two. Three groups of two. How many altogether?" outro="Yes! Three times two is six!" onDone={d} /> },

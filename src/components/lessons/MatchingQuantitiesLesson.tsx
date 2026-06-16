@@ -11,10 +11,11 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { speak, speakSeq, stopSpeech } from '@/lib/useMiloSpeaker'
 import ScaleToFill from './ScaleToFill'
+import { AdvancePopup, ListeningHint, cheerFor } from './_kit'
 
 interface Props { childName: string; onLessonComplete: () => void }
 
-const TOTAL_STEPS = 10
+const TOTAL_STEPS = 8
 
 export const CSS = `
   @keyframes m_bounceIn {0%{transform:scale(0) translateY(30px);opacity:0}60%{transform:scale(1.25) translateY(-6px);opacity:1}100%{transform:scale(1) translateY(0);opacity:1}}
@@ -48,18 +49,6 @@ function BigCount({n}:{n:number}) {
     <div style={{fontFamily:'var(--font-display)',fontWeight:900,fontSize:60,lineHeight:1,
       color:'var(--milo-orange)',textShadow:'0 5px 0 rgba(61,37,22,.12)',
       animation:'m_pop 0.4s cubic-bezier(.34,1.56,.64,1)'}}>{n}</div>
-  )
-}
-
-function SectionBreak({emoji,title,subtitle,onDone}:{emoji:string,title:string,subtitle:string,onDone:()=>void}) {
-  useEffect(()=>{ const t=window.setTimeout(onDone,2800); return ()=>window.clearTimeout(t) },[onDone])
-  return (
-    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:16,padding:'20px 0',position:'relative'}}>
-      <Confetti/>
-      <div style={{fontSize:72,animation:'m_jump 0.8s ease-in-out infinite'}}>{emoji}</div>
-      <div style={{fontFamily:'var(--font-display)',fontWeight:900,fontSize:28,color:'var(--milo-orange)',textAlign:'center',lineHeight:1.2,animation:'m_sectionIn 0.6s cubic-bezier(.34,1.56,.64,1)',textShadow:'0 3px 0 rgba(61,37,22,.1)'}}>{title}</div>
-      <div style={{fontFamily:'var(--font-body)',fontSize:16,color:'var(--ink-soft)',textAlign:'center',animation:'m_slideUp 0.5s ease 0.2s both'}}>{subtitle}</div>
-    </div>
   )
 }
 
@@ -272,9 +261,9 @@ export function ChooseCount({target,emoji,intro,onDone}:{
 }
 
 // ─── Shell ───────────────────────────────────────────────────
-function Shell({step,miloMood,bubble,children,onNext,nextReady,onBack,onSkip}:{
+function Shell({step,miloMood,bubble,children,nextReady,onBack,onSkip}:{
   step:number,miloMood:'happy'|'thinking'|'celebrate',bubble:string,children:React.ReactNode,
-  onNext:()=>void,nextReady:boolean,onBack:()=>void,onSkip:()=>void,
+  nextReady:boolean,onBack:()=>void,onSkip:()=>void,
 }) {
   const src = miloMood==='thinking'?'/assets/characters/milo-thinking.png':'/assets/characters/milo-happy.png'
   return (
@@ -299,7 +288,7 @@ function Shell({step,miloMood,bubble,children,onNext,nextReady,onBack,onSkip}:{
         <ScaleToFill>{children}</ScaleToFill>
       </div>
 
-      <button onClick={onNext} disabled={!nextReady} style={{width:'100%',maxWidth:520,padding:'15px',background:nextReady?'linear-gradient(135deg,var(--milo-orange) 0%,var(--milo-orange-deep) 100%)':'rgba(61,37,22,0.1)',color:nextReady?'#fff':'rgba(61,37,22,0.25)',border:'none',borderRadius:50,fontFamily:'var(--font-display)',fontWeight:900,fontSize:18,cursor:nextReady?'pointer':'not-allowed',boxShadow:nextReady?'0 4px 18px rgba(242,107,44,0.35)':'none',transition:'all 0.3s ease',transform:nextReady?'scale(1)':'scale(0.97)'}}>{nextReady?'Next →':'🎧 Listen to Milo...'}</button>
+      <ListeningHint show={!nextReady}/>
     </div>
   )
 }
@@ -309,21 +298,19 @@ function Step({i,onDone}:{i:number,onDone:()=>void}){
   switch(i){
     case 0: return <WatchFill target={3} emoji="🍎"
       intro="We need three apples! Watch me fill the basket." outro="Three apples — the basket is just right!" onDone={onDone}/>
-    case 1: return <SectionBreak emoji="🧺" title="The number tells you HOW MANY!" subtitle="Count as you fill — and stop at the number." onDone={onDone}/>
-    case 2: return <WatchFill target={5} emoji="🍊"
+    case 1: return <WatchFill target={5} emoji="🍊"
       intro="Now we need five oranges! Count with me." outro="Five oranges! We stopped at five — perfect!" onDone={onDone}/>
-    case 3: return <TapFill target={4} emoji="🍎"
+    case 2: return <TapFill target={4} emoji="🍎"
       intro="Your turn! Put exactly four apples in the basket." outro="Four apples! You stopped at the right number!" onDone={onDone}/>
-    case 4: return <SectionBreak emoji="🌟" title="You can fill the basket!" subtitle="Now let's match the number to the basket!" onDone={onDone}/>
-    case 5: return <WatchFill target={4} emoji="🍓"
+    case 3: return <WatchFill target={4} emoji="🍓"
       intro="We need four strawberries. Watch carefully!" outro="Four strawberries — just right!" onDone={onDone}/>
-    case 6: return <ChooseCount target={3} emoji="🍎"
+    case 4: return <ChooseCount target={3} emoji="🍎"
       intro="We need three! Tap the basket with exactly three apples." onDone={onDone}/>
-    case 7: return <TapFill target={5} emoji="🍎"
+    case 5: return <TapFill target={5} emoji="🍎"
       intro="Put exactly five apples in the basket. Stop at five!" outro="Five apples! You did it!" onDone={onDone}/>
-    case 8: return <ChooseCount target={4} emoji="🍊"
+    case 6: return <ChooseCount target={4} emoji="🍊"
       intro="We need four! Tap the basket with exactly four oranges." onDone={onDone}/>
-    case 9: return <WatchFill target={6} emoji="🍎"
+    case 7: return <WatchFill target={6} emoji="🍎"
       intro="Last one! We need six apples." outro="Six apples! You finished the whole lesson!" onDone={onDone}/>
     default: return null
   }
@@ -336,14 +323,13 @@ export default function MatchingQuantitiesLesson({childName,onLessonComplete}:Pr
   const router=useRouter()
   const [step,setStep]=useState(0)
   const [nextReady,setNextReady]=useState(false)
+  const [retry,setRetry]=useState(0)
   const [confirmBack,setConfirmBack]=useState(false)
 
   const BUBBLES=[
     `Hi ${childName}! Let's fill the basket with the RIGHT number! 🍎`,
-    '🧺 The number tells you how many!',
     'Count the oranges as they drop in! 🍊',
     'Your turn! Put four apples in! 🍎',
-    '🌟 Now match the number to a basket!',
     'Watch the strawberries fill up! 🍓',
     'Which basket has exactly three? 🍎',
     'Put exactly five — then stop! 🍎',
@@ -351,10 +337,11 @@ export default function MatchingQuantitiesLesson({childName,onLessonComplete}:Pr
     'Last one! Six apples, please! 🍎',
   ]
   const MOODS:Array<'happy'|'thinking'|'celebrate'>=[
-    'happy','celebrate','happy','thinking','celebrate','happy','thinking','thinking','thinking','happy',
+    'happy','happy','thinking','happy','thinking','thinking','thinking','happy',
   ]
 
   function done(){ setNextReady(true) }
+  function retryStep(){ stopSpeech(); setNextReady(false); setRetry(r => r + 1) }
   function next(){
     if(!nextReady)return
     stopSpeech()
@@ -368,10 +355,11 @@ export default function MatchingQuantitiesLesson({childName,onLessonComplete}:Pr
 
   return (
     <>
-      <Shell step={step} miloMood={MOODS[step]} bubble={BUBBLES[step]} onNext={next} nextReady={nextReady}
+      <Shell step={step} miloMood={MOODS[step]} bubble={BUBBLES[step]} nextReady={nextReady}
         onBack={()=>setConfirmBack(true)} onSkip={()=>{stopSpeech();onLessonComplete()}}>
-        <Step key={step} i={step} onDone={done}/>
+        <Step key={`${step}-${retry}`} i={step} onDone={done}/>
       </Shell>
+      {nextReady && <AdvancePopup onRetry={retryStep} onNext={next} cheer={cheerFor(step)} />}
 
       {confirmBack && (
         <div style={{position:'fixed',inset:0,zIndex:200,background:'rgba(61,37,22,0.65)',display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>

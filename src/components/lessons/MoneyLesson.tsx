@@ -8,7 +8,7 @@
  */
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { speak, speakSeq } from '@/lib/useMiloSpeaker'
-import { LessonScaffold, SectionBreak, Confetti, BigCount, numberToWords, type LessonStep } from './_kit'
+import { LessonScaffold, Confetti, BigCount, numberToWords, type LessonStep } from './_kit'
 
 interface Props { childName: string; onLessonComplete: () => void }
 
@@ -144,8 +144,6 @@ export default function MoneyLesson({ childName, onLessonComplete }: Props) {
   const steps: LessonStep[] = [
     { bubble: `Hi ${childName}! Let’s meet the coins! 🪙`, mood: 'happy',
       render: d => <CoinMeet onDone={d} /> },
-    { bubble: '🎉 Now count your coins!', mood: 'celebrate',
-      render: d => <SectionBreak emoji="🪙" title="Count your coins!" subtitle="Add up the coin values." onDone={d} /> },
 
     // Watch several handfuls counted up.
     { bubble: 'Two fives — count them! 🪙', mood: 'happy',
@@ -160,9 +158,6 @@ export default function MoneyLesson({ childName, onLessonComplete }: Props) {
       render: d => <CoinWatch coins={[10, 10]} intro="Two coins worth ten. Count up." onDone={d} /> },
     { bubble: 'A twenty-five and a five! 🪙', mood: 'happy',
       render: d => <CoinWatch coins={[25, 5]} intro="A twenty-five and a five. Count up." onDone={d} /> },
-
-    { bubble: '🌟 Now YOU count!', mood: 'celebrate',
-      render: d => <SectionBreak emoji="🧮" title="Your turn!" subtitle="Add the coins and pick the total." onDone={d} /> },
 
     { bubble: 'How much money? 🤔', mood: 'thinking',
       render: d => <CoinAsk coins={[5, 1, 1]} choices={C.c7} intro="Add the coins. Five, and one, and one. How much money?" outro="Yes! Seven!" onDone={d} /> },

@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react'
 
 import { useAdaptive, countTarget } from '@/lib/adaptive'
+import { nounFor, singular } from '@/lib/grammar'
 import { DifficultyBadge } from '@/components/ui/DifficultyBadge'
 
 
@@ -88,14 +89,16 @@ export default function CountingChapter({onComplete,childName}:Props){
     setTarget(t);setEmojiSet(em)
     setChoices(buildChoices(t));setTapped([]);setAnswered(false)
     const msg=idx===0
-      ?`Hi ${childName}! Tap each ${em.label} to count them!`
+      ?`Hi ${childName}! Tap each ${singular(em.label)} to count them!`
       :ada.shouldHint
-        ?`Count carefully — tap each one! ${t} ${em.label} — how many?`
+        ?`Count carefully — tap each one! ${t} ${nounFor(t,em.label)} — how many?`
         :`Count the ${em.label}!`
     speakAfterCurrent(msg)
   }
 
-  useEffect(()=>{newRound(roundIdx)},[roundIdx,ada.difficulty]) // eslint-disable-line
+  // Only run the round loop in the practice phase — otherwise its speech cancels
+  // the lesson's speakSeq at mount and the first slide freezes.
+  useEffect(()=>{if(phase==='practice')newRound(roundIdx)},[roundIdx,ada.difficulty,phase]) // eslint-disable-line
 
   function handleTap(i:number){
     if(answered||tapped.includes(i))return
@@ -121,8 +124,8 @@ export default function CountingChapter({onComplete,childName}:Props){
     // Record the miss (with whether/how much they counted) for diagnosis.
     if(ok) missLog.current = []
     else   missLog.current = [...missLog.current, { target, choice, taps: tapped.length }]
-    if(ok){setCorrect(c=>c+1);speakAt(ada.isOnFire?ada.praise:`Yes! ${target} ${emojiSet.label}! ${ada.praise}`, answerRef.current)}
-    else   {setWrong(w=>w+1);speakAt(`Oops! There are ${target} ${emojiSet.label}. ${ada.encouragement}`, answerRef.current)}
+    if(ok){setCorrect(c=>c+1);speakAt(ada.isOnFire?ada.praise:`Yes! ${target} ${nounFor(target,emojiSet.label)}! ${ada.praise}`, answerRef.current)}
+    else   {setWrong(w=>w+1);speakAt(`Oops! There ${target===1?'is':'are'} ${target} ${nounFor(target,emojiSet.label)}. ${ada.encouragement}`, answerRef.current)}
     afterSpeech(() => {
           setFeedback(null)
           // 3 wrong in a row → diagnose the difficulty, then re-teach accordingly
@@ -164,9 +167,9 @@ export default function CountingChapter({onComplete,childName}:Props){
     setRemediation({ phase:'explain', target:t, emoji:e, label:l, kind, escalated:true })
   }
 
-  const bubbleText=tapped.length===0?`Tap each ${emojiSet.label} to count!`
+  const bubbleText=tapped.length===0?`Tap each ${singular(emojiSet.label)} to count!`
     :tapped.length<target?`${tapped.length}…`
-    :`How many ${emojiSet.label}?`
+    :`How many ${nounFor(target,emojiSet.label)}?`
 
   if(phase==='lesson') return(
     <CountingLesson childName={childName} onLessonComplete={startPractice}/>
@@ -211,6 +214,8 @@ export default function CountingChapter({onComplete,childName}:Props){
           ))}
         </div>
       )}
+      {/* Options appear only after the child has tapped (counted) every object. */}
+      {tapped.length>=target && (
       <div style={S.choiceRow}>
         {choices.map(c=>(
           <button key={c} onClick={()=>handleAnswer(c)} disabled={answered}
@@ -227,6 +232,7 @@ export default function CountingChapter({onComplete,childName}:Props){
           >{c}</button>
         ))}
       </div>
+      )}
       {feedback&&<div style={{...S.flash,background:feedback==='correct'?'var(--garden-green)':'var(--apple-red)'}}>
         {feedback==='correct'?`✅ ${target}!`:`It was ${target}`}
       </div>}
@@ -249,13 +255,13 @@ export default function CountingChapter({onComplete,childName}:Props){
 
 // Re-teach wording tailored to the diagnosed difficulty.
 function reTeachCopy(kind:MissKind,target:number,label:string){
-  const one = label.replace(/s$/,'') // singular-ish, for "the same apple twice"
+  const one = singular(label) // singular form, for "the same apple twice"
   switch(kind){
     case 'process': return {
       title:"Touch and count!",
-      tip:`Touch each ${label} as you count it.`,
-      intro:`To count, we touch each ${label}, one at a time. Watch me touch every one!`,
-      close:`That's ${target} ${label}! Touch each one as you count. Now you try!`,
+      tip:`Touch each ${one} as you count it.`,
+      intro:`To count, we touch each ${one}, one at a time. Watch me touch every one!`,
+      close:`That's ${target} ${nounFor(target,label)}! Touch each one as you count. Now you try!`,
     }
     case 'recognition': return {
       title:"Meet the number!",
@@ -273,7 +279,7 @@ function reTeachCopy(kind:MissKind,target:number,label:string){
       title:"Let's count together!",
       tip:`Count the ${label} with Milo.`,
       intro:`Let's count the ${label} together, slowly!`,
-      close:`That's ${target} ${label}! Now you try again. You can do it!`,
+      close:`That's ${target} ${nounFor(target,label)}! Now you try again. You can do it!`,
     }
   }
 }
@@ -368,8 +374,8 @@ function CheckQuestion({target,emoji,label,kind,onResult}:{
   useEffect(()=>{
     if(ran.current)return;ran.current=true
     speak(mode==='count'
-      ? `Now you try! Touch each ${label}, then pick how many.`
-      : `Now you try! How many ${label}? Touch the right number.`)
+      ? `Now you try! Touch each ${singular(label)}, then pick how many.`
+      : `Now you try! How many ${nounFor(target,label)}? Touch the right number.`)
     window.setTimeout(()=>afterSpeech(()=>setReady(true)),400)
   },[label,mode])
   function tap(i:number){
@@ -380,7 +386,7 @@ function CheckQuestion({target,emoji,label,kind,onResult}:{
     if(picked!=null||!ready)return
     setPicked(c)
     const ok=c===target
-    if(ok) speak(`Yes! ${target} ${label}! You've got it! Wonderful!`)
+    if(ok) speak(`Yes! ${target} ${nounFor(target,label)}! You've got it! Wonderful!`)
     else   speak(`Not quite. Let's look one more time together.`)
     window.setTimeout(()=>onResult(ok),1900)
   }
@@ -393,7 +399,7 @@ function CheckQuestion({target,emoji,label,kind,onResult}:{
           <h3 style={{fontFamily:'var(--font-display)',fontSize:20,margin:0,color:'var(--garden-green-deep)'}}>Your turn!</h3>
         </div>
         <p style={{fontFamily:'var(--font-body)',fontSize:15,color:'var(--ink-soft)',margin:'0 0 14px'}}>
-          {mode==='count' ? `Touch each ${label}, then pick how many!` : `How many ${label}? Count them!`}
+          {mode==='count' ? `Touch each ${singular(label)}, then pick how many!` : `How many ${nounFor(target,label)}? Count them!`}
         </p>
 
         {mode==='count' ? (

@@ -9,7 +9,7 @@
  */
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { speak, speakSeq } from '@/lib/useMiloSpeaker'
-import { LessonScaffold, SectionBreak, Confetti, BigCount, numberToWords, type LessonStep } from './_kit'
+import { LessonScaffold, Confetti, BigCount, numberToWords, type LessonStep } from './_kit'
 
 interface Props { childName: string; onLessonComplete: () => void }
 
@@ -205,8 +205,6 @@ export default function FractionsLesson({ childName, onLessonComplete }: Props) 
       render: d => <FractionWatch den={3} intro="Three equal parts. Shade one." outro="One third!" onDone={d} /> },
     { bubble: 'And QUARTERS — four equal parts. Watch!', mood: 'happy',
       render: d => <FractionWatch den={4} intro="Four equal parts. Shade one." outro="One quarter!" onDone={d} /> },
-    { bubble: '🎉 Half, third, quarter!', mood: 'celebrate',
-      render: d => <SectionBreak emoji="🍕" title="Equal parts!" subtitle="½ = 2 parts · ⅓ = 3 parts · ¼ = 4 parts" onDone={d} /> },
 
     // Now ask about each (all already shown).
     { bubble: 'Now YOU — what fraction is shaded? 🤔', mood: 'thinking',
@@ -216,8 +214,6 @@ export default function FractionsLesson({ childName, onLessonComplete }: Props) 
     { bubble: 'And this one? 🤔', mood: 'thinking',
       render: d => <FractionAsk den={3} intro="Three equal parts. One is shaded. What fraction?" outro="Yes! One third!" onDone={d} /> },
 
-    { bubble: '🌟 A fraction of a GROUP!', mood: 'celebrate',
-      render: d => <SectionBreak emoji="🍪" title="Half of a group!" subtitle="Split the group into equal parts." onDone={d} /> },
     { bubble: 'Half of six cookies — watch!', mood: 'happy',
       render: d => <GroupWatch total={6} den={2} emoji="🍪" onDone={d} /> },
     { bubble: 'Your turn — what is half of eight? 🤔', mood: 'thinking',

@@ -61,7 +61,9 @@ export default function SubtractionChapter({onComplete,childName}:Props){
     timers.current=[t1,t2]
   }
 
-  useEffect(()=>{loadRound(roundIdx);return clearT},[roundIdx,ada.difficulty]) // eslint-disable-line
+  // Only build/announce a round in the practice phase — otherwise the prompt
+  // would be spoken over the lesson while phase is still 'lesson'.
+  useEffect(()=>{if(phase!=='practice')return;loadRound(roundIdx);return clearT},[roundIdx,ada.difficulty,phase]) // eslint-disable-line
 
   function handleAnswer(choice:number){
     if(selected!==null)return

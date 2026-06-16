@@ -12,10 +12,11 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { speak, stopSpeech } from '@/lib/useMiloSpeaker'
 import ScaleToFill from './ScaleToFill'
+import { AdvancePopup, ListeningHint, cheerFor, nounFor } from './_kit'
 
 interface Props { childName: string; onLessonComplete: () => void }
 
-const TOTAL_STEPS = 15
+const TOTAL_STEPS = 11
 
 export const CSS = `
   @keyframes bs_pop {0%{transform:scale(0) rotate(-10deg);opacity:0}55%{transform:scale(1.25) rotate(3deg);opacity:1}100%{transform:scale(1) rotate(0);opacity:1}}
@@ -31,31 +32,6 @@ export const CSS = `
   @keyframes bs_count {0%{transform:scale(0) rotate(-20deg);opacity:0}60%{transform:scale(1.4);opacity:1}100%{transform:scale(1);opacity:1}}
   @keyframes bs_vs {0%,100%{transform:scale(1) rotate(-4deg)}50%{transform:scale(1.18) rotate(4deg)}}
 `
-
-function Confetti() {
-  const colors = ['#E64545','#F26B2C','#FFC933','#6FBE3F','#5BC3F0','#9362D8']
-  return (
-    <div style={{position:'absolute',inset:0,pointerEvents:'none',overflow:'hidden',zIndex:10}}>
-      {Array.from({length:20}).map((_,i)=>(
-        <div key={i} style={{position:'absolute',left:`${8+(i*5)%84}%`,top:`${(i*11)%25}%`,width:10,height:10,
-          borderRadius:i%2===0?'50%':'3px',background:colors[i%colors.length],
-          animation:`bs_confetti ${0.8+(i%3)*0.2}s ease-in ${(i%6)*0.07}s both`}}/>
-      ))}
-    </div>
-  )
-}
-
-function SectionBreak({emoji,title,subtitle,onDone}:{emoji:string,title:string,subtitle:string,onDone:()=>void}) {
-  useEffect(()=>{ const t=window.setTimeout(onDone,2800); return ()=>window.clearTimeout(t) },[onDone])
-  return (
-    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:16,padding:'20px 0',position:'relative'}}>
-      <Confetti/>
-      <div style={{fontSize:72,animation:'bs_miloJump 0.8s ease-in-out infinite'}}>{emoji}</div>
-      <div style={{fontFamily:'var(--font-display)',fontWeight:900,fontSize:28,color:'var(--milo-orange)',textAlign:'center',lineHeight:1.2,animation:'bs_sectionIn 0.6s cubic-bezier(.34,1.56,.64,1)',textShadow:'0 3px 0 rgba(61,37,22,.1)'}}>{title}</div>
-      <div style={{fontFamily:'var(--font-body)',fontSize:16,color:'var(--ink-soft)',textAlign:'center',animation:'bs_slideUp 0.5s ease 0.2s both'}}>{subtitle}</div>
-    </div>
-  )
-}
 
 // ─── Compare 2 or 3 groups: count each (big pop), then reveal/pick ──
 // `target` chooses whether we want the bigger ('more') or smaller ('less') one.
@@ -101,7 +77,7 @@ export function CompareCards({items,target='more',mode,prompt,outro,showNumber,o
             }, t)
             t+=1000
           }
-          window.setTimeout(()=>{ if(alive.current) speak(`${numberWord(it.count)} ${it.name??''}!`) }, t); t+=1500
+          window.setTimeout(()=>{ if(alive.current) speak(`${numberWord(it.count)} ${nounFor(it.count, it.name??'')}!`) }, t); t+=1500
         })
         window.setTimeout(()=>{ if(!alive.current)return; setActive(null); setBigN(0); setPhase('compare'); speak(outro); window.setTimeout(()=>{ if(alive.current) onDone() },3400) }, t+200)
       } else {
@@ -269,9 +245,9 @@ function MatchRows({top,bottom,onDone}:{top:number,bottom:number,onDone:()=>void
 }
 
 // ─── Shell ───────────────────────────────────────────────────
-function Shell({step,miloMood,bubble,children,onNext,nextReady,onBack,onSkip}:{
+function Shell({step,miloMood,bubble,children,nextReady,onBack,onSkip}:{
   step:number,miloMood:'happy'|'thinking'|'celebrate',bubble:string,children:React.ReactNode,
-  onNext:()=>void,nextReady:boolean,onBack:()=>void,onSkip:()=>void,
+  nextReady:boolean,onBack:()=>void,onSkip:()=>void,
 }) {
   const src = miloMood==='thinking'?'/assets/characters/milo-thinking.png':'/assets/characters/milo-happy.png'
   return (
@@ -296,12 +272,12 @@ function Shell({step,miloMood,bubble,children,onNext,nextReady,onBack,onSkip}:{
         <ScaleToFill>{children}</ScaleToFill>
       </div>
 
-      <button onClick={onNext} disabled={!nextReady} style={{width:'100%',maxWidth:520,padding:'15px',background:nextReady?'linear-gradient(135deg,var(--milo-orange) 0%,var(--milo-orange-deep) 100%)':'rgba(61,37,22,0.1)',color:nextReady?'#fff':'rgba(61,37,22,0.25)',border:'none',borderRadius:50,fontFamily:'var(--font-display)',fontWeight:900,fontSize:18,cursor:nextReady?'pointer':'not-allowed',boxShadow:nextReady?'0 4px 18px rgba(242,107,44,0.35)':'none',transition:'all 0.3s ease',transform:nextReady?'scale(1)':'scale(0.97)'}}>{nextReady?'Next →':'🎧 Listen to Milo...'}</button>
+      <ListeningHint show={!nextReady}/>
     </div>
   )
 }
 
-// ─── The 12 steps ────────────────────────────────────────────
+// ─── The 11 steps ────────────────────────────────────────────
 function Step({i,onDone}:{i:number,onDone:()=>void}){
   switch(i){
     // ── BIGGER / MORE ──
@@ -310,29 +286,25 @@ function Step({i,onDone}:{i:number,onDone:()=>void}){
     case 1: return <CompareCards mode="do" target="more" items={[{count:2,emoji:'🐸',name:'frogs'},{count:5,emoji:'🐸',name:'frogs'}]}
       prompt="Now you try! Tap the group with MORE" outro="Yes! Five is more than two! Well done!" onDone={onDone}/>
     // ── SMALLER / FEWER ──
-    case 2: return <SectionBreak emoji="🐢" title="Now... SMALLER!" subtitle="Smaller means FEWER — not so many!" onDone={onDone}/>
-    case 3: return <CompareCards mode="watch" target="less" items={[{count:5,emoji:'🍎',name:'apples'},{count:2,emoji:'🍎',name:'apples'}]}
+    case 2: return <CompareCards mode="watch" target="less" items={[{count:5,emoji:'🍎',name:'apples'},{count:2,emoji:'🍎',name:'apples'}]}
       prompt="Let's count the apples!" outro="Two is fewer than five! This group is SMALLER!" onDone={onDone}/>
-    case 4: return <CompareCards mode="do" target="less" items={[{count:6,emoji:'🎈',name:'balloons'},{count:3,emoji:'🎈',name:'balloons'}]}
+    case 3: return <CompareCards mode="do" target="less" items={[{count:6,emoji:'🎈',name:'balloons'},{count:3,emoji:'🎈',name:'balloons'}]}
       prompt="Tap the group with FEWER" outro="Yes! Three is fewer than six! Well done!" onDone={onDone}/>
     // ── matching trick ──
-    case 5: return <SectionBreak emoji="🔗" title="The matching trick!" subtitle="Match them one to one to be sure." onDone={onDone}/>
-    case 6: return <MatchRows top={6} bottom={4} onDone={onDone}/>
+    case 4: return <MatchRows top={6} bottom={4} onDone={onDone}/>
     // ── numbers tell us ──
-    case 7: return <SectionBreak emoji="🔢" title="Numbers tell us too!" subtitle="Bigger number = more. Smaller number = fewer." onDone={onDone}/>
-    case 8: return <CompareCards mode="watch" target="more" showNumber items={[{count:3,emoji:'⭐',name:'stars'},{count:7,emoji:'⭐',name:'stars'}]}
+    case 5: return <CompareCards mode="watch" target="more" showNumber items={[{count:3,emoji:'⭐',name:'stars'},{count:7,emoji:'⭐',name:'stars'}]}
       prompt="Let's count the stars!" outro="Seven is bigger than three! The bigger number is more!" onDone={onDone}/>
-    case 9: return <CompareCards mode="do" target="more" showNumber items={[{count:6,emoji:'🎈'},{count:9,emoji:'🎈'}]}
+    case 6: return <CompareCards mode="do" target="more" showNumber items={[{count:6,emoji:'🎈'},{count:9,emoji:'🎈'}]}
       prompt="Tap the BIGGER number" outro="Nine is bigger than six! Brilliant!" onDone={onDone}/>
-    case 10: return <CompareCards mode="do" target="less" showNumber items={[{count:8,emoji:'🦋'},{count:5,emoji:'🦋'}]}
+    case 7: return <CompareCards mode="do" target="less" showNumber items={[{count:8,emoji:'🦋'},{count:5,emoji:'🦋'}]}
       prompt="Now tap the SMALLER number" outro="Five is smaller than eight! Amazing!" onDone={onDone}/>
     // ── most / least with three ──
-    case 11: return <SectionBreak emoji="🌟" title="Most and Least!" subtitle="With three groups, find the most and the least!" onDone={onDone}/>
-    case 12: return <CompareCards mode="watch" target="more" showNumber items={[{count:2,emoji:'🍓',name:'berries'},{count:5,emoji:'🍓',name:'berries'},{count:3,emoji:'🍓',name:'berries'}]}
+    case 8: return <CompareCards mode="watch" target="more" showNumber items={[{count:2,emoji:'🍓',name:'berries'},{count:5,emoji:'🍓',name:'berries'},{count:3,emoji:'🍓',name:'berries'}]}
       prompt="Let's count each group!" outro="Five is the most! It's bigger than two and three!" onDone={onDone}/>
-    case 13: return <CompareCards mode="do" target="more" showNumber items={[{count:4,emoji:'🐸'},{count:7,emoji:'🐸'},{count:2,emoji:'🐸'}]}
+    case 9: return <CompareCards mode="do" target="more" showNumber items={[{count:4,emoji:'🐸'},{count:7,emoji:'🐸'},{count:2,emoji:'🐸'}]}
       prompt="Which has the MOST? Tap it!" outro="Seven is the most! You did it!" onDone={onDone}/>
-    case 14: return <CompareCards mode="do" target="less" showNumber items={[{count:5,emoji:'🦋'},{count:2,emoji:'🦋'},{count:8,emoji:'🦋'}]}
+    case 10: return <CompareCards mode="do" target="less" showNumber items={[{count:5,emoji:'🦋'},{count:2,emoji:'🦋'},{count:8,emoji:'🦋'}]}
       prompt="Last one! Which has the LEAST? Tap it!" outro="Two is the least! You're a superstar!" onDone={onDone}/>
     default: return null
   }
@@ -345,30 +317,28 @@ export default function BiggerSmallerLesson({childName,onLessonComplete}:Props){
   const router=useRouter()
   const [step,setStep]=useState(0)
   const [nextReady,setNextReady]=useState(false)
+  const [retry,setRetry]=useState(0)
   const [confirmBack,setConfirmBack]=useState(false)
 
   const BUBBLES=[
     `Hi ${childName}! Let's learn bigger and smaller! Let's count the stars! ⭐`,
     'Your turn! Tap the group with MORE! 🐸',
-    '🐢 Now let\'s learn SMALLER — that means fewer!',
     'Which has fewer apples? Let\'s count! 🍎',
     'Tap the group with FEWER! 🎈',
-    '🔗 The matching trick — match them one to one!',
     'Watch them match up to see which has more!',
-    '🔢 Numbers tell us too!',
     'Let\'s count — which is bigger, 3 or 7? ⭐',
     'Tap the BIGGER number! 🎈',
     'Now tap the SMALLER number! 🦋',
-    '🌟 Now the MOST and the LEAST!',
     'Three groups — count to find the most! 🍓',
     'Tap the group with the MOST! 🐸',
     'Last one! Tap the group with the LEAST! 🦋',
   ]
   const MOODS:Array<'happy'|'thinking'|'celebrate'>=[
-    'happy','thinking','celebrate','happy','thinking','celebrate','happy','celebrate','happy','thinking','thinking','celebrate','happy','thinking','thinking',
+    'happy','thinking','happy','thinking','happy','happy','thinking','thinking','happy','thinking','thinking',
   ]
 
   function done(){ setNextReady(true) }
+  function retryStep(){ stopSpeech(); setNextReady(false); setRetry(r=>r+1) }
   function next(){
     if(!nextReady)return
     stopSpeech()
@@ -382,10 +352,11 @@ export default function BiggerSmallerLesson({childName,onLessonComplete}:Props){
 
   return (
     <>
-      <Shell step={step} miloMood={MOODS[step]} bubble={BUBBLES[step]} onNext={next} nextReady={nextReady}
+      <Shell step={step} miloMood={MOODS[step]} bubble={BUBBLES[step]} nextReady={nextReady}
         onBack={()=>setConfirmBack(true)} onSkip={()=>{stopSpeech();onLessonComplete()}}>
-        <Step key={step} i={step} onDone={done}/>
+        <Step key={`${step}-${retry}`} i={step} onDone={done}/>
       </Shell>
+      {nextReady && <AdvancePopup onRetry={retryStep} onNext={next} cheer={cheerFor(step)} />}
 
       {confirmBack && (
         <div style={{position:'fixed',inset:0,zIndex:200,background:'rgba(61,37,22,0.65)',display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>

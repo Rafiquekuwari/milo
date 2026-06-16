@@ -7,7 +7,7 @@
  */
 import React, { useState, useEffect, useRef } from 'react'
 import { speak } from '@/lib/useMiloSpeaker'
-import { LessonScaffold, SectionBreak, Confetti, numberToWords, type LessonStep } from './_kit'
+import { LessonScaffold, Confetti, numberToWords, type LessonStep } from './_kit'
 import { ReadNumber, TensOnes, NumberChart } from './Numbers100Lesson'
 
 interface Props { childName: string; onLessonComplete: () => void }
@@ -79,8 +79,6 @@ export default function PlaceValueLesson({ childName, onLessonComplete }: Props)
   const steps: LessonStep[] = [
     { bubble: `Hi ${childName}! A big number is made of TENS and ONES. Watch! ✋`, mood: 'happy',
       render: d => <ReadNumber n={23} intro="Let's build twenty-three. Two tens…" outro="Two tens and three ones make twenty-three!" onDone={d} /> },
-    { bubble: '🎉 Every number has tens and ones!', mood: 'celebrate',
-      render: d => <SectionBreak emoji="🧱" title="Tens and Ones!" subtitle="Tall blocks are tens, dots are ones." onDone={d} /> },
 
     // Teach how to read the tens, then the ones, off the same number.
     { bubble: 'Look at thirty-four. How many TENS? 🤔', mood: 'thinking',
@@ -92,9 +90,6 @@ export default function PlaceValueLesson({ childName, onLessonComplete }: Props)
         visual={<div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}><Numeral n={34} /><NumberBlocks n={34} /></div>}
         intro="Now count the dots. How many ones?" outro="Yes! Four ones!" onDone={d} /> },
 
-    { bubble: '🌟 You can find tens and ones!', mood: 'celebrate',
-      render: d => <SectionBreak emoji="⭐" title="Now read the whole number!" subtitle="Count the tens, then the ones." onDone={d} /> },
-
     // Build a bigger one, then read blocks back to a whole number.
     { bubble: 'Let’s build fifty-two. Five tens… 🤔', mood: 'thinking',
       render: d => <ReadNumber n={52} intro="Let's build fifty-two. Five tens…" outro="Fifty-two!" onDone={d} /> },
@@ -102,10 +97,6 @@ export default function PlaceValueLesson({ childName, onLessonComplete }: Props)
       render: d => <AskChoice promptText="What number is this?" answer={46} choices={[40, 46, 64]}
         visual={<NumberBlocks n={46} />}
         intro="Count the tens and the ones. What number is this?" outro="Yes! Forty-six!" onDone={d} /> },
-
-    // Point to the always-available chart button.
-    { bubble: '🔢 Tap the chart button up top any time to explore numbers!', mood: 'celebrate',
-      render: d => <SectionBreak emoji="🔢" title="Explore any number!" subtitle="Tap the 🔢 button up top to see how any number is built." onDone={d} /> },
   ]
 
   return (

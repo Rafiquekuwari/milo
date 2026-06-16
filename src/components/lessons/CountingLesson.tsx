@@ -7,12 +7,13 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { speak, stopSpeech } from '@/lib/useMiloSpeaker'
+import { speak, speakSeq, stopSpeech } from '@/lib/useMiloSpeaker'
 import ScaleToFill from './ScaleToFill'
+import { AdvancePopup, ListeningHint, cheerFor } from './_kit'
 
 interface Props { childName: string; onLessonComplete: () => void }
 
-const TOTAL_STEPS = 16
+const TOTAL_STEPS = 13
 const NUM_COLORS  = [
   '#E64545','#F26B2C','#FFC933','#6FBE3F','#5BC3F0',
   '#9362D8','#E64545','#F26B2C','#FFC933','#6FBE3F',
@@ -150,10 +151,10 @@ function SparkleAt({x,y}:{x:number,y:number}) {
 }
 
 // Number card with dots
-function NumberCard({n,visible,isActive,delay=0}:{n:number,visible:boolean,isActive:boolean,delay?:number}) {
+function NumberCard({n,visible,isActive,delay=0,frog=false}:{n:number,visible:boolean,isActive:boolean,delay?:number,frog?:boolean}) {
   return (
     <div style={{
-      width:62,height:78,
+      width:62,height:78,position:'relative',
       background: visible ? NUM_COLORS[n-1] : 'rgba(200,200,200,0.15)',
       borderRadius:18,
       border:`3px solid ${visible ? 'rgba(61,37,22,.15)' : 'rgba(200,200,200,0.2)'}`,
@@ -162,13 +163,17 @@ function NumberCard({n,visible,isActive,delay=0}:{n:number,visible:boolean,isAct
       opacity: visible ? 1 : 0,
       animation: visible ? `numberPop 0.5s cubic-bezier(.34,1.56,.64,1) ${delay}ms both` : 'none',
       // The number currently being spoken pops up BIG to grab the child's attention
-      transform: isActive ? 'scale(1.9) translateY(-12px)' : 'scale(1)',
+      // (gentler pop in frog mode so the frog sitting on top reads cleanly).
+      transform: isActive ? (frog ? 'scale(1.35) translateY(-6px)' : 'scale(1.9) translateY(-12px)') : 'scale(1)',
       zIndex: isActive ? 5 : 1,
       boxShadow: isActive
         ? `0 0 0 6px white, 0 18px 42px ${NUM_COLORS[n-1]}c0`
         : visible ? '0 4px 0 rgba(61,37,22,.18)' : 'none',
       transition:'transform 0.28s cubic-bezier(.34,1.56,.64,1), box-shadow 0.28s ease',
     }}>
+      {frog && isActive && (
+        <span style={{position:'absolute',top:-30,left:'50%',transform:'translateX(-50%)',fontSize:26,filter:'drop-shadow(0 3px 6px rgba(0,0,0,.25))',pointerEvents:'none',animation:'hopUp 0.38s ease'}}>🐸</span>
+      )}
       {visible && <>
         <span style={{
           fontFamily:'var(--font-display)',fontWeight:900,
@@ -190,42 +195,11 @@ function NumberCard({n,visible,isActive,delay=0}:{n:number,visible:boolean,isAct
   )
 }
 
-// Section celebration break
-function SectionBreak({emoji,title,subtitle,onDone}:{
-  emoji:string,title:string,subtitle:string,onDone:()=>void
-}) {
-  useEffect(()=>{
-    window.setTimeout(onDone, 2800)
-  },[onDone])
-  return (
-    <div style={{
-      display:'flex',flexDirection:'column',
-      alignItems:'center',justifyContent:'center',
-      gap:16, padding:'20px 0', position:'relative',
-    }}>
-      <Confetti/>
-      <div style={{fontSize:72,animation:'miloJump 0.8s ease-in-out infinite'}}>{emoji}</div>
-      <div style={{
-        fontFamily:'var(--font-display)',fontWeight:900,
-        fontSize:28,color:'var(--milo-orange)',
-        textAlign:'center',lineHeight:1.2,
-        animation:'sectionIn 0.6s cubic-bezier(.34,1.56,.64,1)',
-        textShadow:'0 3px 0 rgba(61,37,22,.1)',
-      }}>{title}</div>
-      <div style={{
-        fontFamily:'var(--font-body)',fontSize:16,
-        color:'var(--ink-soft)',textAlign:'center',
-        animation:'slideUp 0.5s ease 0.2s both',
-      }}>{subtitle}</div>
-    </div>
-  )
-}
-
 // Shell
-function Shell({step,miloMood,bubble,children,onNext,nextReady,onBack,onSkip}:{
+function Shell({step,miloMood,bubble,children,nextReady,onBack,onSkip}:{
   step:number,miloMood:'happy'|'thinking'|'celebrate',
   bubble:string,children:React.ReactNode,
-  onNext:()=>void,nextReady:boolean,onBack:()=>void,onSkip:()=>void,
+  nextReady:boolean,onBack:()=>void,onSkip:()=>void,
 }) {
   const src = miloMood==='thinking'
     ?'/assets/characters/milo-thinking.png'
@@ -319,19 +293,7 @@ function Shell({step,miloMood,bubble,children,onNext,nextReady,onBack,onSkip}:{
       </div>
 
       {/* Next */}
-      <button onClick={onNext} disabled={!nextReady} style={{
-        width:'100%',maxWidth:520,padding:'15px',
-        background: nextReady
-          ?'linear-gradient(135deg,var(--milo-orange) 0%,var(--milo-orange-deep) 100%)'
-          :'rgba(61,37,22,0.1)',
-        color:nextReady?'#fff':'rgba(61,37,22,0.25)',
-        border:'none',borderRadius:50,
-        fontFamily:'var(--font-display)',fontWeight:900,fontSize:18,
-        cursor:nextReady?'pointer':'not-allowed',
-        boxShadow:nextReady?'0 4px 18px rgba(242,107,44,0.35)':'none',
-        transition:'all 0.3s ease',
-        transform:nextReady?'scale(1)':'scale(0.97)',
-      }}>{nextReady?'Next →':'🎧 Listen to Milo...'}</button>
+      <ListeningHint show={!nextReady}/>
     </div>
   )
 }
@@ -353,8 +315,8 @@ function BigCount({n}:{n:number}) {
 // ═══════════════════════════════════════════
 // STEP 1 — Numbers 1-10: 1-5 appear on top, then 6-10 below
 // ═══════════════════════════════════════════
-function NumberRow({label,nums,shown,active}:{
-  label:string,nums:number[],shown:number[],active:number
+function NumberRow({label,nums,shown,active,frog=false}:{
+  label:string,nums:number[],shown:number[],active:number,frog?:boolean
 }) {
   return (
     <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:12}}>
@@ -364,7 +326,7 @@ function NumberRow({label,nums,shown,active}:{
       }}>{label}</div>
       <div style={{display:'flex',gap:9,justifyContent:'center'}}>
         {nums.map(n=>(
-          <NumberCard key={n} n={n} visible={shown.includes(n)} isActive={active===n}/>
+          <NumberCard key={n} n={n} visible={shown.includes(n)} isActive={active===n} frog={frog}/>
         ))}
       </div>
     </div>
@@ -375,25 +337,20 @@ function S1({onDone}:{onDone:()=>void}) {
   const [shown,setShown]=useState<number[]>([])
   const [active,setActive]=useState(0)
   const [showRow2,setShowRow2]=useState(false)
-  const ran=useRef(false)
+  const doneRef=useRef(onDone); doneRef.current=onDone
   useEffect(()=>{
-    if(ran.current)return;ran.current=true
-    speak("Let's meet the numbers! Watch carefully!")
-    const words=['One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten']
-    const STEP=900
-    words.forEach((w,i)=>{
-      window.setTimeout(()=>{
-        if(i===5){ setShowRow2(true) }   // reveal the bottom row when 6 appears
-        setShown(p=>[...p,i+1]);setActive(i+1)
-        window.setTimeout(()=>speak(w),80)
-      },1300+i*STEP)
+    // speakSeq: each number waits for the previous to finish, so the voice never
+    // overlaps or cuts. onWord reveals each card as it's spoken.
+    const words=["Let's meet the numbers! Watch carefully!",'one','two','three','four','five','six','seven','eight','nine','ten','You know all the numbers from one to ten! Amazing!']
+    const cancel=speakSeq(words,{
+      onWord:(i)=>{
+        if(i>=1&&i<=10){ if(i===6) setShowRow2(true); setShown(p=>p.includes(i)?p:[...p,i]); setActive(i) }
+        else if(i===11) setActive(0)
+      },
+      onDone:()=>window.setTimeout(()=>doneRef.current(),1200),
     })
-    window.setTimeout(()=>{
-      setActive(0)
-      speak('You know all the numbers from one to ten! Amazing!')
-      window.setTimeout(onDone,2500)
-    },1300+10*STEP+300)
-  },[onDone])
+    return cancel
+  },[]) // eslint-disable-line
   return (
     <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:30}}>
       <NumberRow label="Numbers 1 to 5 🌟" nums={[1,2,3,4,5]} shown={shown} active={active}/>
@@ -409,80 +366,26 @@ function S1({onDone}:{onDone:()=>void}) {
 }
 
 // ═══════════════════════════════════════════
-// STEP 3 — Section break: "You know 1-10!"
-// ═══════════════════════════════════════════
-function S3({onDone}:{onDone:()=>void}) {
-  useEffect(()=>{ speak('Amazing! You know all the numbers from one to ten! Wonderful!') },[])
-  return (
-    <SectionBreak
-      emoji="🎉"
-      title="You know 1 to 10!"
-      subtitle="Now let's see the numbers count things!"
-      onDone={onDone}
-    />
-  )
-}
-
-// ═══════════════════════════════════════════
 // STEP 4 — Frog hops 1→10 (slower, bigger)
 // ═══════════════════════════════════════════
 function S4({onDone}:{onDone:()=>void}) {
-  const [pos,setPos]=useState(0)
   const [active,setActive]=useState(0)
-  const ran=useRef(false)
-  const CELL=38
+  const doneRef=useRef(onDone); doneRef.current=onDone
+  const ALL=[1,2,3,4,5,6,7,8,9,10]
   useEffect(()=>{
-    if(ran.current)return;ran.current=true
-    speak('Watch the frog jump! He jumps on every number!')
-    const words=['One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten']
-    words.forEach((w,i)=>{
-      window.setTimeout(()=>{
-        setPos(i+1);setActive(i+1)
-        window.setTimeout(()=>speak(w),120)
-      },1600+i*1050)
+    const words=['Watch the frog jump! He jumps on every number!','one','two','three','four','five','six','seven','eight','nine','ten','One to ten! The frog jumped on every number! Brilliant!']
+    const cancel=speakSeq(words,{
+      onWord:(i)=>{ if(i>=1&&i<=10) setActive(i); else if(i===11) setActive(0) },
+      onDone:()=>window.setTimeout(()=>doneRef.current(),1200),
     })
-    window.setTimeout(()=>{
-      speak('One to ten! The frog jumped on every single number! Brilliant!')
-      window.setTimeout(onDone,3000)
-    },1600+10*1050+400)
-  },[onDone])
+    return cancel
+  },[]) // eslint-disable-line
+  // Same big number cards as the first slide, split into two rows (1–5, 6–10),
+  // with the frog hopping onto the number being counted.
   return (
-    <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:8,width:'100%'}}>
-      <div style={{position:'relative',width:'100%',maxWidth:400,height:64}}>
-        <div style={{
-          position:'absolute',
-          left:pos>0?`${(pos-1)*CELL+2}px`:'2px',
-          bottom:6,fontSize:36,
-          transition:'left 0.38s cubic-bezier(.34,1.56,.64,1)',
-          animation:pos>0?'hopUp 0.38s ease':'none',
-          filter:'drop-shadow(0 4px 8px rgba(0,0,0,.2))',
-        }}>🐸</div>
-      </div>
-      <div style={{display:'flex',gap:4}}>
-        {Array.from({length:10}).map((_,i)=>{
-          const n=i+1,isA=active===n,isPast=active>n
-          return (
-            <div key={n} style={{
-              width:34,height:34,borderRadius:10,
-              background:isA?NUM_COLORS[i]:isPast?'var(--garden-green-soft)':'var(--cream)',
-              border:`3px solid ${isA?NUM_COLORS[i]:'var(--outline)'}`,
-              display:'flex',alignItems:'center',justifyContent:'center',
-              fontFamily:'var(--font-display)',fontWeight:900,
-              fontSize:isA?26:13,
-              color:isA?'#fff':'var(--ink)',
-              transform:isA?'scale(1.85)':'scale(1)',
-              zIndex:isA?5:1,
-              transition:'all 0.28s cubic-bezier(.34,1.56,.64,1)',
-              boxShadow:isA?`0 0 0 5px white, 0 12px 26px ${NUM_COLORS[i]}b0`:'0 2px 0 rgba(61,37,22,.1)',
-            }}>{n}</div>
-          )
-        })}
-      </div>
-      <div style={{display:'flex',gap:4}}>
-        {Array.from({length:10}).map((_,i)=>(
-          <div key={i} style={{width:34,textAlign:'center',fontSize:16}}>🍃</div>
-        ))}
-      </div>
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:30}}>
+      <NumberRow label="Numbers 1 to 5 🐸" nums={[1,2,3,4,5]} shown={ALL} active={active} frog/>
+      <NumberRow label="Numbers 6 to 10 🐸" nums={[6,7,8,9,10]} shown={ALL} active={active} frog/>
     </div>
   )
 }
@@ -494,7 +397,7 @@ function S5({onDone}:{onDone:()=>void}) {
   const [gi,setGi]=useState(-1)
   const [shown,setShown]=useState(0)
   const [badge,setBadge]=useState(false)
-  const ran=useRef(false)
+  const doneRef=useRef(onDone); doneRef.current=onDone
   const GRP=[
     {n:1,w:'One firefly!'},
     {n:2,w:'Two fireflies!'},
@@ -503,25 +406,21 @@ function S5({onDone}:{onDone:()=>void}) {
     {n:5,w:'Five fireflies!'},
   ]
   useEffect(()=>{
-    if(ran.current)return;ran.current=true
-    speak('Watch! Each number means this many fireflies!')
-    let base=1400
-    GRP.forEach((g,idx)=>{
-      window.setTimeout(()=>{
-        setGi(idx);setShown(0);setBadge(false)
-        window.setTimeout(()=>speak(g.w),200)
-        for(let k=1;k<=g.n;k++){
-          window.setTimeout(()=>setShown(k),k*260)
+    // speakSeq keeps the announcements in order; item reveals are visual-only.
+    const words=['Watch! Each number means this many fireflies!',...GRP.map(g=>g.w),'One, two, three, four, five! Now you know!']
+    const cancel=speakSeq(words,{
+      onWord:(i)=>{
+        if(i>=1&&i<=GRP.length){
+          const idx=i-1,n=GRP[idx].n
+          setGi(idx);setShown(0);setBadge(false)
+          for(let k=1;k<=n;k++) window.setTimeout(()=>setShown(k),k*220)
+          window.setTimeout(()=>setBadge(true),n*220+300)
         }
-        window.setTimeout(()=>setBadge(true),g.n*260+350)
-      },base)
-      base+=g.n*260+1300
+      },
+      onDone:()=>window.setTimeout(()=>doneRef.current(),1200),
     })
-    window.setTimeout(()=>{
-      speak('One, two, three, four, five! Now you know!')
-      window.setTimeout(onDone,2800)
-    },base+200)
-  },[onDone])
+    return cancel
+  },[]) // eslint-disable-line
   const g=gi>=0?GRP[gi]:null
   return (
     <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:14}}>
@@ -581,7 +480,7 @@ function S6({onDone}:{onDone:()=>void}) {
   const [gi,setGi]=useState(-1)
   const [shown,setShown]=useState(0)
   const [badge,setBadge]=useState(false)
-  const ran=useRef(false)
+  const doneRef=useRef(onDone); doneRef.current=onDone
   const GRP=[
     {n:6,w:'Six stars!'},
     {n:7,w:'Seven stars!'},
@@ -590,25 +489,20 @@ function S6({onDone}:{onDone:()=>void}) {
     {n:10,w:'Ten stars!'},
   ]
   useEffect(()=>{
-    if(ran.current)return;ran.current=true
-    speak('Now the bigger groups! Six all the way to ten!')
-    let base=1400
-    GRP.forEach((g,idx)=>{
-      window.setTimeout(()=>{
-        setGi(idx);setShown(0);setBadge(false)
-        window.setTimeout(()=>speak(g.w),200)
-        for(let k=1;k<=g.n;k++){
-          window.setTimeout(()=>setShown(k),k*200)
+    const words=['Now the bigger groups! Six all the way to ten!',...GRP.map(g=>g.w),'Six, seven, eight, nine, ten! You know ALL the numbers now!']
+    const cancel=speakSeq(words,{
+      onWord:(i)=>{
+        if(i>=1&&i<=GRP.length){
+          const idx=i-1,n=GRP[idx].n
+          setGi(idx);setShown(0);setBadge(false)
+          for(let k=1;k<=n;k++) window.setTimeout(()=>setShown(k),k*180)
+          window.setTimeout(()=>setBadge(true),n*180+300)
         }
-        window.setTimeout(()=>setBadge(true),g.n*200+350)
-      },base)
-      base+=g.n*200+1300
+      },
+      onDone:()=>window.setTimeout(()=>doneRef.current(),1200),
     })
-    window.setTimeout(()=>{
-      speak('Six, seven, eight, nine, ten! You know ALL the numbers now!')
-      window.setTimeout(onDone,2800)
-    },base+200)
-  },[onDone])
+    return cancel
+  },[]) // eslint-disable-line
   const g=gi>=0?GRP[gi]:null
   const col=NUM_COLORS[(gi+5)%10]
   return (
@@ -661,69 +555,62 @@ function S6({onDone}:{onDone:()=>void}) {
 }
 
 // ═══════════════════════════════════════════
-// STEP 7 — Section break: "Now let's count!"
+// Generic TAP-IT: the child taps each of `n` objects to count them. Used for
+// every counting-practice slide so they're all hands-on (no auto-counting).
 // ═══════════════════════════════════════════
-function S7({onDone}:{onDone:()=>void}) {
-  useEffect(()=>{ speak('Great job! Now let us COUNT together! Watch Milo first!') },[])
+const TAP_WORDS=['zero','one','two','three','four','five','six','seven','eight','nine','ten']
+function TapCount({n,emoji,color,intro,onDone}:{n:number;emoji:string;color:string;intro:string;onDone:()=>void}) {
+  const [tapped,setTapped]=useState<number[]>([])
+  const [sparkles,setSparkles]=useState<{x:number,y:number,id:number}[]>([])
+  const [done,setDone]=useState(false)
+  const [burst,setBurst]=useState(false)
+  const spoken=useRef(false)
+  const spId=useRef(0)
+  useEffect(()=>{ if(spoken.current)return;spoken.current=true; speak(intro) },[]) // eslint-disable-line
+  function tap(i:number,e:React.MouseEvent){
+    if(tapped.includes(i)||done)return
+    const rect=(e.currentTarget as HTMLElement).getBoundingClientRect()
+    const next=[...tapped,i];setTapped(next);speak(String(next.length))
+    spId.current++;const sid=spId.current
+    setSparkles(p=>[...p,{x:rect.left+rect.width/2,y:rect.top+rect.height/2,id:sid}])
+    window.setTimeout(()=>setSparkles(p=>p.filter(s=>s.id!==sid)),700)
+    if(next.length===n){
+      setDone(true);setBurst(true)
+      window.setTimeout(()=>{ speak(`${TAP_WORDS[n]}! You counted ${TAP_WORDS[n]}! Wonderful!`); window.setTimeout(onDone,2300) },400)
+    }
+  }
+  const size = n<=4?80 : n<=6?68 : n<=8?58 : 50
+  const fs   = Math.round(size*0.72)
   return (
-    <SectionBreak
-      emoji="🌟"
-      title="Now let's COUNT!"
-      subtitle="Watch Milo first, then your turn!"
-      onDone={onDone}
-    />
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:16,position:'relative'}}>
+      {burst&&<Confetti/>}
+      {sparkles.map(s=><SparkleAt key={s.id} x={s.x} y={s.y}/>)}
+      <BigCount key={tapped.length} n={tapped.length}/>
+      <div style={{fontFamily:'var(--font-display)',fontWeight:800,fontSize:15,color:'var(--milo-orange)',background:'var(--milo-orange-soft)',borderRadius:50,padding:'6px 18px',border:'2px solid var(--milo-orange)'}}>Tap each one to count! 👆</div>
+      <div style={{display:'flex',gap:10,flexWrap:'wrap',justifyContent:'center',maxWidth:360}}>
+        {Array.from({length:n}).map((_,i)=>{
+          const isTapped=tapped.includes(i)
+          return (
+            <button key={i} onClick={e=>tap(i,e)} disabled={isTapped} style={{
+              background:'transparent',border:'none',cursor:isTapped?'default':'pointer',
+              position:'relative',width:size,height:size,
+              display:'flex',alignItems:'center',justifyContent:'center',
+            }}>
+              <span style={{fontSize:fs,opacity:isTapped?0.32:1,transform:isTapped?'scale(0.85)':'scale(1)',animation:!isTapped?'pulse 1.6s ease-in-out infinite':'none',animationDelay:`${i*0.12}s`,filter:isTapped?'grayscale(1)':'none',transition:'all 0.2s ease'}}>{emoji}</span>
+              {!isTapped&&<div style={{position:'absolute',inset:-3,borderRadius:'50%',border:`3px dashed ${color}`,animation:'pulse 1.6s ease-in-out infinite',animationDelay:`${i*0.12}s`,pointerEvents:'none'}}/>}
+              {isTapped&&<span style={{position:'absolute',top:-6,right:-6,width:22,height:22,borderRadius:'50%',background:'var(--garden-green)',color:'#fff',border:'2px solid var(--outline)',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'var(--font-display)',fontWeight:900,fontSize:11}}>{tapped.indexOf(i)+1}</span>}
+            </button>
+          )
+        })}
+      </div>
+      {done&&<div style={{background:'var(--garden-green)',color:'#fff',borderRadius:50,padding:'10px 26px',fontFamily:'var(--font-display)',fontWeight:900,fontSize:22,animation:'bounceIn 0.5s cubic-bezier(.34,1.56,.64,1)'}}>{emoji} {n}! Well done!</div>}
+    </div>
   )
 }
 
-// ═══════════════════════════════════════════
-// STEP 8 — WATCH: Milo counts 3 apples (drop from sky)
-// ═══════════════════════════════════════════
+// STEP 8 — TAP: 2 butterflies
 function S8({onDone}:{onDone:()=>void}) {
-  const [shown,setShown]=useState(0)
-  const [badge,setBadge]=useState(false)
-  const ran=useRef(false)
-  useEffect(()=>{
-    if(ran.current)return;ran.current=true
-    speak('Watch me count! See how I touch each apple!')
-    window.setTimeout(()=>{
-      [1,2,3].forEach((n,i)=>{
-        window.setTimeout(()=>{
-          setShown(n)
-          window.setTimeout(()=>speak(String(n)),100)
-        },i*900)
-      })
-      window.setTimeout(()=>{
-        setBadge(true)
-        speak('Three apples! One, two, three! See how I count each one!')
-        window.setTimeout(onDone,2800)
-      },3*900+500)
-    },1000)
-  },[onDone])
-  return (
-    <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:22}}>
-      <BigCount key={shown} n={shown}/>
-      <div style={{display:'flex',gap:18}}>
-        {[0,1,2].map(i=>(
-          <div key={i} style={{position:'relative',display:'flex',alignItems:'center',justifyContent:'center'}}>
-            <span style={{
-              fontSize:64,display:'block',
-              opacity:shown>i?1:0,
-              animation:shown>i?'dropIn 0.5s cubic-bezier(.34,1.56,.64,1) both':'none',
-              filter:shown===i+1?'drop-shadow(0 0 16px rgba(242,107,44,0.7))':'none',
-            }}>🍎</span>          </div>
-        ))}
-      </div>
-      {badge&&(
-        <div style={{
-          background:'var(--milo-orange)',color:'#fff',
-          borderRadius:50,padding:'12px 28px',
-          fontFamily:'var(--font-display)',fontWeight:900,fontSize:26,
-          boxShadow:'0 5px 0 rgba(61,37,22,.2)',
-          animation:'flipIn 0.5s ease',
-        }}>3 apples! 🍎🍎🍎</div>
-      )}
-    </div>
-  )
+  return <TapCount n={2} emoji="🦋" color="#9362D8" intro="Your turn! Tap each butterfly to count it!" onDone={onDone}/>
 }
 
 // ═══════════════════════════════════════════
@@ -815,59 +702,9 @@ function S9({onDone}:{onDone:()=>void}) {
   )
 }
 
-// ═══════════════════════════════════════════
-// STEP 10 — WATCH: 5 frogs jump in from sides
-// ═══════════════════════════════════════════
+// STEP 10 — TAP: 4 frogs
 function S10({onDone}:{onDone:()=>void}) {
-  const [shown,setShown]=useState(0)
-  const [badge,setBadge]=useState(false)
-  const ran=useRef(false)
-  useEffect(()=>{
-    if(ran.current)return;ran.current=true
-    speak('Watch five frogs jump in! Count with me!')
-    window.setTimeout(()=>{
-      [1,2,3,4,5].forEach((n,i)=>{
-        window.setTimeout(()=>{
-          setShown(n)
-          window.setTimeout(()=>speak(String(n)),100)
-        },i*750)
-      })
-      window.setTimeout(()=>{
-        setBadge(true)
-        speak('Five frogs! One, two, three, four, five!')
-        window.setTimeout(onDone,2800)
-      },5*750+600)
-    },1000)
-  },[onDone])
-  return (
-    <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:20}}>
-      <BigCount key={shown} n={shown}/>
-      <div style={{display:'flex',gap:10,flexWrap:'wrap',justifyContent:'center'}}>
-        {[0,1,2,3,4].map(i=>(
-          <div key={i} style={{position:'relative',display:'flex',alignItems:'center',justifyContent:'center'}}>
-            <span style={{
-              fontSize:52,display:'block',
-              opacity:shown>i?1:0,
-              animation:shown>i
-                ?(i%2===0
-                  ?'slideUp 0.45s cubic-bezier(.34,1.56,.64,1) both'
-                  :'dropIn 0.45s cubic-bezier(.34,1.56,.64,1) both')
-                :'none',
-              filter:shown===i+1?'drop-shadow(0 0 14px rgba(111,190,63,0.8))':'none',
-            }}>🐸</span>          </div>
-        ))}
-      </div>
-      {badge&&(
-        <div style={{
-          background:NUM_COLORS[4],color:'#fff',
-          borderRadius:50,padding:'10px 24px',
-          fontFamily:'var(--font-display)',fontWeight:900,fontSize:24,
-          boxShadow:'0 4px 0 rgba(61,37,22,.2)',
-          animation:'flipIn 0.5s ease',
-        }}>5 frogs! 🐸</div>
-      )}
-    </div>
-  )
+  return <TapCount n={4} emoji="🐸" color="#6FBE3F" intro="Tap each frog to count them!" onDone={onDone}/>
 }
 
 // ═══════════════════════════════════════════
@@ -957,70 +794,9 @@ function S11({onDone}:{onDone:()=>void}) {
   )
 }
 
-// ═══════════════════════════════════════════
-// STEP 12 — Section: "Now the big numbers!"
-// ═══════════════════════════════════════════
-function S12({onDone}:{onDone:()=>void}) {
-  useEffect(()=>{ speak('Fantastic! Now let us count the bigger numbers! Six, seven, eight, nine, ten!') },[])
-  return (
-    <SectionBreak
-      emoji="🚀"
-      title="Big numbers time!"
-      subtitle="Count 6, 7, 8, 9 and 10!"
-      onDone={onDone}
-    />
-  )
-}
-
-// ═══════════════════════════════════════════
-// STEP 13 — WATCH: 8 mushrooms pop from ground
-// ═══════════════════════════════════════════
+// STEP 13 — TAP: 7 fish
 function S13({onDone}:{onDone:()=>void}) {
-  const [shown,setShown]=useState(0)
-  const [badge,setBadge]=useState(false)
-  const ran=useRef(false)
-  useEffect(()=>{
-    if(ran.current)return;ran.current=true
-    speak('Watch these mushrooms pop up! Count every one!')
-    window.setTimeout(()=>{
-      Array.from({length:8}).forEach((_,i)=>{
-        window.setTimeout(()=>{
-          setShown(i+1)
-          window.setTimeout(()=>speak(String(i+1)),80)
-        },i*560)
-      })
-      window.setTimeout(()=>{
-        setBadge(true)
-        speak('Eight mushrooms! One, two, three, four, five, six, seven, eight!')
-        window.setTimeout(onDone,3000)
-      },8*560+600)
-    },1000)
-  },[onDone])
-  return (
-    <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:16}}>
-      <BigCount key={shown} n={shown}/>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10}}>
-        {Array.from({length:8}).map((_,i)=>(
-          <div key={i} style={{position:'relative',display:'flex',alignItems:'center',justifyContent:'center'}}>
-            <span style={{
-              fontSize:44,display:'block',
-              opacity:shown>i?1:0,
-              animation:shown>i?'groundPop 0.45s cubic-bezier(.34,1.56,.64,1) both':'none',
-              filter:shown===i+1?'drop-shadow(0 0 12px rgba(242,107,44,0.6))':'none',
-            }}>🍄</span>          </div>
-        ))}
-      </div>
-      {badge&&(
-        <div style={{
-          background:NUM_COLORS[7],color:'#fff',
-          borderRadius:50,padding:'8px 22px',
-          fontFamily:'var(--font-display)',fontWeight:900,fontSize:22,
-          animation:'flipIn 0.5s ease',
-          boxShadow:'0 4px 0 rgba(61,37,22,.2)',
-        }}>8 mushrooms! 🍄</div>
-      )}
-    </div>
-  )
+  return <TapCount n={7} emoji="🐠" color="#5BC3F0" intro="Tap each fish to count them!" onDone={onDone}/>
 }
 
 // ═══════════════════════════════════════════
@@ -1247,67 +1023,9 @@ function S16({onDone}:{onDone:()=>void}) {
   )
 }
 
-// ═══════════════════════════════════════════
-// STEP 17 — REVEAL: 4 butterflies mystery
-// ═══════════════════════════════════════════
+// STEP 17 — TAP: 8 butterflies (finale)
 function S17({onDone}:{onDone:()=>void}) {
-  const [countIdx,setCountIdx]=useState(-1)
-  const [showAnswer,setShowAnswer]=useState(false)
-  const [burst,setBurst]=useState(false)
-  const ran=useRef(false)
-  useEffect(()=>{
-    if(ran.current)return;ran.current=true
-    speak('Final challenge! How many butterflies? Count with me!')
-    window.setTimeout(()=>{
-      [0,1,2,3].forEach((i)=>{
-        window.setTimeout(()=>{
-          setCountIdx(i)
-          window.setTimeout(()=>speak(String(i+1)),100)
-        },i*750)
-      })
-      window.setTimeout(()=>{
-        setShowAnswer(true);setBurst(true)
-        speak('Four butterflies! The answer is four! You finished the whole lesson! Incredible!')
-        window.setTimeout(onDone,4000)
-      },4*750+600)
-    },1200)
-  },[onDone])
-  return (
-    <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:20,position:'relative'}}>
-      {burst&&<Confetti/>}
-      <div style={{
-        background:'var(--sun-yellow-soft)',border:'3px solid var(--sun-yellow-deep)',
-        borderRadius:50,padding:'8px 22px',
-        fontFamily:'var(--font-display)',fontWeight:800,fontSize:18,color:'var(--ink)',
-      }}>How many butterflies? 🦋</div>
-      <BigCount key={countIdx} n={showAnswer?0:countIdx+1}/>
-      <div style={{display:'flex',gap:14,flexWrap:'wrap',justifyContent:'center'}}>
-        {[0,1,2,3].map(i=>(
-          <div key={i} style={{position:'relative',display:'flex',alignItems:'center',justifyContent:'center'}}>
-            <span style={{
-              fontSize:64,display:'block',
-              opacity:countIdx>=i?1:0.15,
-              transform:countIdx===i?'scale(1.4)':countIdx>i?'scale(1)':'scale(0.7)',
-              transition:'all 0.35s cubic-bezier(.34,1.56,.64,1)',
-              filter:countIdx===i
-                ?'drop-shadow(0 0 20px rgba(147,98,216,0.9))'
-                :countIdx>i
-                  ?'drop-shadow(0 0 6px rgba(147,98,216,0.3))'
-                  :'grayscale(1)',
-            }}>🦋</span>          </div>
-        ))}
-      </div>
-      {showAnswer&&(
-        <div style={{
-          background:'var(--milo-orange)',color:'#fff',
-          borderRadius:20,padding:'16px 36px',
-          fontFamily:'var(--font-display)',fontWeight:900,fontSize:36,
-          boxShadow:'0 6px 0 rgba(61,37,22,.2)',
-          animation:'flipIn 0.6s ease both',
-        }}>4! 🦋🦋🦋🦋</div>
-      )}
-    </div>
-  )
+  return <TapCount n={8} emoji="🦋" color="#9362D8" intro="Last one! Tap each butterfly to count them all!" onDone={onDone}/>
 }
 
 // ═══════════════════════════════════════════
@@ -1318,34 +1036,34 @@ export default function CountingLesson({childName,onLessonComplete}:Props) {
   const [step,setStep]=useState(0)
   const [nextReady,setNextReady]=useState(false)
   const [confirmBack,setConfirmBack]=useState(false)
+  const [retry,setRetry]=useState(0)
 
   const BUBBLES=[
     `Hi ${childName}! Let's meet the numbers 1 to 10! Watch every one! 🌟`,
-    '🎉 You know 1 to 10! Now watch them count things!',
     'The frog jumps on every number! Watch closely! 🐸',
     'Watch! Each number means this many things! ✨',
     'Now the bigger groups — six to ten! 🌟',
-    '🌟 Now let\'s COUNT together!',
-    'Watch Milo count three apples! See how he does it! 🍎',
-    'Your turn! Tap each apple — just like Milo did! 🍎',
-    'Five frogs jump in! Count every one! 🐸',
-    'Your turn! Tap each star to count! ⭐',
-    '🚀 Big numbers time! Six, seven, eight, nine, ten!',
-    'Watch the mushrooms pop up! Count with me! 🍄',
+    'Your turn! Tap each butterfly to count! 🦋',
+    'Tap each apple to count! 🍎',
+    'Tap each frog to count! 🐸',
+    'Tap each star to count! ⭐',
+    'Tap each fish to count! 🐠',
     'Now YOU count! Tap all the mushrooms! 🍄',
     'Count the balloons — tap every single one! 🎈',
     'Last one! Can you reach TEN? Tap all the flowers! 🌸',
-    'Final challenge! Count the butterflies with me! 🦋',
+    'Bonus! Tap each butterfly to count them! 🦋',
   ]
 
   const MOODS:Array<'happy'|'thinking'|'celebrate'>=[
-    'happy','celebrate',
-    'happy','happy','happy','celebrate',
-    'happy','thinking','happy','thinking','celebrate',
+    'happy',
+    'happy','happy','happy',
+    'happy','thinking','happy','thinking',
     'happy','thinking','thinking','thinking','celebrate',
   ]
 
   function done(){setNextReady(true)}
+
+  function retryStep(){ stopSpeech(); setNextReady(false); setRetry(r => r + 1) }
 
   function next(){
     if(!nextReady)return
@@ -1361,21 +1079,18 @@ export default function CountingLesson({childName,onLessonComplete}:Props) {
 
   const STEPS=[
     <S1  key={0}  onDone={done}/>,
-    <S3  key={1}  onDone={done}/>,
-    <S4  key={2}  onDone={done}/>,
-    <S5  key={3}  onDone={done}/>,
-    <S6  key={4}  onDone={done}/>,
-    <S7  key={5}  onDone={done}/>,
-    <S8  key={6}  onDone={done}/>,
-    <S9  key={7}  onDone={done}/>,
-    <S10 key={8}  onDone={done}/>,
-    <S11 key={9}  onDone={done}/>,
-    <S12 key={10} onDone={done}/>,
-    <S13 key={11} onDone={done}/>,
-    <S14 key={12} onDone={done}/>,
-    <S15 key={13} onDone={done}/>,
-    <S16 key={14} onDone={done}/>,
-    <S17 key={15} onDone={done}/>,
+    <S4  key={1}  onDone={done}/>,
+    <S5  key={2}  onDone={done}/>,
+    <S6  key={3}  onDone={done}/>,
+    <S8  key={4}  onDone={done}/>,
+    <S9  key={5}  onDone={done}/>,
+    <S10 key={6}  onDone={done}/>,
+    <S11 key={7}  onDone={done}/>,
+    <S13 key={8}  onDone={done}/>,
+    <S14 key={9}  onDone={done}/>,
+    <S15 key={10} onDone={done}/>,
+    <S16 key={11} onDone={done}/>,
+    <S17 key={12} onDone={done}/>,
   ]
 
   return (
@@ -1384,13 +1099,13 @@ export default function CountingLesson({childName,onLessonComplete}:Props) {
         step={step}
         miloMood={MOODS[step]}
         bubble={BUBBLES[step]}
-        onNext={next}
         nextReady={nextReady}
         onBack={()=>setConfirmBack(true)}
         onSkip={()=>{stopSpeech();onLessonComplete()}}
       >
-        {STEPS[step]}
+        {React.cloneElement(STEPS[step], { key: `${step}-${retry}` })}
       </Shell>
+      {nextReady && <AdvancePopup onRetry={retryStep} onNext={next} cheer={cheerFor(step)} />}
 
       {confirmBack && (
         <div style={{

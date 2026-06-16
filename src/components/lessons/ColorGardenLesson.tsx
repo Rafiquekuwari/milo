@@ -12,10 +12,11 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { speak, stopSpeech } from '@/lib/useMiloSpeaker'
 import ScaleToFill from './ScaleToFill'
+import { AdvancePopup, ListeningHint, cheerFor } from './_kit'
 
 interface Props { childName: string; onLessonComplete: () => void }
 
-const TOTAL_STEPS = 14
+const TOTAL_STEPS = 11
 
 interface ColorDef { name:string; hex:string; things:{e:string,w:string}[] }
 const COLORS: Record<string,ColorDef> = {
@@ -40,19 +41,6 @@ const CSS = `
   @keyframes cg_bloom {0%{transform:scale(0.4) rotate(-30deg);opacity:0.3}60%{transform:scale(1.15) rotate(8deg);opacity:1}100%{transform:scale(1) rotate(0);opacity:1}}
 `
 
-function Confetti() {
-  const colors = ['#E64545','#F26B2C','#FFC933','#6FBE3F','#5BC3F0','#9362D8']
-  return (
-    <div style={{position:'absolute',inset:0,pointerEvents:'none',overflow:'hidden',zIndex:10}}>
-      {Array.from({length:20}).map((_,i)=>(
-        <div key={i} style={{position:'absolute',left:`${8+(i*5)%84}%`,top:`${(i*11)%25}%`,width:10,height:10,
-          borderRadius:i%2===0?'50%':'3px',background:colors[i%colors.length],
-          animation:`cg_confetti ${0.8+(i%3)*0.2}s ease-in ${(i%6)*0.07}s both`}}/>
-      ))}
-    </div>
-  )
-}
-
 function Flower({color,size=140,bloom}:{color:string,size?:number,bloom?:boolean}) {
   const c = color
   return (
@@ -62,18 +50,6 @@ function Flower({color,size=140,bloom}:{color:string,size?:number,bloom?:boolean
       ))}
       <circle cx={50} cy={50} r={14} fill="#FFC933" stroke="#E0A800" strokeWidth={2}/>
     </svg>
-  )
-}
-
-function SectionBreak({emoji,title,subtitle,onDone}:{emoji:string,title:string,subtitle:string,onDone:()=>void}) {
-  useEffect(()=>{ const t=window.setTimeout(onDone,2800); return ()=>window.clearTimeout(t) },[onDone])
-  return (
-    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:16,padding:'20px 0',position:'relative'}}>
-      <Confetti/>
-      <div style={{fontSize:72,animation:'cg_jump 0.8s ease-in-out infinite'}}>{emoji}</div>
-      <div style={{fontFamily:'var(--font-display)',fontWeight:900,fontSize:28,color:'var(--milo-orange)',textAlign:'center',lineHeight:1.2,animation:'cg_sectionIn 0.6s cubic-bezier(.34,1.56,.64,1)',textShadow:'0 3px 0 rgba(61,37,22,.1)'}}>{title}</div>
-      <div style={{fontFamily:'var(--font-body)',fontSize:16,color:'var(--ink-soft)',textAlign:'center',animation:'cg_slideUp 0.5s ease 0.2s both'}}>{subtitle}</div>
-    </div>
   )
 }
 
@@ -197,9 +173,9 @@ function NameColor({targetName,choices,mode,onDone}:{targetName:string,choices:s
 }
 
 // ─── Shell ───────────────────────────────────────────────────
-function Shell({step,miloMood,bubble,children,onNext,nextReady,onBack,onSkip}:{
+function Shell({step,miloMood,bubble,children,nextReady,onBack,onSkip}:{
   step:number,miloMood:'happy'|'thinking'|'celebrate',bubble:string,children:React.ReactNode,
-  onNext:()=>void,nextReady:boolean,onBack:()=>void,onSkip:()=>void,
+  nextReady:boolean,onBack:()=>void,onSkip:()=>void,
 }) {
   const src = miloMood==='thinking'?'/assets/characters/milo-thinking.png':'/assets/characters/milo-happy.png'
   return (
@@ -224,28 +200,25 @@ function Shell({step,miloMood,bubble,children,onNext,nextReady,onBack,onSkip}:{
         <ScaleToFill>{children}</ScaleToFill>
       </div>
 
-      <button onClick={onNext} disabled={!nextReady} style={{width:'100%',maxWidth:520,padding:'15px',background:nextReady?'linear-gradient(135deg,var(--milo-orange) 0%,var(--milo-orange-deep) 100%)':'rgba(61,37,22,0.1)',color:nextReady?'#fff':'rgba(61,37,22,0.25)',border:'none',borderRadius:50,fontFamily:'var(--font-display)',fontWeight:900,fontSize:18,cursor:nextReady?'pointer':'not-allowed',boxShadow:nextReady?'0 4px 18px rgba(242,107,44,0.35)':'none',transition:'all 0.3s ease',transform:nextReady?'scale(1)':'scale(0.97)'}}>{nextReady?'Next →':'🎧 Listen to Milo...'}</button>
+      <ListeningHint show={!nextReady}/>
     </div>
   )
 }
 
-// ─── The 14 steps ────────────────────────────────────────────
+// ─── The 11 steps ────────────────────────────────────────────
 function Step({i,onDone}:{i:number,onDone:()=>void}){
   switch(i){
     case 0:  return <MeetColor color={COLORS.red} onDone={onDone}/>
     case 1:  return <MeetColor color={COLORS.yellow} onDone={onDone}/>
     case 2:  return <MeetColor color={COLORS.blue} onDone={onDone}/>
-    case 3:  return <SectionBreak emoji="🎨" title="Three colours!" subtitle="Red, yellow, blue — now three more!" onDone={onDone}/>
-    case 4:  return <MeetColor color={COLORS.green} onDone={onDone}/>
-    case 5:  return <MeetColor color={COLORS.orange} onDone={onDone}/>
-    case 6:  return <MeetColor color={COLORS.purple} onDone={onDone}/>
-    case 7:  return <SectionBreak emoji="🌈" title="You know 6 colours!" subtitle="Now let's find them!" onDone={onDone}/>
-    case 8:  return <MatchColor mode="watch" targetName="red" names={['blue','red','yellow']} onDone={onDone}/>
-    case 9:  return <MatchColor mode="do" targetName="green" names={['green','purple','orange']} onDone={onDone}/>
-    case 10: return <SectionBreak emoji="🔎" title="Now name them!" subtitle="What colour do you see?" onDone={onDone}/>
-    case 11: return <NameColor mode="watch" targetName="blue" choices={[]} onDone={onDone}/>
-    case 12: return <NameColor mode="do" targetName="yellow" choices={['yellow','purple','green']} onDone={onDone}/>
-    case 13: return <NameColor mode="do" targetName="purple" choices={['red','purple','blue']} onDone={onDone}/>
+    case 3:  return <MeetColor color={COLORS.green} onDone={onDone}/>
+    case 4:  return <MeetColor color={COLORS.orange} onDone={onDone}/>
+    case 5:  return <MeetColor color={COLORS.purple} onDone={onDone}/>
+    case 6:  return <MatchColor mode="watch" targetName="red" names={['blue','red','yellow']} onDone={onDone}/>
+    case 7:  return <MatchColor mode="do" targetName="green" names={['green','purple','orange']} onDone={onDone}/>
+    case 8:  return <NameColor mode="watch" targetName="blue" choices={[]} onDone={onDone}/>
+    case 9:  return <NameColor mode="do" targetName="yellow" choices={['yellow','purple','green']} onDone={onDone}/>
+    case 10: return <NameColor mode="do" targetName="purple" choices={['red','purple','blue']} onDone={onDone}/>
     default: return null
   }
 }
@@ -257,29 +230,28 @@ export default function ColorGardenLesson({childName,onLessonComplete}:Props){
   const router=useRouter()
   const [step,setStep]=useState(0)
   const [nextReady,setNextReady]=useState(false)
+  const [retry,setRetry]=useState(0)
   const [confirmBack,setConfirmBack]=useState(false)
 
   const BUBBLES=[
     `Hi ${childName}! Let's learn colours! Tap the flower! 🌸`,
     'Tap to see the next colour! 🌻',
     'Another colour — tap the flower! 💧',
-    '🎨 Three colours done! Three more!',
     'Tap the flower for green! 🍀',
     'Tap for orange! 🍊',
     'Tap for purple! 🍇',
-    '🌈 You know 6 colours! Let\'s find them!',
     'Watch Milo find the red flower! 👀',
     'Your turn! Find the green flower! 👆',
-    '🔎 Now let\'s name the colours!',
     'What colour is this flower? Watch! 💙',
     'What colour is this? Tap it! 💛',
     'Last one! What colour is this? 💜',
   ]
   const MOODS:Array<'happy'|'thinking'|'celebrate'>=[
-    'happy','happy','happy','celebrate','happy','happy','happy','celebrate','happy','thinking','celebrate','happy','thinking','thinking',
+    'happy','happy','happy','happy','happy','happy','happy','thinking','happy','thinking','thinking',
   ]
 
   function done(){ setNextReady(true) }
+  function retryStep(){ stopSpeech(); setNextReady(false); setRetry(r=>r+1) }
   function next(){
     if(!nextReady)return
     stopSpeech()
@@ -293,10 +265,12 @@ export default function ColorGardenLesson({childName,onLessonComplete}:Props){
 
   return (
     <>
-      <Shell step={step} miloMood={MOODS[step]} bubble={BUBBLES[step]} onNext={next} nextReady={nextReady}
+      <Shell step={step} miloMood={MOODS[step]} bubble={BUBBLES[step]} nextReady={nextReady}
         onBack={()=>setConfirmBack(true)} onSkip={()=>{stopSpeech();onLessonComplete()}}>
-        <Step key={step} i={step} onDone={done}/>
+        <Step key={`${step}-${retry}`} i={step} onDone={done}/>
       </Shell>
+
+      {nextReady && <AdvancePopup onRetry={retryStep} onNext={next} cheer={cheerFor(step)} />}
 
       {confirmBack && (
         <div style={{position:'fixed',inset:0,zIndex:200,background:'rgba(61,37,22,0.65)',display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>

@@ -43,18 +43,27 @@ export default function NumberDoorsChapter({ onComplete, childName }: Props) {
   const [reMed, setReMed] = useState<{phase:'reteach'|'check'; target:number}|null>(null)
   const answerRef = useRef<HTMLElement | null>(null)   // the correct door (for the pointer)
 
+  // Build the round once per roundIdx, reading the current difficulty at that
+  // moment. We deliberately do NOT depend on ada.difficulty: ada.record() can
+  // change it mid-round (promotion/demotion), and re-firing here would rebuild
+  // the doors + re-speak a new number while the child is still on the old one —
+  // so Milo would say a number that isn't among the doors shown. Clean up the
+  // pending speech timeout so a stale prompt can't fire after the round changes.
+  // Gated on the practice phase so the prompt isn't spoken over the lesson.
   useEffect(() => {
+    if (phase !== 'practice') return
     const r = buildRound(ada.difficulty)
     setRound(r); setSelected(null)
-    window.setTimeout(() => speakAfterCurrent(
+    const id = window.setTimeout(() => speakAfterCurrent(
       roundIdx === 0
         ? `Hi ${childName}! Find the door with the number ${r.correct}!`
         : ada.shouldHint
         ? `Look carefully — which door shows the number ${r.correct}?`
         : `Which door has the number ${r.correct}?`
     ), 300)
+    return () => window.clearTimeout(id)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roundIdx, ada.difficulty])
+  }, [roundIdx, phase])
 
   if (phase === 'lesson') return (
     <NumberDoorsLesson childName={childName} onLessonComplete={startPractice} />

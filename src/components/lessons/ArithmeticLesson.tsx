@@ -10,7 +10,7 @@
  */
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { speak, speakSeq } from '@/lib/useMiloSpeaker'
-import { LessonScaffold, SectionBreak, Confetti, numberToWords, type LessonStep } from './_kit'
+import { LessonScaffold, Confetti, numberToWords, type LessonStep } from './_kit'
 import { TensOnes } from './Numbers100Lesson'
 
 export type Op = '+' | '-'
@@ -137,9 +137,6 @@ export default function ArithmeticLesson({ op, childName, onLessonComplete }: Pr
       render: d => <EquationWatch op={op} a={W[3][0]} b={W[3][1]} onDone={d} /> },
     { bubble: 'One more — watch! 👀', mood: 'happy',
       render: d => <EquationWatch op={op} a={W[4][0]} b={W[4][1]} onDone={d} /> },
-
-    { bubble: `🌟 Now YOU ${verb}!`, mood: 'celebrate',
-      render: d => <SectionBreak emoji={isAdd ? '➕' : '➖'} title={`Your turn!`} subtitle={`${isAdd ? 'Add' : 'Subtract'} the tens, then the ones.`} onDone={d} /> },
 
     { bubble: 'What is the answer? 🤔', mood: 'thinking',
       render: d => <EquationAsk op={op} a={A[0][0]} b={A[0][1]} choices={C[0]} intro={`${numberToWords(A[0][0])} ${opWord(op)} ${numberToWords(A[0][1])}. What is the answer?`} outro={`Yes! ${numberToWords(applyOp(op, A[0][0], A[0][1]))}!`} onDone={d} /> },

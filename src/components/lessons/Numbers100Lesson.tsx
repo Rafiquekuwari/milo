@@ -10,7 +10,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { speak, speakSeq } from '@/lib/useMiloSpeaker'
-import { LessonScaffold, SectionBreak, BigCount, Confetti, CSS as KIT_CSS, numberToWords, type LessonStep } from './_kit'
+import { LessonScaffold, BigCount, Confetti, CSS as KIT_CSS, numberToWords, nounFor, type LessonStep } from './_kit'
 
 interface Props { childName: string; onLessonComplete: () => void }
 
@@ -92,7 +92,7 @@ export function ReadNumber({ n, intro, outro, onDone }: {
       {showNum && (
         <div style={{ background: 'var(--milo-orange)', color: '#fff', borderRadius: 50, padding: '8px 22px',
           fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 18, animation: 'k_flipIn 0.5s ease' }}>
-          {t > 0 ? `${t} tens` : ''}{t > 0 && o > 0 ? ' + ' : ''}{o > 0 ? `${o} ones` : ''} = {n}
+          {t > 0 ? `${t} ${nounFor(t, 'tens')}` : ''}{t > 0 && o > 0 ? ' + ' : ''}{o > 0 ? `${o} ${nounFor(o, 'ones')}` : ''} = {n}
         </div>
       )}
     </div>
@@ -283,8 +283,6 @@ export default function Numbers100Lesson({ childName, onLessonComplete }: Props)
     // Past ten: numbers keep going.
     { bubble: `Hi ${childName}! Numbers keep going past ten. Watch! 🔢`, mood: 'happy',
       render: d => <ReadNumber n={13} intro="After ten come the teens! Let's build thirteen. Count with me." outro="That is thirteen!" onDone={d} /> },
-    { bubble: '🎉 Numbers keep going and going!', mood: 'celebrate',
-      render: d => <SectionBreak emoji="🚀" title="Numbers keep going!" subtitle="All the way up to one hundred!" onDone={d} /> },
 
     // Every ten explained as a block.
     { bubble: 'Every ten is one block. Count the tens! 🔟', mood: 'happy',
@@ -295,9 +293,6 @@ export default function Numbers100Lesson({ childName, onLessonComplete }: Props)
       render: d => <ReadNumber n={15} intro="Let's build fifteen. One ten…" outro="One ten and five ones make fifteen!" onDone={d} /> },
     { bubble: 'Now YOU find fifteen! 👂', mood: 'thinking',
       render: d => <PickNumber target={15} choices={[10, 15, 20]} intro="Find fifteen!" outro="Yes! Fifteen!" onDone={d} /> },
-
-    { bubble: '🌟 You found it! Bigger numbers work the same way!', mood: 'celebrate',
-      render: d => <SectionBreak emoji="⭐" title="Tens and ones!" subtitle="Two tens, three tens… same idea!" onDone={d} /> },
 
     // Teach 24 → find 24.
     { bubble: 'Let’s build twenty-four. Two tens… 🤔', mood: 'thinking',
@@ -316,10 +311,6 @@ export default function Numbers100Lesson({ childName, onLessonComplete }: Props)
       render: d => <ReadNumber n={62} intro="Let's build sixty-two. Six tens…" outro="Sixty-two!" onDone={d} /> },
     { bubble: 'Find sixty-two! 👂', mood: 'thinking',
       render: d => <PickNumber target={62} choices={[26, 62, 60]} intro="Find sixty-two!" outro="Amazing! Sixty-two!" onDone={d} /> },
-
-    // Point to the always-available chart button (full-screen, responsive).
-    { bubble: '🔢 Tap the chart button up top any time to explore numbers!', mood: 'celebrate',
-      render: d => <SectionBreak emoji="🔢" title="Explore any number!" subtitle="Tap the 🔢 button up top to see how any number is built." onDone={d} /> },
   ]
   return (
     <LessonScaffold childName={childName} onLessonComplete={onLessonComplete} steps={steps}

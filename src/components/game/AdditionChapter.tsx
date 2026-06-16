@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useMiloSpeaker, afterSpeech, speakAfterCurrent, speakAt } from '@/lib/useMiloSpeaker'
 import { useAdaptive, addPair } from '@/lib/adaptive'
+import { nounFor } from '@/lib/grammar'
 import { DifficultyBadge } from '../ui/DifficultyBadge'
 import { useChapterPhase } from '@/lib/useChapterPhase'
 import SpeakingLock from '@/components/ui/SpeakingLock'
@@ -59,14 +60,16 @@ export default function AdditionChapter({onComplete,childName}:Props){
     setChoices(buildChoices(na+nb))
     setSelected(null);setFeedback(null);setStage('groupA')
     speakAfterCurrent(idx===0?`Hi ${childName}! Let's add! Watch carefully!`
-      :ada.shouldHint?`Watch — ${na} ${st.subject} plus ${nb} more!`
-      :`${na} ${st.subject} and ${nb} more!`)
+      :ada.shouldHint?`Watch — ${na} ${nounFor(na,st.subject)} plus ${nb} more!`
+      :`${na} ${nounFor(na,st.subject)} and ${nb} more!`)
     const t1=window.setTimeout(()=>setStage('groupB'),na*200+700)
     const t2=window.setTimeout(()=>setStage('question'),na*200+nb*200+1300)
     timers.current=[t1,t2]
   }
 
-  useEffect(()=>{loadRound(roundIdx);return clearT},[roundIdx,ada.difficulty]) // eslint-disable-line
+  // Only build/announce a round in the practice phase — otherwise the prompt
+  // would be spoken over the lesson while phase is still 'lesson'.
+  useEffect(()=>{if(phase!=='practice')return;loadRound(roundIdx);return clearT},[roundIdx,ada.difficulty,phase]) // eslint-disable-line
 
   function handleAnswer(choice:number){
     if(selected!==null)return
@@ -106,8 +109,8 @@ export default function AdditionChapter({onComplete,childName}:Props){
   const ans=a+b
   const bubbleText=selected!==null
     ?feedback==='correct'?`🎉 ${a} + ${b} = ${ans}!`:`The answer was ${ans}!`
-    :stage==='groupA'?`Milo has ${a} ${story.subject}…`
-    :stage==='groupB'?`He gets ${b} more ${story.subject}!`
+    :stage==='groupA'?`Milo has ${a} ${nounFor(a,story.subject)}…`
+    :stage==='groupB'?`He gets ${b} more ${nounFor(b,story.subject)}!`
     :`How many ${story.subject} altogether?`
 
   if(phase==='lesson') return(

@@ -9,7 +9,7 @@
  */
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { speak, speakSeq } from '@/lib/useMiloSpeaker'
-import { LessonScaffold, SectionBreak, Confetti, type LessonStep } from './_kit'
+import { LessonScaffold, Confetti, type LessonStep } from './_kit'
 
 interface Props { childName: string; onLessonComplete: () => void }
 
@@ -144,9 +144,6 @@ export default function TimeLesson({ childName, onLessonComplete }: Props) {
       render: d => <TimeWatch h={6} m={15} onDone={d} /> },
     { bubble: 'Big hand on nine — quarter to! 🕔', mood: 'happy',
       render: d => <TimeWatch h={4} m={45} onDone={d} /> },
-
-    { bubble: '🌟 Now YOU read the clock!', mood: 'celebrate',
-      render: d => <SectionBreak emoji="🕰️" title="Your turn!" subtitle="Look at the hands and pick the time." onDone={d} /> },
 
     { bubble: 'What time is it? 🤔', mood: 'thinking',
       render: d => <TimeAsk h={5} m={0} choices={C.a5} intro="Look at the hands. What time is it?" outro="Yes! Five o'clock!" onDone={d} /> },

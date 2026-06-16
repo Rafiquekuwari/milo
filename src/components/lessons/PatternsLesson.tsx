@@ -11,10 +11,11 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { speak, speakSeq, stopSpeech } from '@/lib/useMiloSpeaker'
 import ScaleToFill from './ScaleToFill'
+import { AdvancePopup, ListeningHint, cheerFor } from './_kit'
 
 interface Props { childName: string; onLessonComplete: () => void }
 
-const TOTAL_STEPS = 10
+const TOTAL_STEPS = 8
 
 export const CSS = `
   @keyframes p_bounceIn {0%{transform:scale(0) translateY(30px);opacity:0}60%{transform:scale(1.25) translateY(-6px);opacity:1}100%{transform:scale(1) translateY(0);opacity:1}}
@@ -37,18 +38,6 @@ function Confetti() {
           borderRadius:i%2===0?'50%':'3px',background:colors[i%colors.length],
           animation:`p_confetti ${0.8+(i%3)*0.2}s ease-in ${(i%6)*0.07}s both`}}/>
       ))}
-    </div>
-  )
-}
-
-function SectionBreak({emoji,title,subtitle,onDone}:{emoji:string,title:string,subtitle:string,onDone:()=>void}) {
-  useEffect(()=>{ const t=window.setTimeout(onDone,2800); return ()=>window.clearTimeout(t) },[onDone])
-  return (
-    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:16,padding:'20px 0',position:'relative'}}>
-      <Confetti/>
-      <div style={{fontSize:72,animation:'p_jump 0.8s ease-in-out infinite'}}>{emoji}</div>
-      <div style={{fontFamily:'var(--font-display)',fontWeight:900,fontSize:28,color:'var(--milo-orange)',textAlign:'center',lineHeight:1.2,animation:'p_sectionIn 0.6s cubic-bezier(.34,1.56,.64,1)',textShadow:'0 3px 0 rgba(61,37,22,.1)'}}>{title}</div>
-      <div style={{fontFamily:'var(--font-body)',fontSize:16,color:'var(--ink-soft)',textAlign:'center',animation:'p_slideUp 0.5s ease 0.2s both'}}>{subtitle}</div>
     </div>
   )
 }
@@ -242,9 +231,9 @@ export function FindOdd({unit,reps,foreign,intro,onDone}:{
 }
 
 // ─── Shell ───────────────────────────────────────────────────
-function Shell({step,miloMood,bubble,children,onNext,nextReady,onBack,onSkip}:{
+function Shell({step,miloMood,bubble,children,nextReady,onBack,onSkip}:{
   step:number,miloMood:'happy'|'thinking'|'celebrate',bubble:string,children:React.ReactNode,
-  onNext:()=>void,nextReady:boolean,onBack:()=>void,onSkip:()=>void,
+  nextReady:boolean,onBack:()=>void,onSkip:()=>void,
 }) {
   const src = miloMood==='thinking'?'/assets/characters/milo-thinking.png':'/assets/characters/milo-happy.png'
   return (
@@ -269,31 +258,29 @@ function Shell({step,miloMood,bubble,children,onNext,nextReady,onBack,onSkip}:{
         <ScaleToFill>{children}</ScaleToFill>
       </div>
 
-      <button onClick={onNext} disabled={!nextReady} style={{width:'100%',maxWidth:520,padding:'15px',background:nextReady?'linear-gradient(135deg,var(--milo-orange) 0%,var(--milo-orange-deep) 100%)':'rgba(61,37,22,0.1)',color:nextReady?'#fff':'rgba(61,37,22,0.25)',border:'none',borderRadius:50,fontFamily:'var(--font-display)',fontWeight:900,fontSize:18,cursor:nextReady?'pointer':'not-allowed',boxShadow:nextReady?'0 4px 18px rgba(242,107,44,0.35)':'none',transition:'all 0.3s ease',transform:nextReady?'scale(1)':'scale(0.97)'}}>{nextReady?'Next →':'🎧 Listen to Milo...'}</button>
+      <ListeningHint show={!nextReady}/>
     </div>
   )
 }
 
-// ─── The 10 steps ────────────────────────────────────────────
+// ─── The 8 steps ─────────────────────────────────────────────
 function Step({i,onDone}:{i:number,onDone:()=>void}){
   switch(i){
     case 0: return <WatchPattern unit={['🔴','🔵']} names={['red','blue']} reps={3}
       intro="Look! Red, blue, red, blue. A pattern repeats!" outro="Red comes next — the pattern starts again!" onDone={onDone}/>
-    case 1: return <SectionBreak emoji="🔁" title="A pattern REPEATS!" subtitle="The same little group goes over and over." onDone={onDone}/>
-    case 2: return <WatchPattern unit={['⭐','🌙']} names={['star','moon']} reps={3}
+    case 1: return <WatchPattern unit={['⭐','🌙']} names={['star','moon']} reps={3}
       intro="Star, moon, star, moon. Watch what comes next." outro="Star! You can guess what comes next!" onDone={onDone}/>
-    case 3: return <TapNext unit={['🦋','🌸']} reps={3} foreign="🐠"
+    case 2: return <TapNext unit={['🦋','🌸']} reps={3} foreign="🐠"
       intro="Butterfly, flower, butterfly, flower… your turn! What comes next?" onDone={onDone}/>
-    case 4: return <SectionBreak emoji="🌟" title="You found the pattern!" subtitle="Now let's spot the odd one out!" onDone={onDone}/>
-    case 5: return <WatchPattern unit={['🐸','🐠']} names={['frog','fish']} reps={3}
+    case 3: return <WatchPattern unit={['🐸','🐠']} names={['frog','fish']} reps={3}
       intro="Frog, fish, frog, fish. The pattern keeps going!" outro="Frog comes next!" onDone={onDone}/>
-    case 6: return <FindOdd unit={['🍎','🍋']} reps={3} foreign="🐝"
+    case 4: return <FindOdd unit={['🍎','🍋']} reps={3} foreign="🐝"
       intro="One of these does not belong. Tap the odd one out!" onDone={onDone}/>
-    case 7: return <TapNext unit={['🔺','🔷','🟥']} reps={2} foreign="🌙"
+    case 5: return <TapNext unit={['🔺','🔷','🟥']} reps={2} foreign="🌙"
       intro="A longer pattern! Triangle, diamond, square… what comes next?" onDone={onDone}/>
-    case 8: return <FindOdd unit={['⭐','🌙']} reps={3} foreign="🍎"
+    case 6: return <FindOdd unit={['⭐','🌙']} reps={3} foreign="🍎"
       intro="Find the one that breaks the star-moon pattern!" onDone={onDone}/>
-    case 9: return <WatchPattern unit={['🟦','🟨']} names={['blue','yellow']} reps={3}
+    case 7: return <WatchPattern unit={['🟦','🟨']} names={['blue','yellow']} reps={3}
       intro="Last one! Blue, yellow, blue, yellow." outro="Blue comes next! You finished the whole lesson!" onDone={onDone}/>
     default: return null
   }
@@ -306,14 +293,13 @@ export default function PatternsLesson({childName,onLessonComplete}:Props){
   const router=useRouter()
   const [step,setStep]=useState(0)
   const [nextReady,setNextReady]=useState(false)
+  const [retry,setRetry]=useState(0)
   const [confirmBack,setConfirmBack]=useState(false)
 
   const BUBBLES=[
     `Hi ${childName}! Let's learn PATTERNS! Watch them repeat! 🔴🔵`,
-    '🔁 A pattern repeats over and over!',
     'Star, moon… what comes next? ⭐🌙',
     'Your turn! What comes next? 🦋🌸',
-    '🌟 Now spot the odd one out!',
     'Watch the frog-fish pattern! 🐸🐠',
     'Tap the one that does not belong! 🐝',
     'A longer pattern! What comes next? 🔺🔷🟥',
@@ -321,7 +307,7 @@ export default function PatternsLesson({childName,onLessonComplete}:Props){
     'Last one! Blue, yellow… 🟦🟨',
   ]
   const MOODS:Array<'happy'|'thinking'|'celebrate'>=[
-    'happy','celebrate','happy','thinking','celebrate','happy','thinking','thinking','thinking','happy',
+    'happy','happy','thinking','happy','thinking','thinking','thinking','happy',
   ]
 
   function done(){ setNextReady(true) }
@@ -335,13 +321,16 @@ export default function PatternsLesson({childName,onLessonComplete}:Props){
     }
     setStep(s=>s+1); setNextReady(false)
   }
+  function retryStep(){ stopSpeech(); setNextReady(false); setRetry(r=>r+1) }
 
   return (
     <>
-      <Shell step={step} miloMood={MOODS[step]} bubble={BUBBLES[step]} onNext={next} nextReady={nextReady}
+      <Shell step={step} miloMood={MOODS[step]} bubble={BUBBLES[step]} nextReady={nextReady}
         onBack={()=>setConfirmBack(true)} onSkip={()=>{stopSpeech();onLessonComplete()}}>
-        <Step key={step} i={step} onDone={done}/>
+        <Step key={`${step}-${retry}`} i={step} onDone={done}/>
       </Shell>
+
+      {nextReady && <AdvancePopup onRetry={retryStep} onNext={next} cheer={cheerFor(step)} />}
 
       {confirmBack && (
         <div style={{position:'fixed',inset:0,zIndex:200,background:'rgba(61,37,22,0.65)',display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
