@@ -12,6 +12,7 @@ import { useChapterSync } from '@/lib/supabase/useChapterSync'
 import { useAdaptive } from '@/lib/adaptive'
 import { DifficultyBadge } from '@/components/ui/DifficultyBadge'
 import CelebrationModal from '@/components/ui/CelebrationModal'
+import CameraError from '@/components/ui/CameraError'
 import { useHandPincher } from '@/lib/ar/useHandPincher'
 import { kv } from '@/lib/kv'
 
@@ -189,12 +190,7 @@ export default function PatternBuilderActivity() {
         <video ref={videoRef} playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
         <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }} />
         {status === 'loading' && <div style={overlayCenter}>Loading Milo’s eyes… 👀</div>}
-        {status === 'error' && (
-          <div style={{ ...overlayCenter, padding: 20, textAlign: 'center', gap: 12, flexDirection: 'column', display: 'flex' }}>
-            <span>Couldn’t use the camera.</span>
-            <button className="milo-btn tone-yellow" onClick={() => router.push('/play')}>Back to games</button>
-          </div>
-        )}
+        {status === 'error' && <CameraError errorName={error} onRetry={start} onBack={() => router.push('/play')} />}
       </div>
       <p style={{ fontFamily: 'var(--font-body)', color: 'var(--ink-muted)', margin: 0 }}>Round {Math.min(roundIdx + 1, TOTAL_ROUNDS)} of {TOTAL_ROUNDS}</p>
       <button className="milo-btn tone-cream" onClick={() => { stop(); router.push('/play') }}>← Back</button>

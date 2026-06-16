@@ -118,7 +118,7 @@ export function useFingerCounter(
       setStatus('running')
       loop()
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setError(e instanceof Error ? (e.name || e.message) : String(e))
       setStatus('error')
     }
   }, [videoRef, loop])

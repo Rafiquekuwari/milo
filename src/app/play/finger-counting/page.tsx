@@ -15,6 +15,7 @@ import { useFingerCounter } from '@/lib/ar/useFingerCounter'
 import { useAdaptive } from '@/lib/adaptive'
 import { DifficultyBadge } from '@/components/ui/DifficultyBadge'
 import CelebrationModal from '@/components/ui/CelebrationModal'
+import CameraError from '@/components/ui/CameraError'
 import { kv } from '@/lib/kv'
 
 const TOTAL_ROUNDS = 10
@@ -191,12 +192,7 @@ export default function FingerCountingActivity() {
         {status === 'loading' && (
           <div style={overlayCenter}>Loading Milo’s eyes… 👀</div>
         )}
-        {status === 'error' && (
-          <div style={{ ...overlayCenter, padding: 20, textAlign: 'center', gap: 12, flexDirection: 'column', display: 'flex' }}>
-            <span>Couldn’t use the camera.</span>
-            <button className="milo-btn tone-yellow" onClick={useTapInstead}>Count by tapping instead</button>
-          </div>
-        )}
+        {status === 'error' && <CameraError errorName={error} onRetry={start} onBack={() => router.push('/play')} fallback={{ label: 'Count by tapping instead', onClick: useTapInstead }} />}
       </div>
 
       {isIntro

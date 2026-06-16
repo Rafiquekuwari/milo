@@ -15,7 +15,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 const VERSION = '0.10.35'
 const WASM_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${VERSION}/wasm`
 const MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'
-const PINCH_RATIO = 0.45 // pinch when tip-gap < handSize * this
+// Hysteresis so a pinch reads as deliberate: ENGAGE only when the thumb + index
+// tips genuinely meet (tight), RELEASE only when they clearly separate (looser).
+// Between the two it holds its current state, so it doesn't flicker mid-drag.
+const PINCH_CLOSE = 0.32 // engage when tip-gap < handSize * this (fingers close together)
+const PINCH_OPEN = 0.36  // release when tip-gap > handSize * this (a small open drops it)
+const RELEASE_FRAMES = 2 // must read "open" this many frames before dropping (anti-jitter)
 
 export type PinchStatus = 'idle' | 'loading' | 'running' | 'error'
 export interface Cursor { x: number; y: number }
@@ -31,6 +36,8 @@ export function useHandPincher(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const landmarkerRef = useRef<any>(null)
   const rafRef = useRef<number>(0)
+  const pinchedRef = useRef(false)
+  const openRef = useRef(0)
   const onFrameRef = useRef(onFrame)
   onFrameRef.current = onFrame
 
@@ -59,14 +66,27 @@ export function useHandPincher(
       const res = lm.detectForVideo(video, performance.now())
       const hand = res.landmarks?.[0]
       let cursor: Cursor | null = null
-      let pinching = false
       if (hand) {
-        cursor = { x: (1 - hand[8].x) * W, y: hand[8].y * H }
         const handSize = Math.hypot(hand[0].x - hand[9].x, hand[0].y - hand[9].y) || 1e-6
-        const gap = Math.hypot(hand[4].x - hand[8].x, hand[4].y - hand[8].y)
-        pinching = gap < handSize * PINCH_RATIO
+        const ratio = Math.hypot(hand[4].x - hand[8].x, hand[4].y - hand[8].y) / handSize
+        if (pinchedRef.current) {
+          // Release only after the fingers stay apart for a few frames, so a
+          // one-frame detection glitch can't drop the held item mid-drag.
+          if (ratio > PINCH_OPEN) { openRef.current++; if (openRef.current >= RELEASE_FRAMES) pinchedRef.current = false }
+          else openRef.current = 0
+        } else if (ratio < PINCH_CLOSE) { pinchedRef.current = true; openRef.current = 0 }
+        // While pinching, the cursor is the pinch POINT (midpoint of thumb +
+        // index tips) — steadier than the index tip alone, which drifts toward
+        // the other fingers when they meet. Index tip when not pinching.
+        const ix = (1 - hand[8].x) * W, iy = hand[8].y * H
+        if (pinchedRef.current) {
+          const tx = (1 - hand[4].x) * W, ty = hand[4].y * H
+          cursor = { x: (ix + tx) / 2, y: (iy + ty) / 2 }
+        } else cursor = { x: ix, y: iy }
+      } else {
+        pinchedRef.current = false; openRef.current = 0 // hand left the frame → drop
       }
-      onFrameRef.current(ctx, W, H, cursor, pinching)
+      onFrameRef.current(ctx, W, H, cursor, pinchedRef.current)
     }
     rafRef.current = requestAnimationFrame(loop)
   }, [videoRef, canvasRef])
@@ -89,7 +109,7 @@ export function useHandPincher(
       setStatus('running')
       loop()
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e)); setStatus('error')
+      setError(e instanceof Error ? (e.name || e.message) : String(e)); setStatus('error')
     }
   }, [loop])
 
