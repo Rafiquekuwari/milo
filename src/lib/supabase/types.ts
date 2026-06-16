@@ -1,13 +1,12 @@
 // Auto-generated types matching our Supabase schema
 // Re-run: npx supabase gen types typescript --local > src/lib/supabase/types.ts
-import type { AgeGroup } from '../chapters'
+import type { AgeGroup, ChapterType } from '../chapters'
 
+// Chapter ids live in the single registry (src/lib/chapters.ts); re-exported
+// here so existing `@/lib/supabase/types` imports keep working.
+export type { ChapterType } from '../chapters'
 export type UserRole    = 'parent' | 'learner'
 export type InviteStatus = 'pending' | 'accepted' | 'expired'
-export type ChapterType =
-  | 'counting' | 'numberOrdering' | 'numberRecognition'
-  | 'matchingQuantities' | 'numberComparison' | 'shapes'
-  | 'colors' | 'addition' | 'subtraction' | 'patterns' | 'measurement'
 
 export interface Database {
   public: {

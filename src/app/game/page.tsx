@@ -17,6 +17,14 @@ import PatternsChapter from '@/components/game/PatternsChapter'
 import AdditionChapter from '@/components/game/AdditionChapter'
 import SubtractionChapter from '@/components/game/SubtractionChapter'
 import MeasurementChapter from '@/components/game/MeasurementChapter'
+import Numbers100Chapter from '@/components/game/Numbers100Chapter'
+import PlaceValueChapter from '@/components/game/PlaceValueChapter'
+import SkipCountingChapter from '@/components/game/SkipCountingChapter'
+import StoryProblemsChapter from '@/components/game/StoryProblemsChapter'
+import MultiplicationChapter from '@/components/game/MultiplicationChapter'
+import FractionsChapter from '@/components/game/FractionsChapter'
+import MoneyChapter from '@/components/game/MoneyChapter'
+import TimeChapter from '@/components/game/TimeChapter'
 import CelebrationModal from '@/components/ui/CelebrationModal'
 import MiloPointer from '@/components/ui/MiloPointer'
 import { useChapterSync } from '@/lib/supabase/useChapterSync'
@@ -37,6 +45,14 @@ const CHAPTER_COMPONENTS: Record<ChapterType, React.ComponentType<ChapterProps>>
   addition:           AdditionChapter,
   subtraction:        SubtractionChapter,
   measurement:        MeasurementChapter,
+  numbersTo100:       Numbers100Chapter,
+  placeValue:         PlaceValueChapter,
+  skipCounting:       SkipCountingChapter,
+  storyProblems:      StoryProblemsChapter,
+  multiplication:     MultiplicationChapter,
+  fractions:          FractionsChapter,
+  money:              MoneyChapter,
+  time:               TimeChapter,
 }
 
 export default function GamePage() {

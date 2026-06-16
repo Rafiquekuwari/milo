@@ -18,9 +18,12 @@
 export type AgeGroup = '3-5' | '6-8'
 
 export type ChapterType =
+  // 3–5
   | 'counting' | 'numberOrdering' | 'numberRecognition'
   | 'matchingQuantities' | 'numberComparison' | 'shapes'
   | 'colors' | 'patterns' | 'addition' | 'subtraction' | 'measurement'
+  // 6–8
+  | 'numbersTo100' | 'placeValue' | 'skipCounting' | 'storyProblems' | 'multiplication' | 'fractions' | 'money' | 'time'
 
 export interface ChapterMeta {
   id:          ChapterType
@@ -48,6 +51,16 @@ export const CHAPTERS: ChapterMeta[] = [
   { id: 'addition',           name: 'Simple Addition',    parentLabel: 'Addition',          emoji: '➕', asset: '/assets/objects/apple.png',          hint: 'Add apples together!',       ageGroups: ['3-5'] },
   { id: 'subtraction',        name: 'Simple Subtraction', parentLabel: 'Subtraction',       emoji: '➖', asset: '/assets/objects/firefly.png',        hint: 'How many are left?',         ageGroups: ['3-5'] },
   { id: 'measurement',        name: 'Measurement',        parentLabel: 'Measurement',       emoji: '📏', asset: '/assets/objects/star.png',           hint: 'Tall, short, heavy, light!', ageGroups: ['3-5'] },
+
+  // ── 6–8 ──
+  { id: 'numbersTo100',       name: 'Numbers to 100',     parentLabel: 'Numbers to 100',    emoji: '💯', asset: '/assets/objects/star.png',           hint: 'Read big numbers up to 100!', ageGroups: ['6-8'] },
+  { id: 'placeValue',         name: 'Tens & Ones',        parentLabel: 'Tens & Ones',       emoji: '🧱', asset: '/assets/objects/star.png',           hint: 'Tens and ones make a number!', ageGroups: ['6-8'] },
+  { id: 'skipCounting',       name: 'Skip Counting',      parentLabel: 'Skip Counting',     emoji: '🐰', asset: '/assets/objects/star.png',           hint: 'Count by 2s, 5s and 10s!', ageGroups: ['6-8'] },
+  { id: 'storyProblems',      name: 'Story Problems',     parentLabel: 'Story Problems',    emoji: '📖', asset: '/assets/objects/apple.png',          hint: 'Listen, then add or take away!', ageGroups: ['6-8'] },
+  { id: 'multiplication',     name: 'Multiplication',     parentLabel: 'Multiplication',    emoji: '✖️', asset: '/assets/objects/star.png',           hint: 'Equal groups make multiplying!', ageGroups: ['6-8'] },
+  { id: 'fractions',          name: 'Fractions',          parentLabel: 'Fractions',         emoji: '🍕', asset: '/assets/objects/apple.png',          hint: 'Halves, thirds and quarters!', ageGroups: ['6-8'] },
+  { id: 'money',              name: 'Money',              parentLabel: 'Money',             emoji: '🪙', asset: '/assets/objects/star.png',           hint: 'Count the coins!', ageGroups: ['6-8'] },
+  { id: 'time',               name: 'Time',               parentLabel: 'Time',              emoji: '🕐', asset: '/assets/objects/star.png',           hint: 'Read the clock!', ageGroups: ['6-8'] },
 ]
 
 // ── Lookups ──────────────────────────────────────────────────────────────

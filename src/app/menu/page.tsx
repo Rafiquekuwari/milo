@@ -54,7 +54,8 @@ export default function MainMenu() {
     if (learner) {
       loadLearner(learner.id, learner.display_name, learner.avatar_index)
       setLearnerId(learner.id)
-      setAgeGroup(learner.age_group)
+      // Fall back to 3–5 for learner records cached before age_group existed.
+      setAgeGroup(learner.age_group ?? '3-5')
       const lp = getLastPlayed(learner.id)?.chapter ?? null
       setLastPlayedState(lp)
       setReady(true)
@@ -103,7 +104,7 @@ export default function MainMenu() {
       })()
 
       // Personalised greeting based on whether they've played before
-      const ids = chaptersForAge(learner.age_group).map(c => c.id)
+      const ids = chaptersForAge(learner.age_group ?? '3-5').map(c => c.id)
       const doneCount = ids.filter(ch => (profile.chapterStars[ch] ?? 0) > 0).length
       if (lp && doneCount > 0) {
         speak(`Welcome back, ${learner.display_name}! Ready to continue ${CHAPTER_NAMES[lp]}?`)
