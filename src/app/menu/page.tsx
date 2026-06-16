@@ -3,7 +3,8 @@ export const dynamic = 'force-static'
 
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { useMiloStore, CHAPTER_ORDER, CHAPTER_NAMES, type ChapterType } from '@/lib/store'
+import { useMiloStore, type ChapterType } from '@/lib/store'
+import { CHAPTER_NAMES, CHAPTER_EMOJIS, CHAPTER_ASSETS, chaptersForAge, type AgeGroup } from '@/lib/chapters'
 import { useMiloSpeaker } from '@/lib/useMiloSpeaker'
 import BackButton from '@/components/ui/BackButton'
 import ChapterPicker from '@/components/ui/ChapterPicker'
@@ -15,34 +16,6 @@ import { getLastPlayed, setLastPlayed, reconcileLastPlayed } from '@/lib/lastPla
 
 const AVATAR_SRCS = ['/assets/objects/fox.png','/assets/objects/bunny.png','/assets/objects/bear.png','/assets/objects/cat.png']
 const LEVEL_NAMES   = ['Beginner','Counter','Explorer','Number Star','Math Wizard','Champion',"Milo's Champion",'Legend']
-
-const CHAPTER_EMOJIS: Record<ChapterType, string> = {
-  counting:           '⭐',
-  numberOrdering:     '🔢',
-  numberRecognition:  '🚪',
-  matchingQuantities: '🍎',
-  numberComparison:   '⚖️',
-  shapes:             '🏠',
-  colors:             '🌈',
-  patterns:           '🔷',
-  addition:           '➕',
-  subtraction:        '➖',
-  measurement:        '📏',
-}
-
-const CHAPTER_ASSETS: Record<ChapterType, string> = {
-  counting:           '/assets/objects/firefly.png',
-  numberOrdering:     '/assets/objects/star.png',
-  numberRecognition:  '/assets/objects/star.png',
-  matchingQuantities: '/assets/objects/basket.png',
-  numberComparison:   '/assets/objects/star-alt.png',
-  shapes:             '/assets/shapes/house-complete.png',
-  colors:             '/assets/objects/flower-red.png',
-  patterns:           '/assets/objects/star.png',
-  addition:           '/assets/objects/apple.png',
-  subtraction:        '/assets/objects/firefly.png',
-  measurement:        '/assets/objects/star.png',
-}
 
 // True when this device's shop state equals what's on the server, so we can skip
 // the write-back on a plain menu visit. (After applyServerProgress merges the
@@ -72,6 +45,7 @@ export default function MainMenu() {
   const [showPicker,   setShowPicker]   = useState(false)
   const [ready,        setReady]        = useState(false)
   const [learnerId,    setLearnerId]    = useState<string | null>(null)
+  const [ageGroup,     setAgeGroup]     = useState<AgeGroup>('3-5')
   const [lastPlayed,   setLastPlayedState] = useState<ChapterType | null>(null)
 
   useEffect(() => {
@@ -80,6 +54,8 @@ export default function MainMenu() {
     if (learner) {
       loadLearner(learner.id, learner.display_name, learner.avatar_index)
       setLearnerId(learner.id)
+      // Fall back to 3–5 for learner records cached before age_group existed.
+      setAgeGroup(learner.age_group ?? '3-5')
       const lp = getLastPlayed(learner.id)?.chapter ?? null
       setLastPlayedState(lp)
       setReady(true)
@@ -128,7 +104,8 @@ export default function MainMenu() {
       })()
 
       // Personalised greeting based on whether they've played before
-      const doneCount = CHAPTER_ORDER.filter(ch => (profile.chapterStars[ch] ?? 0) > 0).length
+      const ids = chaptersForAge(learner.age_group ?? '3-5').map(c => c.id)
+      const doneCount = ids.filter(ch => (profile.chapterStars[ch] ?? 0) > 0).length
       if (lp && doneCount > 0) {
         speak(`Welcome back, ${learner.display_name}! Ready to continue ${CHAPTER_NAMES[lp]}?`)
       } else {
@@ -150,12 +127,15 @@ export default function MainMenu() {
   const avatarSrc = AVATAR_SRCS[profile.avatarIndex] ?? AVATAR_SRCS[0]
   const childName   = profile.childName
 
-  // Next unplayed chapter
-  const nextChapter = CHAPTER_ORDER.find(ch => (profile.chapterStars[ch] ?? 0) === 0)
-    ?? CHAPTER_ORDER[CHAPTER_ORDER.length - 1]
+  // Chapters this learner sees, scoped to their age group.
+  const chapterIds = chaptersForAge(ageGroup).map(c => c.id)
 
-  const doneCount = CHAPTER_ORDER.filter(ch => (profile.chapterStars[ch] ?? 0) > 0).length
-  const allDone   = doneCount === CHAPTER_ORDER.length
+  // Next unplayed chapter
+  const nextChapter = chapterIds.find(ch => (profile.chapterStars[ch] ?? 0) === 0)
+    ?? chapterIds[chapterIds.length - 1]
+
+  const doneCount = chapterIds.filter(ch => (profile.chapterStars[ch] ?? 0) > 0).length
+  const allDone   = doneCount === chapterIds.length
 
   // Resume chapter = last played if different from next, else null
   const resumeChapter: ChapterType | null = (
@@ -169,7 +149,7 @@ export default function MainMenu() {
     router.push('/game')
   }
 
-  function handlePlay() { playChapter(nextChapter) }
+  function handlePlay() { if (nextChapter) playChapter(nextChapter) }
   function handleResume() { if (resumeChapter) playChapter(resumeChapter) }
 
   if (!ready) return (
@@ -237,7 +217,7 @@ export default function MainMenu() {
               fontFamily: 'var(--font-display)', fontWeight: 700,
               fontSize: 20, color: 'var(--ink-soft)', marginTop: 2,
             }}>
-              {doneCount > 0 ? `${doneCount} / ${CHAPTER_ORDER.length} chapters done` : 'Ready to play?'}
+              {doneCount > 0 ? `${doneCount} / ${chapterIds.length} chapters done` : 'Ready to play?'}
             </div>
           </div>
         </div>
@@ -297,23 +277,35 @@ export default function MainMenu() {
               {allDone ? 'ALL DONE — REPLAY ANYTIME' : 'NEXT CHAPTER'}
             </span>
             <span className="numeric" style={{ fontSize: 14, color: 'var(--fg-2)' }}>
-              {doneCount} / {CHAPTER_ORDER.length} done
+              {doneCount} / {chapterIds.length} done
             </span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', rowGap: 10 }}>
-            <img
-              src={CHAPTER_ASSETS[nextChapter]}
-              style={{ width: 56, height: 56, objectFit: 'contain' }}
-              alt=""
-            />
-            <div style={{ flex: 1, minWidth: 140 }}>
-              <h3 style={{ fontSize: 22, margin: 0 }}>{CHAPTER_NAMES[nextChapter]}</h3>
-              <p style={{ fontSize: 14, marginTop: 2, color: 'var(--ink-soft)' }}>
-                {allDone ? 'Great job! All chapters complete!' : 'Tap Play to start!'}
-              </p>
+          {nextChapter ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', rowGap: 10 }}>
+              <img
+                src={CHAPTER_ASSETS[nextChapter]}
+                style={{ width: 56, height: 56, objectFit: 'contain' }}
+                alt=""
+              />
+              <div style={{ flex: 1, minWidth: 140 }}>
+                <h3 style={{ fontSize: 22, margin: 0 }}>{CHAPTER_NAMES[nextChapter]}</h3>
+                <p style={{ fontSize: 14, marginTop: 2, color: 'var(--ink-soft)' }}>
+                  {allDone ? 'Great job! All chapters complete!' : 'Tap Play to start!'}
+                </p>
+              </div>
+              <button className="milo-btn tone-green" onClick={handlePlay}>Play</button>
             </div>
-            <button className="milo-btn tone-green" onClick={handlePlay}>Play</button>
-          </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{ fontSize: 44 }}>🚧</div>
+              <div style={{ flex: 1 }}>
+                <h3 style={{ fontSize: 20, margin: 0 }}>New chapters coming soon!</h3>
+                <p style={{ fontSize: 14, marginTop: 2, color: 'var(--ink-soft)' }}>
+                  We&apos;re building activities for this age group. Try Hand Games meanwhile!
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* CTA row — no duplicate Play button, green one in the ribbon already handles it */}

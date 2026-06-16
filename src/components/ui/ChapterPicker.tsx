@@ -1,20 +1,13 @@
 'use client'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useMiloStore, CHAPTER_ORDER, CHAPTER_NAMES, type ChapterType } from '@/lib/store'
+import { useMiloStore, type ChapterType } from '@/lib/store'
+import { CHAPTER_NAMES, getChapter, chaptersForAge, type AgeGroup } from '@/lib/chapters'
+import { getActiveLearner } from '@/lib/supabase/useLearnerSession'
 
-const CHAPTER_CONFIG: Record<ChapterType, { asset?: string; doorTone?: boolean; emoji?: string; hint: string }> = {
-  counting:           { emoji: '🌟', hint: 'Tap each one to count!' },
-  numberOrdering:     { emoji: '🔢', hint: 'Put numbers in order!' },
-  numberRecognition:  { doorTone: true, hint: 'Open the right number.' },
-  matchingQuantities: { emoji: '🍎', hint: 'Put N apples in the basket.' },
-  numberComparison:   { emoji: '⚖️', hint: 'Which is bigger?' },
-  shapes:             { emoji: '🏠', hint: 'Build Milo\'s house.' },
-  colors:             { emoji: '🌈', hint: 'Paint the flowers!' },
-  patterns:           { emoji: '🔷', hint: 'Find what comes next!' },
-  addition:           { emoji: '➕', hint: 'Add apples together!' },
-  subtraction:        { emoji: '✨', hint: 'How many are left?' },
-  measurement:        { emoji: '📏', hint: 'Tall, short, heavy, light!' },
-}
+// Number Doors draws a little door instead of an emoji icon — purely a picker
+// rendering choice, so it stays local to this component.
+const DOOR_TONE = new Set<ChapterType>(['numberRecognition'])
 
 // Star rendered purely with CSS + emoji — no PNG dependency
 function Stars({ count }: { count: number }) {
@@ -46,6 +39,11 @@ export default function ChapterPicker({ onClose }: Props) {
   const router = useRouter()
   const { profile, startChapter } = useMiloStore()
 
+  // Show only the active learner's age-group chapters.
+  const [ageGroup, setAgeGroup] = useState<AgeGroup>('3-5')
+  useEffect(() => { setAgeGroup(getActiveLearner()?.age_group ?? '3-5') }, [])
+  const chapterIds = chaptersForAge(ageGroup).map(c => c.id)
+
   function pick(ch: ChapterType) {
     startChapter(ch)
     onClose()
@@ -71,8 +69,8 @@ export default function ChapterPicker({ onClose }: Props) {
 
         {/* Chapter grid */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          {CHAPTER_ORDER.map(ch => {
-            const cfg       = CHAPTER_CONFIG[ch]
+          {chapterIds.map(ch => {
+            const meta      = getChapter(ch)
             // Safe read — falls back to 0 if key missing (old localStorage saves)
             const stars     = Number(profile.chapterStars?.[ch] ?? 0)
             const completed = stars > 0
@@ -101,7 +99,7 @@ export default function ChapterPicker({ onClose }: Props) {
                 onMouseLeave={e => (e.currentTarget.style.transform = 'translateY(0)')}
               >
                 {/* Icon */}
-                {cfg.doorTone ? (
+                {DOOR_TONE.has(ch) ? (
                   <div style={{
                     width: 52, height: 52, flexShrink: 0,
                     background: 'linear-gradient(180deg, #C84F1A 0%, #8E3A11 100%)',
@@ -121,14 +119,14 @@ export default function ChapterPicker({ onClose }: Props) {
                     fontSize: 28,
                     boxShadow: '0 3px 0 rgba(61,37,22,.10)',
                   }}>
-                    {cfg.emoji}
+                    {meta.emoji}
                   </div>
                 )}
 
                 {/* Text */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <h3 style={{ fontSize: 17, marginBottom: 2 }}>{CHAPTER_NAMES[ch]}</h3>
-                  <p style={{ fontSize: 12, color: 'var(--fg-2)', lineHeight: 1.3 }}>{cfg.hint}</p>
+                  <p style={{ fontSize: 12, color: 'var(--fg-2)', lineHeight: 1.3 }}>{meta.hint}</p>
                 </div>
 
                 {/* Stars — always emoji, never PNG */}

@@ -6,6 +6,7 @@ import { toast } from '@/components/ui/Toast'
  */
 import { createClient } from './client'
 import type { ChapterType, Learner, LearnerStats, LearnerProgress, LearnerState, Session } from './types'
+import type { AgeGroup } from '../chapters'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function db(): any {
@@ -60,6 +61,7 @@ export async function getMyLearners(): Promise<Learner[]> {
 export async function createLearner(
   name: string,
   avatarIndex: number,
+  ageGroup: AgeGroup,
   dob?: string
 ): Promise<Learner | null> {
   const supabase = db()
@@ -72,6 +74,7 @@ export async function createLearner(
       display_name:  name,
       avatar_index:  avatarIndex,
       date_of_birth: dob ?? null,
+      age_group:     ageGroup,
       created_by:    user.id,
     })
     .select()

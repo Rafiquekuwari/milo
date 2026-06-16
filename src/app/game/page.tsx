@@ -2,7 +2,7 @@
 export const dynamic = 'force-static'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
-import { useMiloStore } from '@/lib/store'
+import { useMiloStore, type ChapterType } from '@/lib/store'
 
 import { getActiveLearner } from '@/lib/supabase/useLearnerSession'
 import { setLastPlayed } from '@/lib/lastPlayed'
@@ -17,9 +17,50 @@ import PatternsChapter from '@/components/game/PatternsChapter'
 import AdditionChapter from '@/components/game/AdditionChapter'
 import SubtractionChapter from '@/components/game/SubtractionChapter'
 import MeasurementChapter from '@/components/game/MeasurementChapter'
+import Numbers100Chapter from '@/components/game/Numbers100Chapter'
+import PlaceValueChapter from '@/components/game/PlaceValueChapter'
+import SkipCountingChapter from '@/components/game/SkipCountingChapter'
+import StoryProblemsChapter from '@/components/game/StoryProblemsChapter'
+import MultiplicationChapter from '@/components/game/MultiplicationChapter'
+import FractionsChapter from '@/components/game/FractionsChapter'
+import MoneyChapter from '@/components/game/MoneyChapter'
+import TimeChapter from '@/components/game/TimeChapter'
+import CompareChapter from '@/components/game/CompareChapter'
+import { AdditionTo100Chapter, SubtractionTo100Chapter } from '@/components/game/ArithmeticChapter'
+import Shapes2D3DChapter from '@/components/game/Shapes2D3DChapter'
 import CelebrationModal from '@/components/ui/CelebrationModal'
 import MiloPointer from '@/components/ui/MiloPointer'
 import { useChapterSync } from '@/lib/supabase/useChapterSync'
+
+// Maps each chapter id to its component. The set of chapters lives in the
+// registry (src/lib/chapters.ts); this map only wires ids → components, so a
+// new chapter needs one line here. TypeScript's Record enforces completeness.
+type ChapterProps = { onComplete: (correct: number, wrong: number) => void; childName: string }
+const CHAPTER_COMPONENTS: Record<ChapterType, React.ComponentType<ChapterProps>> = {
+  counting:           CountingChapter,
+  numberOrdering:     NumberOrderingChapter,
+  numberRecognition:  NumberDoorsChapter,
+  matchingQuantities: MatchingQuantitiesChapter,
+  numberComparison:   NumberComparisonChapter,
+  shapes:             ShapeHouseChapter,
+  colors:             ColorGardenChapter,
+  patterns:           PatternsChapter,
+  addition:           AdditionChapter,
+  subtraction:        SubtractionChapter,
+  measurement:        MeasurementChapter,
+  numbersTo100:       Numbers100Chapter,
+  placeValue:         PlaceValueChapter,
+  skipCounting:       SkipCountingChapter,
+  storyProblems:      StoryProblemsChapter,
+  multiplication:     MultiplicationChapter,
+  fractions:          FractionsChapter,
+  money:              MoneyChapter,
+  time:               TimeChapter,
+  compareNumbers:     CompareChapter,
+  additionTo100:      AdditionTo100Chapter,
+  subtractionTo100:   SubtractionTo100Chapter,
+  shapes2d3d:         Shapes2D3DChapter,
+}
 
 export default function GamePage() {
   const router         = useRouter()
@@ -124,21 +165,10 @@ export default function GamePage() {
     <div className="kit-screen" style={{ backgroundColor: stageBg.backgroundColor, backgroundImage: stageBg.backgroundImage, position: 'fixed', inset: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
       <div ref={fitRef} className="game-zoom" style={{ width: 'min(100vw, 680px)', ['--game-zoom' as any]: zoom } as React.CSSProperties}>
         {/* GameTopbar is rendered inside each chapter component */}
-        {!chapterDone && playingChapter && (
-          <>
-            {playingChapter === 'counting'            && <CountingChapter {...props} />}
-            {playingChapter === 'numberOrdering'      && <NumberOrderingChapter {...props} />}
-            {playingChapter === 'numberRecognition'   && <NumberDoorsChapter {...props} />}
-            {playingChapter === 'matchingQuantities'  && <MatchingQuantitiesChapter {...props} />}
-            {playingChapter === 'numberComparison'    && <NumberComparisonChapter {...props} />}
-            {playingChapter === 'shapes'              && <ShapeHouseChapter {...props} />}
-            {playingChapter === 'colors'              && <ColorGardenChapter {...props} />}
-            {playingChapter === 'patterns'            && <PatternsChapter {...props} />}
-            {playingChapter === 'addition'            && <AdditionChapter {...props} />}
-            {playingChapter === 'subtraction'         && <SubtractionChapter {...props} />}
-            {playingChapter === 'measurement'         && <MeasurementChapter {...props} />}
-          </>
-        )}
+        {!chapterDone && playingChapter && (() => {
+          const Chapter = CHAPTER_COMPONENTS[playingChapter]
+          return Chapter ? <Chapter {...props} /> : null
+        })()}
       </div>
     </div>
     {/* Modal + pointer live OUTSIDE the zoom wrapper so they stay full-screen and
