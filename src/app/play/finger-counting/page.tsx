@@ -16,12 +16,13 @@ import { useAdaptive } from '@/lib/adaptive'
 import { DifficultyBadge } from '@/components/ui/DifficultyBadge'
 import CelebrationModal from '@/components/ui/CelebrationModal'
 import CameraError from '@/components/ui/CameraError'
+import HowToPlay from '@/components/ui/HowToPlay'
 import { kv } from '@/lib/kv'
 
 const TOTAL_ROUNDS = 10
 const HOLD_MS = 900 // hold the right number of fingers this long to lock it in
 
-type Phase = 'gate' | 'intro' | 'playing' | 'done'
+type Phase = 'gate' | 'howto' | 'intro' | 'playing' | 'done'
 
 export default function FingerCountingActivity() {
   const router = useRouter()
@@ -133,7 +134,7 @@ export default function FingerCountingActivity() {
   function begin() {
     kv.set('milo-camera-consent', '1')
     setConsented(true)
-    setPhase('intro')
+    setPhase('howto')
   }
 
   function useTapInstead() {
@@ -167,6 +168,10 @@ export default function FingerCountingActivity() {
   }
 
   // ── Done ──────────────────────────────────────────────────────
+  if (phase === 'howto') {
+    return <HowToPlay title="Finger Counting" steps={['Hold up your fingers.', 'Milo counts them with you.']} demo="fingers" onStart={() => setPhase('intro')} />
+  }
+
   if (phase === 'done') {
     return (
       <Shell>
