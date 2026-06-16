@@ -15,7 +15,7 @@ import CelebrationModal from '@/components/ui/CelebrationModal'
 import { useHandPincher } from '@/lib/ar/useHandPincher'
 import { kv } from '@/lib/kv'
 
-const TOTAL_ROUNDS = 4
+const TOTAL_ROUNDS = 10
 type Phase = 'gate' | 'playing' | 'done'
 interface Slot { expected: number; filled: number | null }
 interface Tile { value: number; placed: boolean }
@@ -82,7 +82,7 @@ export default function NumberOrderActivity() {
             if (Math.hypot(cursor.x - posX(s), cursor.y - slotY) < tileR * 1.3) {
               if (slotsRef.current[s].filled === null && slotsRef.current[s].expected === tile.value) {
                 slotsRef.current[s].filled = tile.value; tile.placed = true
-              } else if (!isSpeakingRef.current) speak(`That one goes somewhere else!`)
+              } else { ada.record(false); if (!isSpeakingRef.current) speak(`That one goes somewhere else!`) }
               break
             }
           }

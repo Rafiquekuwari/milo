@@ -26,7 +26,7 @@ function buildChoices(ans:number):number[]{
   while(opts.size<3){const d=Math.floor(Math.random()*3)+1;const v=Math.random()<.5?ans+d:Math.max(0,ans-d);if(v!==ans)opts.add(v)}
   return[...opts].sort(()=>Math.random()-.5)
 }
-const TOTAL_ROUNDS=6
+const TOTAL_ROUNDS=10
 
 export default function SubtractionChapter({onComplete,childName}:Props){
   const { phase, startPractice } = useChapterPhase()

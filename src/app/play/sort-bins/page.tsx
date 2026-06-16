@@ -18,7 +18,7 @@ import { kv } from '@/lib/kv'
 const VERSION = '0.10.35'
 const WASM_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${VERSION}/wasm`
 const MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'
-const TOTAL_ITEMS = 6
+const TOTAL_ITEMS = 10
 
 type Phase = 'gate' | 'playing' | 'done'
 type Status = 'idle' | 'loading' | 'running' | 'error'

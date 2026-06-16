@@ -15,7 +15,7 @@ import CelebrationModal from '@/components/ui/CelebrationModal'
 import { useHandPincher } from '@/lib/ar/useHandPincher'
 import { kv } from '@/lib/kv'
 
-const TOTAL_ROUNDS = 5
+const TOTAL_ROUNDS = 10
 type Phase = 'gate' | 'playing' | 'done'
 interface Tile { value: number; slot: number }
 
@@ -57,7 +57,7 @@ export default function MatchNumberActivity() {
     const next = roundIdx + 1
     window.setTimeout(() => { if (next >= TOTAL_ROUNDS) finish(); else setRoundIdx(next) }, 1500)
   }
-  wrongRef.current = (v: number) => { if (!isSpeakingRef.current) speak(`That's ${v}. Count the apples again!`) }
+  wrongRef.current = (v: number) => { ada.record(false); if (!isSpeakingRef.current) speak(`That's ${v}. Count the apples again!`) }
 
   function onFrame(ctx: CanvasRenderingContext2D, W: number, H: number, cursor: { x: number; y: number } | null, pinching: boolean) {
     const unit = Math.min(W, H)

@@ -58,7 +58,7 @@ function buildChoices(target:number):number[]{
   return[...opts].sort(()=>Math.random()-.5)
 }
 
-const TOTAL_ROUNDS=6
+const TOTAL_ROUNDS=10
 
 export default function CountingChapter({onComplete,childName}:Props){
   const { phase, startPractice } = useChapterPhase()

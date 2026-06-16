@@ -17,7 +17,7 @@ import { DifficultyBadge } from '@/components/ui/DifficultyBadge'
 import CelebrationModal from '@/components/ui/CelebrationModal'
 import { kv } from '@/lib/kv'
 
-const TOTAL_ROUNDS = 6
+const TOTAL_ROUNDS = 10
 const HOLD_MS = 900
 
 type Phase = 'gate' | 'playing' | 'done'
