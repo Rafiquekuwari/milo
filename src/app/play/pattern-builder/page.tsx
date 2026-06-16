@@ -15,7 +15,7 @@ import CelebrationModal from '@/components/ui/CelebrationModal'
 import { useHandPincher } from '@/lib/ar/useHandPincher'
 import { kv } from '@/lib/kv'
 
-const TOTAL_ROUNDS = 5
+const TOTAL_ROUNDS = 10
 const PAL = ['#E64545', '#5BC3F0', '#6FBE3F', '#FFC933', '#9362D8']
 const VISIBLE = 4 // pattern cells shown before the "?"
 type Phase = 'gate' | 'playing' | 'done'
@@ -84,7 +84,7 @@ export default function PatternBuilderActivity() {
         if (pinchEnd) {
           if (Math.hypot(cursor.x - qx, cursor.y - rowY) < cr * 1.6) {
             if (optionsRef.current[grabbedRef.current] === answerRef.current) { matchedRef.current = true; successRef.current() }
-            else if (!isSpeakingRef.current) speak(`Not quite — look at the pattern again!`)
+            else { ada.record(false); if (!isSpeakingRef.current) speak(`Not quite — look at the pattern again!`) }
           }
           grabbedRef.current = -1
         }

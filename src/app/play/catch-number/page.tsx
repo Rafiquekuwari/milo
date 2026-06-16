@@ -17,7 +17,7 @@ import { kv } from '@/lib/kv'
 const VERSION = '0.10.35'
 const WASM_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${VERSION}/wasm`
 const MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'
-const TOTAL_ROUNDS = 5
+const TOTAL_ROUNDS = 10
 const COLORS = ['#F26B2C', '#5BC3F0', '#6FBE3F', '#9362D8', '#E64545', '#FFC933']
 
 type Phase = 'gate' | 'playing' | 'done'
@@ -58,6 +58,7 @@ export default function CatchNumberActivity() {
   const lastSpawnXRef = useRef(0.5)
   const cfgRef = useRef({ vy: 3.0, spawnEvery: 55, max: 5 })
   const successRef = useRef<() => void>(() => {})
+  const failRef = useRef<() => void>(() => {})
 
   useEffect(() => { setConsented(kv.get('milo-camera-consent') === '1') }, [])
 
@@ -68,6 +69,7 @@ export default function CatchNumberActivity() {
     const next = roundIdx + 1
     window.setTimeout(() => { if (next >= TOTAL_ROUNDS) finish(); else setRoundIdx(next) }, 1500)
   }
+  failRef.current = () => ada.record(false) // wrong catch → counts toward demotion
 
   function stop() {
     cancelAnimationFrame(rafRef.current)
@@ -114,7 +116,7 @@ export default function CatchNumberActivity() {
             it.done = true
             if (Math.abs(it.x * W - bx) < catchR) {
               if (it.value === targetRef.current) { matchedRef.current = true; successRef.current(); continue }
-              else { if (!isSpeakingRef.current) speak(`That's ${it.value}. We want ${targetRef.current}!`); continue }
+              else { failRef.current(); if (!isSpeakingRef.current) speak(`That's ${it.value}. We want ${targetRef.current}!`); continue }
             }
           }
           if (it.y < H + 50) survivors.push(it)

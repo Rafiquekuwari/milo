@@ -17,7 +17,7 @@ import { kv } from '@/lib/kv'
 const VERSION = '0.10.35'
 const WASM_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${VERSION}/wasm`
 const MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'
-const TOTAL_ROUNDS = 5
+const TOTAL_ROUNDS = 10
 const PALETTE = [
   { name: 'red', hex: '#E64545' }, { name: 'blue', hex: '#5BC3F0' }, { name: 'green', hex: '#6FBE3F' },
   { name: 'yellow', hex: '#FFC933' }, { name: 'purple', hex: '#9362D8' }, { name: 'orange', hex: '#F26B2C' },
@@ -61,6 +61,7 @@ export default function CatchColorActivity() {
   const lastSpawnXRef = useRef(0.5)
   const cfgRef = useRef({ vy: 3.0, spawnEvery: 55, pool: 3 })
   const successRef = useRef<() => void>(() => {})
+  const failRef = useRef<() => void>(() => {})
 
   useEffect(() => { setConsented(kv.get('milo-camera-consent') === '1') }, [])
 
@@ -71,6 +72,7 @@ export default function CatchColorActivity() {
     const next = roundIdx + 1
     window.setTimeout(() => { if (next >= TOTAL_ROUNDS) finish(); else setRoundIdx(next) }, 1500)
   }
+  failRef.current = () => ada.record(false) // wrong colour → counts toward demotion
 
   function stop() {
     cancelAnimationFrame(rafRef.current)
@@ -116,7 +118,7 @@ export default function CatchColorActivity() {
             it.done = true
             if (Math.abs(it.x * W - bx) < catchR) {
               if (it.color === targetRef.current) { matchedRef.current = true; successRef.current(); continue }
-              else { if (!isSpeakingRef.current) speak(`That's ${PALETTE[it.color].name}. We want ${PALETTE[targetRef.current].name}!`); continue }
+              else { failRef.current(); if (!isSpeakingRef.current) speak(`That's ${PALETTE[it.color].name}. We want ${PALETTE[targetRef.current].name}!`); continue }
             }
           }
           if (it.y < H + 50) survivors.push(it)

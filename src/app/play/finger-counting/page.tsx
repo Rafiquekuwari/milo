@@ -17,7 +17,7 @@ import { DifficultyBadge } from '@/components/ui/DifficultyBadge'
 import CelebrationModal from '@/components/ui/CelebrationModal'
 import { kv } from '@/lib/kv'
 
-const TOTAL_ROUNDS = 6
+const TOTAL_ROUNDS = 10
 const HOLD_MS = 900 // hold the right number of fingers this long to lock it in
 
 type Phase = 'gate' | 'intro' | 'playing' | 'done'
