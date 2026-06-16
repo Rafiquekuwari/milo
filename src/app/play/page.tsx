@@ -16,6 +16,7 @@ const GAMES = [
   { emoji: '🔢', title: 'Match the Number', desc: 'Pinch & drag the number!', href: '/play/match-number' },
   { emoji: '🔢', title: 'Number Order', desc: 'Drag numbers into order!', href: '/play/number-order' },
   { emoji: '🎨', title: 'Pattern Builder', desc: 'Drag what comes next!', href: '/play/pattern-builder' },
+  { emoji: '👍', title: 'Thumbs Up or Down', desc: 'Answer yes or no!', href: '/play/thumbs-quiz' },
 ]
 
 export default function HandGamesHub() {
