@@ -13,6 +13,7 @@ import { useAdaptive } from '@/lib/adaptive'
 import { DifficultyBadge } from '@/components/ui/DifficultyBadge'
 import CelebrationModal from '@/components/ui/CelebrationModal'
 import CameraError from '@/components/ui/CameraError'
+import HowToPlay from '@/components/ui/HowToPlay'
 import { kv } from '@/lib/kv'
 
 const VERSION = '0.10.35'
@@ -24,7 +25,7 @@ const PALETTE = [
   { name: 'yellow', hex: '#FFC933' }, { name: 'purple', hex: '#9362D8' }, { name: 'orange', hex: '#F26B2C' },
 ]
 
-type Phase = 'gate' | 'playing' | 'done'
+type Phase = 'gate' | 'howto' | 'playing' | 'done'
 type Status = 'idle' | 'loading' | 'running' | 'error'
 interface Item { x: number; y: number; vy: number; color: number; done: boolean }
 
@@ -187,7 +188,7 @@ export default function CatchColorActivity() {
     setPhase('done')
   }
   function replay() { setMatched(false); setRoundIdx(0); startedRef.current = false; setPhase('playing') }
-  function begin() { kv.set('milo-camera-consent', '1'); setConsented(true); setPhase('playing') }
+  function begin() { kv.set('milo-camera-consent', '1'); setConsented(true); setPhase('howto') }
 
   if (phase === 'gate') {
     return (
@@ -203,6 +204,10 @@ export default function CatchColorActivity() {
         </div>
       </Shell>
     )
+  }
+
+  if (phase === 'howto') {
+    return <HowToPlay title="Catch the Color" steps={['Milo names a colour.', 'Catch only those ones!']} demo="catch" onStart={() => setPhase('playing')} />
   }
 
   if (phase === 'done') {

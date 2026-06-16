@@ -14,6 +14,7 @@ import { useAdaptive } from '@/lib/adaptive'
 import { DifficultyBadge } from '@/components/ui/DifficultyBadge'
 import CelebrationModal from '@/components/ui/CelebrationModal'
 import CameraError from '@/components/ui/CameraError'
+import HowToPlay from '@/components/ui/HowToPlay'
 import { kv } from '@/lib/kv'
 
 const VERSION = '0.10.35'
@@ -21,7 +22,7 @@ const WASM_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${VERSION
 const MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'
 const TOTAL_ITEMS = 10
 
-type Phase = 'gate' | 'playing' | 'done'
+type Phase = 'gate' | 'howto' | 'playing' | 'done'
 type Status = 'idle' | 'loading' | 'running' | 'error'
 interface Item { x: number; y: number; big: boolean }
 
@@ -173,7 +174,7 @@ export default function SortBinsActivity() {
     itemRef.current = null; doneRef.current = false; promptedRef.current = false
     setSorted(0); startedRef.current = false; setPhase('playing')
   }
-  function begin() { kv.set('milo-camera-consent', '1'); setConsented(true); setPhase('playing') }
+  function begin() { kv.set('milo-camera-consent', '1'); setConsented(true); setPhase('howto') }
 
   if (phase === 'gate') {
     return (
@@ -189,6 +190,10 @@ export default function SortBinsActivity() {
         </div>
       </Shell>
     )
+  }
+
+  if (phase === 'howto') {
+    return <HowToPlay title="Sort the Sizes" steps={['Guide each shape with your hand.', 'Big to the left, small to the right!']} demo="sort" onStart={() => setPhase('playing')} />
   }
 
   if (phase === 'done') {

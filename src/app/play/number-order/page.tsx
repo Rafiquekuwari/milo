@@ -13,11 +13,12 @@ import { useAdaptive } from '@/lib/adaptive'
 import { DifficultyBadge } from '@/components/ui/DifficultyBadge'
 import CelebrationModal from '@/components/ui/CelebrationModal'
 import CameraError from '@/components/ui/CameraError'
+import HowToPlay from '@/components/ui/HowToPlay'
 import { useHandPincher } from '@/lib/ar/useHandPincher'
 import { kv } from '@/lib/kv'
 
 const TOTAL_ROUNDS = 10
-type Phase = 'gate' | 'playing' | 'done'
+type Phase = 'gate' | 'howto' | 'playing' | 'done'
 interface Slot { expected: number; filled: number | null }
 interface Tile { value: number; placed: boolean }
 
@@ -149,7 +150,7 @@ export default function NumberOrderActivity() {
 
   function finish() { stop(); finishAndSync('numberOrdering', TOTAL_ROUNDS, 0); setPhase('done') }
   function replay() { setMatched(false); setRoundIdx(0); startedRef.current = false; setPhase('playing') }
-  function begin() { kv.set('milo-camera-consent', '1'); setConsented(true); setPhase('playing') }
+  function begin() { kv.set('milo-camera-consent', '1'); setConsented(true); setPhase('howto') }
 
   if (phase === 'gate') {
     return (
@@ -165,6 +166,10 @@ export default function NumberOrderActivity() {
         </div>
       </Shell>
     )
+  }
+
+  if (phase === 'howto') {
+    return <HowToPlay title="Number Order" steps={['Pinch the numbers.', 'Drag them in order, smallest first!']} demo="pinch" onStart={() => setPhase('playing')} />
   }
 
   if (phase === 'done') {

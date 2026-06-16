@@ -13,13 +13,14 @@ import { useAdaptive } from '@/lib/adaptive'
 import { DifficultyBadge } from '@/components/ui/DifficultyBadge'
 import CelebrationModal from '@/components/ui/CelebrationModal'
 import CameraError from '@/components/ui/CameraError'
+import HowToPlay from '@/components/ui/HowToPlay'
 import { useHandPincher } from '@/lib/ar/useHandPincher'
 import { kv } from '@/lib/kv'
 
 const TOTAL_ROUNDS = 10
 const PAL = ['#E64545', '#5BC3F0', '#6FBE3F', '#FFC933', '#9362D8']
 const VISIBLE = 4 // pattern cells shown before the "?"
-type Phase = 'gate' | 'playing' | 'done'
+type Phase = 'gate' | 'howto' | 'playing' | 'done'
 
 export default function PatternBuilderActivity() {
   const router = useRouter()
@@ -154,7 +155,7 @@ export default function PatternBuilderActivity() {
 
   function finish() { stop(); finishAndSync('patterns', TOTAL_ROUNDS, 0); setPhase('done') }
   function replay() { setMatched(false); setRoundIdx(0); startedRef.current = false; setPhase('playing') }
-  function begin() { kv.set('milo-camera-consent', '1'); setConsented(true); setPhase('playing') }
+  function begin() { kv.set('milo-camera-consent', '1'); setConsented(true); setPhase('howto') }
 
   if (phase === 'gate') {
     return (
@@ -170,6 +171,10 @@ export default function PatternBuilderActivity() {
         </div>
       </Shell>
     )
+  }
+
+  if (phase === 'howto') {
+    return <HowToPlay title="Pattern Builder" steps={['Pinch the colour that comes next.', 'Drag it onto the question mark!']} demo="pinch" onStart={() => setPhase('playing')} />
   }
 
   if (phase === 'done') {

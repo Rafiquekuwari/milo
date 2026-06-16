@@ -16,12 +16,13 @@ import { useAdaptive } from '@/lib/adaptive'
 import { DifficultyBadge } from '@/components/ui/DifficultyBadge'
 import CelebrationModal from '@/components/ui/CelebrationModal'
 import CameraError from '@/components/ui/CameraError'
+import HowToPlay from '@/components/ui/HowToPlay'
 import { kv } from '@/lib/kv'
 
 const TOTAL_ROUNDS = 10
 const HOLD_MS = 900
 
-type Phase = 'gate' | 'playing' | 'done'
+type Phase = 'gate' | 'howto' | 'playing' | 'done'
 
 export default function FingerAdditionActivity() {
   const router = useRouter()
@@ -141,6 +142,10 @@ export default function FingerAdditionActivity() {
         </div>
       </Shell>
     )
+  }
+
+  if (phase === 'howto') {
+    return <HowToPlay title="Add with Fingers" steps={['Milo gives you a sum.', 'Show the answer on your fingers.']} demo="fingers" onStart={() => setPhase('playing')} />
   }
 
   if (phase === 'done') {

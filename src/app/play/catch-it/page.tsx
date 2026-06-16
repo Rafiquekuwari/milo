@@ -10,6 +10,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import CelebrationModal from '@/components/ui/CelebrationModal'
 import CameraError from '@/components/ui/CameraError'
+import HowToPlay from '@/components/ui/HowToPlay'
 import { useMiloSpeaker, useIsSpeaking } from '@/lib/useMiloSpeaker'
 import { useChapterSync } from '@/lib/supabase/useChapterSync'
 import { useAdaptive } from '@/lib/adaptive'
@@ -21,7 +22,7 @@ const WASM_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${VERSION
 const MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'
 const TOTAL_ROUNDS = 10
 
-type Phase = 'gate' | 'playing' | 'done'
+type Phase = 'gate' | 'howto' | 'playing' | 'done'
 type Status = 'idle' | 'loading' | 'running' | 'error'
 interface Apple { x: number; y: number; vy: number; done: boolean }
 
@@ -202,7 +203,7 @@ export default function CatchItActivity() {
     setPhase('playing')
   }
 
-  function begin() { kv.set('milo-camera-consent', '1'); setConsented(true); setPhase('playing') }
+  function begin() { kv.set('milo-camera-consent', '1'); setConsented(true); setPhase('howto') }
 
   if (phase === 'gate') {
     return (
@@ -218,6 +219,10 @@ export default function CatchItActivity() {
         </div>
       </Shell>
     )
+  }
+
+  if (phase === 'howto') {
+    return <HowToPlay title="Catch It!" steps={['Move your open hand like a basket.', 'Catch the falling apples!']} demo="catch" onStart={() => setPhase('playing')} />
   }
 
   if (phase === 'done') {
