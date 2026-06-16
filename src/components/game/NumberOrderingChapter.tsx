@@ -149,7 +149,7 @@ export default function NumberOrderingChapter({ onComplete, childName }: Props) 
         <img src="/assets/characters/milo-happy.png" alt="Milo" style={S.milo}
           onError={e=>{(e.target as HTMLImageElement).style.display='none'}}/>
         <div className="milo-bubble" style={{flex:1,fontSize:20}}>
-          {round.type==='tapInOrder'?'Tap 1, 2, 3… in order!'
+          {round.type==='tapInOrder'?'Tap them in order — smallest first!'
           :round.type==='fillMissing'?'Which number is missing?'
           :'What comes next?'}
         </div>
