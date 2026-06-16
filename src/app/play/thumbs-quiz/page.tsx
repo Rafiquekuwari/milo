@@ -32,7 +32,7 @@ export default function ThumbsQuizActivity() {
   const [phase, setPhase] = useState<Phase>('gate')
   const [consented, setConsented] = useState(false)
   const [roundIdx, setRoundIdx] = useState(0)
-  const [quiz, setQuiz] = useState<Quiz>({ show: '', say: '', answer: true })
+  const [quiz, setQuiz] = useState<Quiz>({ visual: '', question: '', answer: true })
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null)
   const startedRef = useRef(false)
 
@@ -71,7 +71,7 @@ export default function ThumbsQuizActivity() {
     if (phase !== 'playing' || status !== 'running') return
     const q = makeQuiz(ada.difficulty)
     setQuiz(q); answeredRef.current = false; setFeedback(null)
-    speak(`${q.say} Thumbs up for yes, thumbs down for no!`)
+    speak(`${q.question} Thumbs up for yes, thumbs down for no!`)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roundIdx, status, phase])
 
@@ -110,8 +110,10 @@ export default function ThumbsQuizActivity() {
   return (
     <Shell>
       <DifficultyBadge difficulty={ada.difficulty} isOnFire={ada.isOnFire} />
-      <div className="milo-bubble" style={{ fontSize: 26, maxWidth: 520, textAlign: 'center', fontFamily: 'var(--font-display)' }}>
-        {feedback === 'correct' ? '✅ Yes!' : feedback === 'wrong' ? '❌ Oops!' : quiz.show}
+      <div className="milo-bubble" style={{ fontSize: 40, lineHeight: 1.1, maxWidth: 520, textAlign: 'center', fontFamily: 'var(--font-display)' }}>
+        {feedback === 'correct' ? <span style={{ fontSize: 26 }}>✅ Yes!</span>
+          : feedback === 'wrong' ? <span style={{ fontSize: 26 }}>❌ Oops!</span>
+          : quiz.visual}
       </div>
       <div style={{ position: 'relative', width: 'min(92vw, 520px)', aspectRatio: '4/3', borderRadius: 20, overflow: 'hidden', border: '5px solid var(--outline)', background: '#000', boxShadow: '0 6px 0 rgba(61,37,22,.2)' }}>
         <video ref={videoRef} playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
