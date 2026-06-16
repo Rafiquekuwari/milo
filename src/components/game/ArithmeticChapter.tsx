@@ -13,7 +13,7 @@ import { useChapterPhase } from '@/lib/useChapterPhase'
 import SpeakingLock from '@/components/ui/SpeakingLock'
 import GameTopbar from '../ui/GameTopbar'
 import { numberToWords, CSS as KIT_CSS } from '../lessons/_kit'
-import ArithmeticLesson, { Equation, EquationWatch, EquationAsk, buildArithChoices, applyOp, type Op } from '../lessons/ArithmeticLesson'
+import ArithmeticLesson, { BlockMath, EquationWatch, EquationAsk, buildArithChoices, applyOp, type Op } from '../lessons/ArithmeticLesson'
 import type { ChapterType } from '@/lib/store'
 
 interface Props { onComplete: (c: number, w: number) => void; childName: string }
@@ -112,7 +112,7 @@ function ArithmeticChapter({ op, chapterId, title, onComplete, childName }: GenP
         <div className="milo-bubble" style={{ flex: 1, fontSize: 22 }}>{bubbleText}</div>
       </div>
 
-      <div style={S.sceneBox}><Equation a={round.a} op={op} b={round.b} answer={selected != null ? round.answer : null} /></div>
+      <div style={S.sceneBox}><BlockMath a={round.a} op={op} b={round.b} answer={round.answer} showAnswer={selected != null} /></div>
 
       <button onClick={() => speak(sayRound(round))} style={S.replayWrap}><span style={S.replay}>🔊 Say it again</span></button>
 

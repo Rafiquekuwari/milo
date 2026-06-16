@@ -6,7 +6,7 @@
  * Exports ShapeView / SHAPES_2D / SHAPES_3D / sidesOf / ShapeWatch / ShapeAsk /
  * buildNameChoices for the practice chapter and its re-teach.
  */
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { speak, speakSeq } from '@/lib/useMiloSpeaker'
 import { LessonScaffold, SectionBreak, Confetti, type LessonStep } from './_kit'
 
@@ -110,6 +110,8 @@ export function ShapeAsk({ name, mode, choices, answer, intro, outro, onDone }: 
 }
 
 export default function Shapes2D3DLesson({ childName, onLessonComplete }: Props) {
+  // Freeze the (shuffled) name choices once so the buttons don't reshuffle on re-render.
+  const C = useMemo(() => ({ tri: buildNameChoices('triangle', SHAPES_2D), cone: buildNameChoices('cone', SHAPES_3D) }), [])
   const steps: LessonStep[] = [
     { bubble: `Hi ${childName}! Let’s learn shapes! 🔷`, mood: 'happy',
       render: d => <ShapeWatch name="circle" onDone={d} /> },
@@ -128,11 +130,11 @@ export default function Shapes2D3DLesson({ childName, onLessonComplete }: Props)
       render: d => <SectionBreak emoji="🔷" title="Your turn!" subtitle="Name the shape and count its sides." onDone={d} /> },
 
     { bubble: 'What shape is this? 🤔', mood: 'thinking',
-      render: d => <ShapeAsk name="triangle" mode="name" answer="triangle" choices={buildNameChoices('triangle', SHAPES_2D)} intro="What shape is this?" outro="Yes! A triangle!" onDone={d} /> },
+      render: d => <ShapeAsk name="triangle" mode="name" answer="triangle" choices={C.tri} intro="What shape is this?" outro="Yes! A triangle!" onDone={d} /> },
     { bubble: 'How many sides? 🤔', mood: 'thinking',
       render: d => <ShapeAsk name="square" mode="sides" answer={4} choices={[3, 4, 5]} intro="How many sides does a square have?" outro="Yes! Four sides!" onDone={d} /> },
     { bubble: 'And this solid shape? 🤔', mood: 'thinking',
-      render: d => <ShapeAsk name="cone" mode="name" answer="cone" choices={buildNameChoices('cone', SHAPES_3D)} intro="What solid shape is this?" outro="Yes! A cone!" onDone={d} /> },
+      render: d => <ShapeAsk name="cone" mode="name" answer="cone" choices={C.cone} intro="What solid shape is this?" outro="Yes! A cone!" onDone={d} /> },
   ]
   return (
     <LessonScaffold childName={childName} onLessonComplete={onLessonComplete} steps={steps}

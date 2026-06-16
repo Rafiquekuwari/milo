@@ -11,6 +11,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { speak, speakSeq } from '@/lib/useMiloSpeaker'
 import { LessonScaffold, SectionBreak, Confetti, numberToWords, type LessonStep } from './_kit'
+import { TensOnes } from './Numbers100Lesson'
 
 export type Op = '+' | '-'
 export const applyOp = (op: Op, a: number, b: number) => (op === '+' ? a + b : a - b)
@@ -37,20 +38,46 @@ export function Equation({ a, op, b, answer }: { a: number; op: Op; b: number; a
   )
 }
 
+// Base-ten block view of "a op b = answer" (tens rods + ones dots) so two-digit
+// arithmetic is concrete: the rods and dots combine (or take away) to the answer.
+function blocks(n: number) { return <TensOnes n={n} revealTens={Math.floor(n / 10)} revealOnes={n % 10} /> }
+export function BlockMath({ a, op, b, answer, showAnswer }: { a: number; op: Op; b: number; answer: number; showAnswer: boolean }) {
+  const sym = (s: string) => <span style={{ width: 26, textAlign: 'center', fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 32, color: 'var(--milo-orange)', flexShrink: 0 }}>{s}</span>
+  const numeral = (n: number) => <span style={{ width: 56, textAlign: 'right', fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 32, color: 'var(--ink)', flexShrink: 0 }}>{n}</span>
+  // Each row: [op sign] [numeral] [blocks] — so the number sits next to its blocks.
+  const Row = ({ n, s }: { n: number; s: string }) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>{sym(s)}{numeral(n)}{blocks(n)}</div>
+  )
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8 }}>
+      <Row n={a} s="" />
+      <Row n={b} s={opSym(op)} />
+      <div style={{ alignSelf: 'stretch', height: 3, background: 'var(--outline)', borderRadius: 2, margin: '4px 0' }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 88 }}>
+        {sym('=')}
+        {showAnswer ? <>{numeral(answer)}{blocks(answer)}</> : <span style={{ width: 56, textAlign: 'right', fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 44, color: 'var(--ink-muted)' }}>?</span>}
+      </div>
+    </div>
+  )
+}
+
 export function EquationWatch({ op, a, b, onDone }: { op: Op; a: number; b: number; onDone: () => void }) {
   const answer = applyOp(op, a, b)
   const [show, setShow] = useState(false)
   const doneRef = useRef(onDone); doneRef.current = onDone
   useEffect(() => {
-    const cancel = speakSeq([`${numberToWords(a)} ${opWord(op)} ${numberToWords(b)}.`, `is ${numberToWords(answer)}!`], {
+    const cancel = speakSeq([
+      `${numberToWords(a)} ${opWord(op)} ${numberToWords(b)}. ${op === '+' ? 'Add' : 'Take away'} the tens, then the ones.`,
+      `That makes ${numberToWords(answer)}!`,
+    ], {
       onWord: (i) => { if (i === 1) setShow(true) },
-      onDone: () => window.setTimeout(() => doneRef.current(), 1000),
+      onDone: () => window.setTimeout(() => doneRef.current(), 1300),
     })
     return cancel
   }, []) // eslint-disable-line
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-      <Equation a={a} op={op} b={b} answer={show ? answer : null} />
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+      <BlockMath a={a} op={op} b={b} answer={answer} showAnswer={show} />
       {show && <div style={{ background: 'var(--garden-green)', color: '#fff', borderRadius: 50, padding: '8px 24px', fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 22, animation: 'k_flipIn 0.5s ease' }}>{a} {opSym(op)} {b} = {answer}</div>}
     </div>
   )
@@ -71,7 +98,7 @@ export function EquationAsk({ op, a, b, choices, intro, outro, onDone }: { op: O
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, position: 'relative' }}>
       {burst && <Confetti />}
-      <Equation a={a} op={op} b={b} answer={picked != null ? answer : null} />
+      <BlockMath a={a} op={op} b={b} answer={answer} showAnswer={picked != null} />
       <div style={{ display: 'flex', gap: 14, justifyContent: 'center', flexWrap: 'wrap' }}>
         {choices.map(c => {
           const isRight = picked === c, isWrong = wrong === c
