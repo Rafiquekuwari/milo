@@ -22,10 +22,10 @@ export default function HandGamesHub() {
       <h1 style={{ fontFamily: 'var(--font-display)', color: 'var(--ink)', margin: 0 }}>✋ Hand Games</h1>
       <p style={{ fontFamily: 'var(--font-body)', color: 'var(--ink-soft)', margin: 0, textAlign: 'center' }}>Play with your hands and the camera!</p>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, justifyContent: 'center', maxWidth: 640, marginTop: 8 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 16, width: '100%', maxWidth: 900, marginTop: 8 }}>
         {GAMES.map(g => (
           <button key={g.href} onClick={() => router.push(g.href)}
-            style={{ width: 220, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, textAlign: 'center', background: 'var(--paper)', border: '4px solid var(--outline)', borderRadius: 22, padding: '22px 16px', boxShadow: '0 6px 0 rgba(61,37,22,.2)', cursor: 'pointer' }}>
+            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, textAlign: 'center', background: 'var(--paper)', border: '4px solid var(--outline)', borderRadius: 22, padding: '22px 16px', boxShadow: '0 6px 0 rgba(61,37,22,.2)', cursor: 'pointer' }}>
             <span style={{ fontSize: 52 }}>{g.emoji}</span>
             <span style={{ fontFamily: 'var(--font-display)', fontSize: 20, color: 'var(--ink)' }}>{g.title}</span>
             <span style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'var(--ink-soft)' }}>{g.desc}</span>
