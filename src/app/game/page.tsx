@@ -25,6 +25,9 @@ import MultiplicationChapter from '@/components/game/MultiplicationChapter'
 import FractionsChapter from '@/components/game/FractionsChapter'
 import MoneyChapter from '@/components/game/MoneyChapter'
 import TimeChapter from '@/components/game/TimeChapter'
+import CompareChapter from '@/components/game/CompareChapter'
+import { AdditionTo100Chapter, SubtractionTo100Chapter } from '@/components/game/ArithmeticChapter'
+import Shapes2D3DChapter from '@/components/game/Shapes2D3DChapter'
 import CelebrationModal from '@/components/ui/CelebrationModal'
 import MiloPointer from '@/components/ui/MiloPointer'
 import { useChapterSync } from '@/lib/supabase/useChapterSync'
@@ -53,6 +56,10 @@ const CHAPTER_COMPONENTS: Record<ChapterType, React.ComponentType<ChapterProps>>
   fractions:          FractionsChapter,
   money:              MoneyChapter,
   time:               TimeChapter,
+  compareNumbers:     CompareChapter,
+  additionTo100:      AdditionTo100Chapter,
+  subtractionTo100:   SubtractionTo100Chapter,
+  shapes2d3d:         Shapes2D3DChapter,
 }
 
 export default function GamePage() {

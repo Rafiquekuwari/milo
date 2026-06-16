@@ -24,6 +24,7 @@ export type ChapterType =
   | 'colors' | 'patterns' | 'addition' | 'subtraction' | 'measurement'
   // 6–8
   | 'numbersTo100' | 'placeValue' | 'skipCounting' | 'storyProblems' | 'multiplication' | 'fractions' | 'money' | 'time'
+  | 'compareNumbers' | 'additionTo100' | 'subtractionTo100' | 'shapes2d3d'
 
 export interface ChapterMeta {
   id:          ChapterType
@@ -61,6 +62,10 @@ export const CHAPTERS: ChapterMeta[] = [
   { id: 'fractions',          name: 'Fractions',          parentLabel: 'Fractions',         emoji: '🍕', asset: '/assets/objects/apple.png',          hint: 'Halves, thirds and quarters!', ageGroups: ['6-8'] },
   { id: 'money',              name: 'Money',              parentLabel: 'Money',             emoji: '🪙', asset: '/assets/objects/star.png',           hint: 'Count the coins!', ageGroups: ['6-8'] },
   { id: 'time',               name: 'Time',               parentLabel: 'Time',              emoji: '🕐', asset: '/assets/objects/star.png',           hint: 'Read the clock!', ageGroups: ['6-8'] },
+  { id: 'compareNumbers',     name: 'Compare Numbers',    parentLabel: 'Compare Numbers',   emoji: '⚖️', asset: '/assets/objects/star-alt.png',       hint: 'Bigger, smaller or equal?', ageGroups: ['6-8'] },
+  { id: 'additionTo100',      name: 'Add to 100',         parentLabel: 'Add to 100',        emoji: '➕', asset: '/assets/objects/apple.png',          hint: 'Add two-digit numbers!', ageGroups: ['6-8'] },
+  { id: 'subtractionTo100',   name: 'Subtract to 100',    parentLabel: 'Subtract to 100',   emoji: '➖', asset: '/assets/objects/firefly.png',        hint: 'Subtract two-digit numbers!', ageGroups: ['6-8'] },
+  { id: 'shapes2d3d',         name: 'Shapes 2D & 3D',     parentLabel: 'Shapes 2D & 3D',    emoji: '🔷', asset: '/assets/shapes/house-complete.png',  hint: 'Name shapes and count sides!', ageGroups: ['6-8'] },
 ]
 
 // ── Lookups ──────────────────────────────────────────────────────────────
