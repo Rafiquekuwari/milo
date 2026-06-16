@@ -3,23 +3,22 @@ import { persist, createJSONStorage } from 'zustand/middleware'
 import { kv } from './kv'
 import { getActiveLearner } from './supabase/useLearnerSession'
 import type { LearnerStats, LearnerProgress, LearnerState } from './supabase/types'
+import { CHAPTER_IDS, type ChapterType } from './chapters'
+
+// Chapter metadata now lives in the single registry (src/lib/chapters.ts).
+// Re-exported here so existing `@/lib/store` imports keep working.
+export type { ChapterType } from './chapters'
+export { CHAPTER_ORDER, CHAPTER_NAMES, CHAPTER_EMOJIS } from './chapters'
 
 // ─────────────────────────────────────────────────────────────
 //  Types
 // ─────────────────────────────────────────────────────────────
 
 export type AvatarIndex = 0 | 1 | 2 | 3
-export type ChapterType =
-  | 'counting' | 'numberOrdering' | 'numberRecognition'
-  | 'matchingQuantities' | 'numberComparison' | 'shapes'
-  | 'colors' | 'patterns' | 'addition' | 'subtraction' | 'measurement'
 
-export interface ChapterStars {
-  counting: number; numberOrdering: number; numberRecognition: number
-  matchingQuantities: number; numberComparison: number; shapes: number
-  colors: number; patterns: number; addition: number
-  subtraction: number; measurement: number
-}
+// One star count per chapter, keyed off the registry so new chapters are
+// covered automatically.
+export type ChapterStars = Record<ChapterType, number>
 
 export interface PlayerProfile {
   childName:         string
@@ -74,31 +73,6 @@ export function getLevelProgress(xp: number, level: number): number {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  Chapter metadata
-// ─────────────────────────────────────────────────────────────
-
-export const CHAPTER_ORDER: ChapterType[] = [
-  'counting', 'numberOrdering', 'numberRecognition', 'matchingQuantities',
-  'numberComparison', 'shapes', 'colors', 'patterns', 'addition', 'subtraction', 'measurement',
-]
-
-export const CHAPTER_NAMES: Record<ChapterType, string> = {
-  counting: 'Counting', numberOrdering: 'Number Order',
-  numberRecognition: 'Number Doors', matchingQuantities: 'Apple Basket',
-  numberComparison: 'Bigger or Smaller', shapes: 'Shape House',
-  colors: 'Color Garden', patterns: 'Patterns',
-  addition: 'Simple Addition', subtraction: 'Simple Subtraction',
-  measurement: 'Measurement',
-}
-
-export const CHAPTER_EMOJIS: Record<ChapterType, string> = {
-  counting: '🌟', numberOrdering: '🔢', numberRecognition: '🚪',
-  matchingQuantities: '🍎', numberComparison: '⚖️', shapes: '🏠',
-  colors: '🌈', patterns: '🔷', addition: '➕', subtraction: '➖',
-  measurement: '📏',
-}
-
-// ─────────────────────────────────────────────────────────────
 //  Scoring
 // ─────────────────────────────────────────────────────────────
 
@@ -119,11 +93,8 @@ function calcCoins(stars: number): number {
 //  Default profile
 // ─────────────────────────────────────────────────────────────
 
-const defaultChapterStars: ChapterStars = {
-  counting: 0, numberOrdering: 0, numberRecognition: 0,
-  matchingQuantities: 0, numberComparison: 0, shapes: 0,
-  colors: 0, patterns: 0, addition: 0, subtraction: 0, measurement: 0,
-}
+const defaultChapterStars: ChapterStars =
+  Object.fromEntries(CHAPTER_IDS.map(id => [id, 0])) as ChapterStars
 
 const defaultProfile: PlayerProfile = {
   childName: '', avatarIndex: 0, hasCompletedSetup: false,
@@ -361,9 +332,9 @@ export const useMiloStore = create<MiloStore>()(
       setIsSpeaking: (v) => set({ isSpeaking: v }),
 
       getNextChapter: (chapter) => {
-        const idx = CHAPTER_ORDER.indexOf(chapter)
-        if (idx === -1 || idx === CHAPTER_ORDER.length - 1) return null
-        return CHAPTER_ORDER[idx + 1]
+        const idx = CHAPTER_IDS.indexOf(chapter)
+        if (idx === -1 || idx === CHAPTER_IDS.length - 1) return null
+        return CHAPTER_IDS[idx + 1]
       },
     }),
     {

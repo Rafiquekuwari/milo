@@ -1,5 +1,6 @@
 // Auto-generated types matching our Supabase schema
 // Re-run: npx supabase gen types typescript --local > src/lib/supabase/types.ts
+import type { AgeGroup } from '../chapters'
 
 export type UserRole    = 'parent' | 'learner'
 export type InviteStatus = 'pending' | 'accepted' | 'expired'
@@ -29,12 +30,24 @@ export interface Database {
           display_name:  string
           avatar_index:  number
           date_of_birth: string | null
+          age_group:     AgeGroup
           created_by:    string
           created_at:    string
           updated_at:    string
         }
         Insert: Omit<Database['public']['Tables']['learners']['Row'], 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Database['public']['Tables']['learners']['Insert']>
+      }
+      chapters: {
+        Row: {
+          id:         string
+          name:       string
+          emoji:      string
+          sort_order: number
+          age_groups: AgeGroup[]
+        }
+        Insert: Database['public']['Tables']['chapters']['Row']
+        Update: Partial<Database['public']['Tables']['chapters']['Insert']>
       }
       learner_access: {
         Row: {

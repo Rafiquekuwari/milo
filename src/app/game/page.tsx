@@ -2,7 +2,7 @@
 export const dynamic = 'force-static'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
-import { useMiloStore } from '@/lib/store'
+import { useMiloStore, type ChapterType } from '@/lib/store'
 
 import { getActiveLearner } from '@/lib/supabase/useLearnerSession'
 import { setLastPlayed } from '@/lib/lastPlayed'
@@ -20,6 +20,24 @@ import MeasurementChapter from '@/components/game/MeasurementChapter'
 import CelebrationModal from '@/components/ui/CelebrationModal'
 import MiloPointer from '@/components/ui/MiloPointer'
 import { useChapterSync } from '@/lib/supabase/useChapterSync'
+
+// Maps each chapter id to its component. The set of chapters lives in the
+// registry (src/lib/chapters.ts); this map only wires ids → components, so a
+// new chapter needs one line here. TypeScript's Record enforces completeness.
+type ChapterProps = { onComplete: (correct: number, wrong: number) => void; childName: string }
+const CHAPTER_COMPONENTS: Record<ChapterType, React.ComponentType<ChapterProps>> = {
+  counting:           CountingChapter,
+  numberOrdering:     NumberOrderingChapter,
+  numberRecognition:  NumberDoorsChapter,
+  matchingQuantities: MatchingQuantitiesChapter,
+  numberComparison:   NumberComparisonChapter,
+  shapes:             ShapeHouseChapter,
+  colors:             ColorGardenChapter,
+  patterns:           PatternsChapter,
+  addition:           AdditionChapter,
+  subtraction:        SubtractionChapter,
+  measurement:        MeasurementChapter,
+}
 
 export default function GamePage() {
   const router         = useRouter()
@@ -124,21 +142,10 @@ export default function GamePage() {
     <div className="kit-screen" style={{ backgroundColor: stageBg.backgroundColor, backgroundImage: stageBg.backgroundImage, position: 'fixed', inset: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
       <div ref={fitRef} className="game-zoom" style={{ width: 'min(100vw, 680px)', ['--game-zoom' as any]: zoom } as React.CSSProperties}>
         {/* GameTopbar is rendered inside each chapter component */}
-        {!chapterDone && playingChapter && (
-          <>
-            {playingChapter === 'counting'            && <CountingChapter {...props} />}
-            {playingChapter === 'numberOrdering'      && <NumberOrderingChapter {...props} />}
-            {playingChapter === 'numberRecognition'   && <NumberDoorsChapter {...props} />}
-            {playingChapter === 'matchingQuantities'  && <MatchingQuantitiesChapter {...props} />}
-            {playingChapter === 'numberComparison'    && <NumberComparisonChapter {...props} />}
-            {playingChapter === 'shapes'              && <ShapeHouseChapter {...props} />}
-            {playingChapter === 'colors'              && <ColorGardenChapter {...props} />}
-            {playingChapter === 'patterns'            && <PatternsChapter {...props} />}
-            {playingChapter === 'addition'            && <AdditionChapter {...props} />}
-            {playingChapter === 'subtraction'         && <SubtractionChapter {...props} />}
-            {playingChapter === 'measurement'         && <MeasurementChapter {...props} />}
-          </>
-        )}
+        {!chapterDone && playingChapter && (() => {
+          const Chapter = CHAPTER_COMPONENTS[playingChapter]
+          return Chapter ? <Chapter {...props} /> : null
+        })()}
       </div>
     </div>
     {/* Modal + pointer live OUTSIDE the zoom wrapper so they stay full-screen and

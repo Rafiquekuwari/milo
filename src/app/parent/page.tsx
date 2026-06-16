@@ -11,17 +11,17 @@ import {
 import { setActiveLearner } from '@/lib/supabase/useLearnerSession'
 import { createClient } from '@/lib/supabase/client'
 import type { Learner, LearnerStats, LearnerProgress, Session, InviteWithLearner } from '@/lib/supabase/types'
+import { CHAPTER_IDS, CHAPTER_PARENT_LABELS, type AgeGroup } from '@/lib/chapters'
+
+const AGE_GROUP_OPTIONS: { value: AgeGroup; label: string; hint: string }[] = [
+  { value: '3-5', label: 'Ages 3–5', hint: 'Counting, shapes, first add & subtract' },
+  { value: '6-8', label: 'Ages 6–8', hint: 'Bigger numbers, place value, times & money' },
+]
 
 const AVATARS     = ['🦊', '🐰', '🐻', '🐱']
 const AVATAR_SRCS = ['/assets/objects/fox.png','/assets/objects/bunny.png','/assets/objects/bear.png','/assets/objects/cat.png']
-const CH_LABELS: Record<string, string> = {
-  counting: 'Counting', numberOrdering: 'Number Order',
-  numberRecognition: 'Number Doors', matchingQuantities: 'Apple Basket',
-  numberComparison: 'Bigger or Smaller', shapes: 'Shape House',
-  colors: 'Color Garden', addition: 'Addition', subtraction: 'Subtraction',
-  patterns: 'Patterns', measurement: 'Measurement',
-}
-const CHAPTERS    = Object.keys(CH_LABELS)
+const CH_LABELS: Record<string, string> = { ...CHAPTER_PARENT_LABELS }
+const CHAPTERS    = CHAPTER_IDS
 const LEVEL_NAMES = ['Beginner','Counter','Explorer','Number Star','Math Wizard','Champion',"Milo's Champion",'Legend']
 
 interface LearnerData {
@@ -360,6 +360,7 @@ export default function ParentDashboard() {
 function AddLearnerModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
   const [name,        setName]        = useState('')
   const [avatarIndex, setAvatarIndex] = useState(0)
+  const [ageGroup,    setAgeGroup]    = useState<AgeGroup>('3-5')
   const [loading,     setLoading]     = useState(false)
   const [error,       setError]       = useState<string | null>(null)
 
@@ -367,7 +368,7 @@ function AddLearnerModal({ onClose, onAdded }: { onClose: () => void; onAdded: (
     const trimmed = name.trim()
     if (!trimmed || trimmed.length < 2) { setError('Please enter a name (at least 2 characters)'); return }
     setLoading(true)
-    const learner = await createLearner(trimmed, avatarIndex)
+    const learner = await createLearner(trimmed, avatarIndex, ageGroup)
     if (!learner) { setError('Something went wrong. Please try again.'); setLoading(false); return }
     onAdded()
   }
@@ -383,6 +384,21 @@ function AddLearnerModal({ onClose, onAdded }: { onClose: () => void; onAdded: (
         </div>
         <input type="text" placeholder="Child's name" value={name} onChange={e => { setName(e.target.value); setError(null) }} onKeyDown={e => e.key === 'Enter' && handleAdd()} maxLength={30} autoFocus style={{ width:'100%', padding:'14px 16px', fontSize:16, fontWeight:600, border:`2px solid ${error?'#FCA5A5':'#e5e7eb'}`, borderRadius:14, outline:'none', boxSizing:'border-box', marginBottom:6 }} />
         {error && <p style={{ fontSize:13, color:'#EF4444', margin:'0 0 12px' }}>{error}</p>}
+
+        {/* Age group — decides which chapters this child sees */}
+        <p style={{ fontSize:13, fontWeight:700, color:'#6b7280', margin:'10px 0 8px' }}>Age group</p>
+        <div style={{ display:'flex', gap:10, marginBottom:4 }}>
+          {AGE_GROUP_OPTIONS.map(opt => {
+            const selected = ageGroup === opt.value
+            return (
+              <button key={opt.value} onClick={() => setAgeGroup(opt.value)} style={{ flex:1, textAlign:'left', padding:'12px 14px', borderRadius:14, cursor:'pointer', background:selected?'#FFF4D6':'#f3f4f6', border:selected?'3px solid #F26B2C':'2px solid transparent', transition:'all 0.15s' }}>
+                <div style={{ fontSize:15, fontWeight:800, color:'#1a1a1a' }}>{opt.label}</div>
+                <div style={{ fontSize:11, color:'#6b7280', lineHeight:1.3, marginTop:2 }}>{opt.hint}</div>
+              </button>
+            )
+          })}
+        </div>
+
         <button onClick={handleAdd} disabled={loading} style={{ width:'100%', padding:'16px', marginTop:12, background:loading?'#e5e7eb':'linear-gradient(135deg,#F26B2C 0%,#e05a1f 100%)', color:loading?'#9ca3af':'#fff', border:'none', borderRadius:50, fontSize:17, fontWeight:800, cursor:loading?'wait':'pointer' }}>
           {loading ? 'Adding...' : 'Add learner 🎉'}
         </button>
