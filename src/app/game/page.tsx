@@ -38,6 +38,8 @@ import DecimalsChapter from '@/components/game/DecimalsChapter'
 import MeasureUnitsChapter from '@/components/game/MeasureUnitsChapter'
 import AreaPerimeterChapter from '@/components/game/AreaPerimeterChapter'
 import AnglesSymmetryChapter from '@/components/game/AnglesSymmetryChapter'
+import DataGraphsChapter from '@/components/game/DataGraphsChapter'
+import WordProblemsChapter from '@/components/game/WordProblemsChapter'
 import CelebrationModal from '@/components/ui/CelebrationModal'
 import MiloPointer from '@/components/ui/MiloPointer'
 import { useChapterSync } from '@/lib/supabase/useChapterSync'
@@ -82,6 +84,8 @@ const CHAPTER_COMPONENTS: Record<ChapterType, React.ComponentType<ChapterProps>>
   measurementUnits:   MeasureUnitsChapter,
   areaPerimeter:      AreaPerimeterChapter,
   anglesSymmetry:     AnglesSymmetryChapter,
+  dataGraphs:         DataGraphsChapter,
+  wordProblems:       WordProblemsChapter,
 }
 
 export default function GamePage() {

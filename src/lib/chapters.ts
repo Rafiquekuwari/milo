@@ -26,7 +26,7 @@ export type ChapterType =
   | 'numbersTo100' | 'placeValue' | 'skipCounting' | 'storyProblems' | 'multiplication' | 'fractions' | 'money' | 'time'
   | 'compareNumbers' | 'additionTo100' | 'subtractionTo100' | 'shapes2d3d'
   // 9–11
-  | 'bigNumbers' | 'rounding' | 'timesTables' | 'division' | 'factorsMultiples' | 'fractionsCompare' | 'decimals' | 'measurementUnits' | 'areaPerimeter' | 'anglesSymmetry'
+  | 'bigNumbers' | 'rounding' | 'timesTables' | 'division' | 'factorsMultiples' | 'fractionsCompare' | 'decimals' | 'measurementUnits' | 'areaPerimeter' | 'anglesSymmetry' | 'dataGraphs' | 'wordProblems'
 
 export interface ChapterMeta {
   id:          ChapterType
@@ -80,6 +80,8 @@ export const CHAPTERS: ChapterMeta[] = [
   { id: 'measurementUnits',   name: 'Measurement',        parentLabel: 'Measurement',       emoji: '📏', asset: '/assets/objects/star.png',           hint: 'Units & conversions for length, mass, capacity!', ageGroups: ['9-11'] },
   { id: 'areaPerimeter',      name: 'Area & Perimeter',   parentLabel: 'Area & Perimeter',  emoji: '🟧', asset: '/assets/objects/star.png',           hint: 'Count squares and add the sides!', ageGroups: ['9-11'] },
   { id: 'anglesSymmetry',     name: 'Angles & Symmetry',  parentLabel: 'Angles & Symmetry', emoji: '📐', asset: '/assets/objects/star.png',           hint: 'Acute, right, obtuse & lines of symmetry!', ageGroups: ['9-11'] },
+  { id: 'dataGraphs',         name: 'Data & Graphs',      parentLabel: 'Data & Graphs',     emoji: '📊', asset: '/assets/objects/star.png',           hint: 'Read bar charts and pictographs!', ageGroups: ['9-11'] },
+  { id: 'wordProblems',       name: 'Word Problems',      parentLabel: 'Word Problems',     emoji: '🧩', asset: '/assets/objects/star.png',           hint: 'Read, then solve it step by step!', ageGroups: ['9-11'] },
 ]
 
 // ── Lookups ──────────────────────────────────────────────────────────────

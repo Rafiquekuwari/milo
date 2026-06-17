@@ -45,6 +45,7 @@ export const CSS = `
   @keyframes k_confetti { from{transform:translateY(-10px) rotate(0deg);opacity:1} to{transform:translateY(140px) rotate(540deg);opacity:0} }
   @keyframes k_countBadge { 0%{transform:scale(0) rotate(-20deg);opacity:0} 60%{transform:scale(1.4) rotate(5deg);opacity:1} 100%{transform:scale(1) rotate(0deg);opacity:1} }
   @keyframes k_sectionIn { 0%{transform:scale(0.4) rotate(-8deg);opacity:0} 60%{transform:scale(1.1) rotate(3deg);opacity:1} 100%{transform:scale(1) rotate(0deg);opacity:1} }
+  @keyframes k_symIn { from{opacity:0} to{opacity:1} }
 `
 
 const CONFETTI_COLORS = ['#E64545','#F26B2C','#FFC933','#6FBE3F','#5BC3F0','#9362D8']

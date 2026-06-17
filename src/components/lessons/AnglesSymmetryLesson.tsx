@@ -60,57 +60,65 @@ export function AngleWatch({ deg, intro, outro, onDone }: { deg: number; intro: 
   )
 }
 
-// ─── Symmetry: a dashed fold line ────────────────────────────
+// ─── Symmetry: a dashed fold line (fades in so each can be counted) ──
 function SymLine({ kind }: { kind: 'v' | 'h' | 'd1' | 'd2' }) {
-  if (kind === 'v') return <div style={{ position: 'absolute', top: -6, bottom: -6, left: '50%', borderLeft: '3px dashed var(--apple-red)' }} />
-  if (kind === 'h') return <div style={{ position: 'absolute', left: -6, right: -6, top: '50%', borderTop: '3px dashed var(--apple-red)' }} />
-  return <div style={{ position: 'absolute', top: '50%', left: '50%', width: '150%', borderTop: '3px dashed var(--apple-red)', transform: `translate(-50%,-50%) rotate(${kind === 'd1' ? 45 : -45}deg)` }} />
+  const anim = 'k_symIn 0.35s ease both'
+  if (kind === 'v') return <div style={{ position: 'absolute', top: -6, bottom: -6, left: '50%', borderLeft: '3px dashed var(--apple-red)', animation: anim }} />
+  if (kind === 'h') return <div style={{ position: 'absolute', left: -6, right: -6, top: '50%', borderTop: '3px dashed var(--apple-red)', animation: anim }} />
+  return <div style={{ position: 'absolute', top: '50%', left: '50%', width: '150%', borderTop: '3px dashed var(--apple-red)', transform: `translate(-50%,-50%) rotate(${kind === 'd1' ? 45 : -45}deg)`, animation: anim }} />
 }
-export function SymShape({ kind, show }: { kind: 'butterfly' | 'rectangle' | 'square'; show: boolean }) {
+
+// Fold lines in counting order per shape (a square = 4: across, down, two diagonals).
+const SYM_ORDER: Record<'butterfly' | 'rectangle' | 'square', Array<'v' | 'h' | 'd1' | 'd2'>> = {
+  butterfly: ['v'], rectangle: ['v', 'h'], square: ['v', 'h', 'd1', 'd2'],
+}
+
+/** `revealed` = how many fold lines to draw (0 = none, shape only). */
+export function SymShape({ kind, revealed }: { kind: 'butterfly' | 'rectangle' | 'square'; revealed: number }) {
+  const order = SYM_ORDER[kind]
   if (kind === 'butterfly') {
     return (
       <div style={{ position: 'relative', width: 120, height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ fontSize: 88 }}>🦋</div>
-        {show && <SymLine kind="v" />}
+        {order.slice(0, revealed).map(k => <SymLine key={k} kind={k} />)}
       </div>
     )
   }
   const w = kind === 'square' ? 104 : 124, h = kind === 'square' ? 104 : 76
   return (
     <div style={{ position: 'relative', width: w, height: h, background: 'var(--sky-blue-soft)', border: '3px solid var(--sky-blue-deep)', borderRadius: 6 }}>
-      {show && <SymLine kind="v" />}
-      {show && <SymLine kind="h" />}
-      {show && kind === 'square' && <SymLine kind="d1" />}
-      {show && kind === 'square' && <SymLine kind="d2" />}
+      {order.slice(0, revealed).map(k => <SymLine key={k} kind={k} />)}
     </div>
   )
 }
 
 // ─── Worked example: lines of symmetry ───────────────────────
 export function SymmetryWatch({ kind, count, label, intro, outro, onDone }: { kind: 'butterfly' | 'rectangle' | 'square'; count: number; label: string; intro: string; outro: string; onDone: () => void }) {
-  const [show, setShow] = useState(false)
+  const [revealed, setRevealed] = useState(0)   // fold lines drawn so far (ticks 0→count)
   const [done, setDone] = useState(false)
   const ran = useRef(false)
   useEffect(() => {
     if (ran.current) return; ran.current = true
-    const lines = [intro, `A ${label} has ${count} ${count === 1 ? 'line' : 'lines'} of symmetry!`, outro]
-    let started = false, finished = false
     const cl: Array<() => void> = []
     const at = (fn: () => void, ms: number) => { const id = window.setTimeout(fn, ms); cl.push(() => window.clearTimeout(id)) }
-    const apply = (i: number) => { if (i === 1) { setShow(true); setDone(true) } }
-    const complete = () => { if (finished) return; finished = true; at(onDone, 900) }
-    const cancel = speakSeq(lines, { onWord: i => { started = true; apply(i) }, onDone: complete })
-    cl.push(cancel)
-    at(() => { if (started || finished) return; cancel(); let t = 0; at(() => { setShow(true); setDone(true); speak(lines[1]) }, t); t += 2600; at(() => { speak(outro); complete() }, t) }, 1900)
+    // Reveal each fold line in turn so the child can COUNT them — a square's
+    // four lines drawn all at once look like eight spokes and read as "many".
+    const START = 700, STEP = 750
+    for (let k = 1; k <= count; k++) at(() => setRevealed(k), START + (k - 1) * STEP)
+    at(() => setDone(true), START + (count - 1) * STEP + 250)
+    // Narration runs alongside; the slide's completion is driven by the visual
+    // timeline so it never hangs waiting on blocked audio.
+    cl.push(speakSeq([intro, `A ${label} has ${count} ${count === 1 ? 'line' : 'lines'} of symmetry!`, outro], {}))
+    at(onDone, START + (count - 1) * STEP + 1500)
     return () => cl.forEach(f => f())
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18, position: 'relative' }}>
       {done && <Confetti />}
-      <SymShape kind={kind} show={show} />
+      <SymShape kind={kind} revealed={revealed} />
       <div style={{ height: 46, display: 'flex', alignItems: 'center' }}>
-        {done && <div style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 22, color: 'var(--garden-green-deep)', background: 'var(--garden-green-soft)', border: '3px solid var(--garden-green)', borderRadius: 50, padding: '8px 22px', animation: 'k_bounceIn 0.45s cubic-bezier(.34,1.56,.64,1)' }}>{count} {count === 1 ? 'line' : 'lines'}</div>}
+        {revealed >= 1 && <div key={revealed} style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 22, color: 'var(--garden-green-deep)', background: 'var(--garden-green-soft)', border: '3px solid var(--garden-green)', borderRadius: 50, padding: '8px 22px', animation: 'k_countBadge 0.4s cubic-bezier(.34,1.56,.64,1)' }}>{revealed} {revealed === 1 ? 'line' : 'lines'}</div>}
       </div>
     </div>
   )
@@ -182,9 +190,9 @@ function buildSteps(childName: string): LessonStep[] {
     { bubble: 'A square has FOUR! 🟦', mood: 'thinking',
       render: d => <SymmetryWatch kind="square" count={4} label="square" intro="A square folds four ways — even the diagonals match!" outro="Four lines of symmetry!" onDone={d} /> },
     { bubble: 'How many lines of symmetry? 👂', mood: 'thinking',
-      render: d => <ASPick prompt="How many lines of symmetry?" options={['1', '2', '4']} answer="2" visual={<SymShape kind="rectangle" show={false} />} intro="How many lines of symmetry does this rectangle have?" outro="Yes! Two!" onDone={d} /> },
+      render: d => <ASPick prompt="How many lines of symmetry?" options={['1', '2', '4']} answer="2" visual={<SymShape kind="rectangle" revealed={0} />} intro="How many lines of symmetry does this rectangle have?" outro="Yes! Two!" onDone={d} /> },
     { bubble: 'And this one? 👂', mood: 'thinking',
-      render: d => <ASPick prompt="How many lines of symmetry?" options={['1', '2', '4']} answer="4" visual={<SymShape kind="square" show={false} />} intro="How many lines of symmetry does this square have?" outro="Yes! Four!" onDone={d} /> },
+      render: d => <ASPick prompt="How many lines of symmetry?" options={['1', '2', '4']} answer="4" visual={<SymShape kind="square" revealed={0} />} intro="How many lines of symmetry does this square have?" outro="Yes! Four!" onDone={d} /> },
   ]
 }
 export default function AnglesSymmetryLesson({ childName, onLessonComplete }: Props) {
