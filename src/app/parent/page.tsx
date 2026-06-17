@@ -16,6 +16,7 @@ import { CHAPTER_IDS, CHAPTER_PARENT_LABELS, type AgeGroup } from '@/lib/chapter
 const AGE_GROUP_OPTIONS: { value: AgeGroup; label: string; hint: string }[] = [
   { value: '3-5', label: 'Ages 3–5', hint: 'Counting, shapes, first add & subtract' },
   { value: '6-8', label: 'Ages 6–8', hint: 'Bigger numbers, place value, times & money' },
+  { value: '9-11', label: 'Ages 9–11', hint: 'Division, decimals, fractions, area & data' },
 ]
 
 const AVATARS     = ['🦊', '🐰', '🐻', '🐱']
@@ -387,7 +388,7 @@ function AddLearnerModal({ onClose, onAdded }: { onClose: () => void; onAdded: (
 
         {/* Age group — decides which chapters this child sees */}
         <p style={{ fontSize:13, fontWeight:700, color:'#6b7280', margin:'10px 0 8px' }}>Age group</p>
-        <div style={{ display:'flex', gap:10, marginBottom:4 }}>
+        <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:4 }}>
           {AGE_GROUP_OPTIONS.map(opt => {
             const selected = ageGroup === opt.value
             return (

@@ -99,7 +99,7 @@ export default function NumberComparisonChapter({ onComplete, childName }: Props
     setWrongRun(newRun)
     const correctVal = round.answer==='a'?round.a:round.answer==='b'?round.b:round.c!
     if (ok) { setCorrect(c=>c+1); speakAt(round.mode==='more' ? `Yes! ${correctVal} is more! Great job!` : `Yes! ${correctVal} is fewer! Great job!`, answerRef.current) }
-    else    { setWrong(w=>w+1);   speakAt(round.mode==='more' ? `Oops! ${correctVal} is more.` : `Oops! ${correctVal} is fewer.`, answerRef.current) }
+    else    { setWrong(w=>w+1);   speakAt(round.mode==='more' ? `Almost! ${correctVal} is more.` : `Almost! ${correctVal} is fewer.`, answerRef.current) }
     afterSpeech(() => {
       setFeedback(null)
       if (!ok && newRun >= 3) {                      // struggling → re-teach this comparison
@@ -155,22 +155,23 @@ export default function NumberComparisonChapter({ onComplete, childName }: Props
             <button key={key} onClick={() => handleSelect(key)} disabled={!!selected}
               ref={isOk ? (el)=>{answerRef.current=el} : undefined} style={{
               ...S.card,
-              background: isSel ? (isOk ? 'var(--garden-green-soft)' : 'var(--apple-red-soft)') : 'var(--paper)',
-              borderColor: isSel ? (isOk ? 'var(--garden-green)' : 'var(--apple-red)') : 'var(--outline)',
-              transform: isSel ? 'scale(1.05)' : 'scale(1)',
+              background: (selected && isOk) ? 'var(--garden-green-soft)' : 'var(--paper)',
+              borderColor: (selected && isOk) ? 'var(--garden-green)' : isSel ? 'var(--ink-muted)' : 'var(--outline)',
+              boxShadow: `0 5px 0 ${(selected && isOk) ? 'var(--garden-green-deep)' : '#c8ac79'}`,
+              transform: ((selected && isOk) || isSel) ? 'scale(1.05)' : 'scale(1)',
             }}>
               <span style={{ fontFamily:'var(--font-display)', fontSize:64, fontWeight:700, color:'var(--ink)', lineHeight:1 }}>{val}</span>
               <div style={S.emojiGrid}>
                 {Array.from({ length: Math.min(val, 9) }).map((_, i) => <span key={i} style={{ fontSize:26 }}>{emoji}</span>)}
               </div>
-              {isSel && <span style={{ position:'absolute', top:-12, right:-12, fontSize:28 }}>{isOk?'✅':'❌'}</span>}
+              {isSel && <span style={{ position:'absolute', top:-12, right:-12, fontSize:28 }}>{isOk?'✅':''}</span>}
             </button>
           )
         })}
       </div>
 
-      {feedback && <div style={{position:'fixed',top:'38%',left:'50%',transform:'translate(-50%,-50%)',color:'#fff',fontFamily:'var(--font-display)',fontWeight:900,fontSize:'var(--t-h1)',padding:'20px 40px',borderRadius:24,border:'4px solid var(--outline)',boxShadow:'0 8px 0 rgba(61,37,22,.2)',zIndex:50,textAlign:'center',animation:'modal-in 280ms cubic-bezier(.34,1.56,.64,1) both',background:feedback==='correct'?'var(--garden-green)':'var(--apple-red)'}}>
-        {feedback==='correct'?'✅ Correct!':'❌ Try again!'}
+      {feedback && <div style={{position:'fixed',top:'38%',left:'50%',transform:'translate(-50%,-50%)',color:'#fff',fontFamily:'var(--font-display)',fontWeight:900,fontSize:'var(--t-h1)',padding:'20px 40px',borderRadius:24,border:'4px solid var(--outline)',boxShadow:'0 8px 0 rgba(61,37,22,.2)',zIndex:50,textAlign:'center',animation:'modal-in 280ms cubic-bezier(.34,1.56,.64,1) both',background:feedback==='correct'?'var(--garden-green)':'var(--milo-orange)'}}>
+        {feedback==='correct'?'✅ Correct!':"Let's look together! 🙂"}
       </div>}
       <p style={S.label}>Round {Math.min(roundIdx+1, TOTAL_ROUNDS)} of {TOTAL_ROUNDS}</p>
 

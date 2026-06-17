@@ -13,7 +13,7 @@ import { useChapterPhase } from '@/lib/useChapterPhase'
 import SpeakingLock from '@/components/ui/SpeakingLock'
 import GameTopbar from '../ui/GameTopbar'
 import { CSS as KIT_CSS } from '../lessons/_kit'
-import TimeLesson, { ClockFace, timeLabel, makeTimeChoices, TimeWatch, TimeAsk, timeBtn } from '../lessons/TimeLesson'
+import TimeLesson, { ClockFace, timeLabel, makeTimeChoices, TimeWatch, TimeAsk } from '../lessons/TimeLesson'
 
 interface Props { onComplete: (c: number, w: number) => void; childName: string }
 
@@ -62,7 +62,7 @@ export default function TimeChapter({ onComplete, childName }: Props) {
     const newRun = ok ? 0 : wrongRun + 1
     setWrongRun(newRun)
     if (ok) { setCorrect(c => c + 1); speakAt(`Yes! ${round.answer}! ${ada.praise}`, answerRef.current) }
-    else { setWrong(w => w + 1); speakAt(`It was ${round.answer}. ${ada.encouragement}`, answerRef.current) }
+    else { setWrong(w => w + 1); speakAt(`It's ${round.answer}. ${ada.encouragement}`, answerRef.current) }
     afterSpeech(() => {
       setFeedback(null)
       if (!ok && newRun >= 3) { setReMed({ phase: 'reteach', round }); return }
@@ -81,7 +81,7 @@ export default function TimeChapter({ onComplete, childName }: Props) {
   if (phase === 'lesson') return <TimeLesson childName={childName} onLessonComplete={startPractice} />
 
   const bubbleText = selected !== null
-    ? feedback === 'correct' ? '🎉 Correct!' : `It was ${round.answer}.`
+    ? feedback === 'correct' ? '🎉 Correct!' : `It's ${round.answer} — now you know.`
     : 'What time is it?'
 
   return (
@@ -108,17 +108,24 @@ export default function TimeChapter({ onComplete, childName }: Props) {
       <div style={S.choicesCol}>
         {round.choices.map(ch => {
           const isSel = selected === ch, isOk = ch === round.answer
-          const showState = isSel || (selected !== null && isOk)
           return (
             <button key={ch} disabled={selected !== null} onClick={() => handleAnswer(ch)}
               ref={isOk ? (el) => { answerRef.current = el } : undefined}
-              style={timeBtn(showState && isOk, isSel && !isOk)}>{ch}</button>
+              style={{
+                padding: '13px 18px', borderRadius: 16, width: '100%',
+                background: (selected !== null && isOk) ? 'var(--garden-green-soft)' : 'var(--paper)',
+                border: `4px solid ${(selected !== null && isOk) ? 'var(--garden-green)' : isSel ? 'var(--ink-muted)' : 'var(--outline)'}`,
+                boxShadow: `0 5px 0 ${(selected !== null && isOk) ? 'var(--garden-green-deep)' : '#c8ac79'}`,
+                fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 20, color: 'var(--ink)',
+                cursor: selected !== null ? 'default' : 'pointer', transition: 'transform 140ms ease,background 140ms ease',
+                transform: ((selected !== null && isOk) || isSel) ? 'scale(1.04)' : 'scale(1)',
+              }}>{ch}</button>
           )
         })}
       </div>
 
-      {feedback && <div style={{ ...S.flash, background: feedback === 'correct' ? 'var(--garden-green)' : 'var(--apple-red)' }}>
-        {feedback === 'correct' ? '✅ Yes!' : `It was ${round.answer}`}
+      {feedback && <div style={{ ...S.flash, background: feedback === 'correct' ? 'var(--garden-green)' : 'var(--milo-orange)' }}>
+        {feedback === 'correct' ? '✅ Yes!' : `It's ${round.answer} — now you know! 🙂`}
       </div>}
       <p style={S.roundLabel}>Round {Math.min(roundIdx + 1, TOTAL_ROUNDS)} of {TOTAL_ROUNDS}</p>
 

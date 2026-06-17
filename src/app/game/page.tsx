@@ -28,9 +28,20 @@ import TimeChapter from '@/components/game/TimeChapter'
 import CompareChapter from '@/components/game/CompareChapter'
 import { AdditionTo100Chapter, SubtractionTo100Chapter } from '@/components/game/ArithmeticChapter'
 import Shapes2D3DChapter from '@/components/game/Shapes2D3DChapter'
+import BigNumbersChapter from '@/components/game/BigNumbersChapter'
+import RoundingChapter from '@/components/game/RoundingChapter'
+import TimesTablesChapter from '@/components/game/TimesTablesChapter'
+import DivisionChapter from '@/components/game/DivisionChapter'
+import FactorsChapter from '@/components/game/FactorsChapter'
+import FractionsCompareChapter from '@/components/game/FractionsCompareChapter'
+import DecimalsChapter from '@/components/game/DecimalsChapter'
+import MeasureUnitsChapter from '@/components/game/MeasureUnitsChapter'
+import AreaPerimeterChapter from '@/components/game/AreaPerimeterChapter'
+import AnglesSymmetryChapter from '@/components/game/AnglesSymmetryChapter'
 import CelebrationModal from '@/components/ui/CelebrationModal'
 import MiloPointer from '@/components/ui/MiloPointer'
 import { useChapterSync } from '@/lib/supabase/useChapterSync'
+import { track } from '@/lib/analytics'
 
 // Maps each chapter id to its component. The set of chapters lives in the
 // registry (src/lib/chapters.ts); this map only wires ids → components, so a
@@ -60,6 +71,17 @@ const CHAPTER_COMPONENTS: Record<ChapterType, React.ComponentType<ChapterProps>>
   additionTo100:      AdditionTo100Chapter,
   subtractionTo100:   SubtractionTo100Chapter,
   shapes2d3d:         Shapes2D3DChapter,
+  // 9–11
+  bigNumbers:         BigNumbersChapter,
+  rounding:           RoundingChapter,
+  timesTables:        TimesTablesChapter,
+  division:           DivisionChapter,
+  factorsMultiples:   FactorsChapter,
+  fractionsCompare:   FractionsCompareChapter,
+  decimals:           DecimalsChapter,
+  measurementUnits:   MeasureUnitsChapter,
+  areaPerimeter:      AreaPerimeterChapter,
+  anglesSymmetry:     AnglesSymmetryChapter,
 }
 
 export default function GamePage() {
@@ -136,6 +158,7 @@ export default function GamePage() {
   useEffect(() => {
     if (currentChapter) {
       setPlayingChapter(currentChapter)
+      track('chapter_open', { chapter: currentChapter })
       setChapterDone(false)
       setReady(true)
       return
@@ -150,6 +173,7 @@ export default function GamePage() {
   async function handleComplete(correct: number, wrong: number) {
     if (!playingChapter) return
     setChapterDone(true)
+    track('practice_complete', { chapter: playingChapter, correct, wrong })
     // Works offline — queues locally (IndexedDB via kv) if no network
     await finishAndSync(playingChapter, correct, wrong, 'practice')
   }

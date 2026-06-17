@@ -201,10 +201,10 @@ function ChoiceBtn({ opt, chosen, isCorrect, revealed, onClick, innerRef }:
   return (
     <button ref={innerRef} onClick={onClick} disabled={revealed} style={{
       flex:1, minWidth:130, maxWidth:220, padding:'18px 12px',
-      background: correct ? 'var(--garden-green-soft)' : wrong ? 'var(--apple-red-soft)' : showRight ? 'var(--garden-green-soft)' : 'var(--paper)',
-      border: `4px solid ${correct ? 'var(--garden-green)' : wrong ? 'var(--apple-red)' : showRight ? 'var(--garden-green)' : opt.color}`,
+      background: correct ? 'var(--garden-green-soft)' : showRight ? 'var(--garden-green-soft)' : 'var(--paper)',
+      border: `4px solid ${correct ? 'var(--garden-green)' : wrong ? 'var(--ink-muted)' : showRight ? 'var(--garden-green)' : opt.color}`,
       borderRadius: 28,
-      boxShadow: correct ? '0 6px 0 var(--garden-green-deep)' : wrong ? '0 6px 0 var(--apple-red-deep)' : `0 6px 0 ${opt.color}`,
+      boxShadow: correct ? '0 6px 0 var(--garden-green-deep)' : wrong ? '0 6px 0 #c8ac79' : showRight ? '0 6px 0 var(--garden-green-deep)' : `0 6px 0 ${opt.color}`,
       cursor: revealed ? 'default' : 'pointer',
       display:'flex', flexDirection:'column', alignItems:'center', gap:6,
       transform: chosen ? 'scale(1.06) translateY(-4px)' : 'scale(1)',
@@ -217,7 +217,6 @@ function ChoiceBtn({ opt, chosen, isCorrect, revealed, onClick, innerRef }:
       <span style={{ fontSize:52, lineHeight:1 }}>{opt.emoji}</span>
       <span style={{ fontFamily:'var(--font-display)', fontWeight:900, fontSize:20, color:'var(--ink)' }}>{opt.label}</span>
       {correct && <span style={{ fontSize:28 }}>✅</span>}
-      {wrong   && <span style={{ fontSize:28 }}>❌</span>}
       {showRight && <span style={{ fontSize:20, fontFamily:'var(--font-body)', fontWeight:800, color:'var(--garden-green-deep)' }}>← Correct!</span>}
     </button>
   )
@@ -278,7 +277,7 @@ export default function MeasurementChapter({ onComplete, childName }: Props) {
       speakAt(`Yes! The ${winner.label} is ${word}! ${ada.praise}`, answerRef.current)
     } else {
       setWrong(w => w + 1)
-      speakAt(`Not quite! The ${winner.label} was ${word}. ${ada.encouragement}`, answerRef.current)
+      speakAt(`Almost! It's the ${winner.label} — now you know. ${ada.encouragement}`, answerRef.current)
     }
 
     afterSpeech(() => {
@@ -333,7 +332,7 @@ export default function MeasurementChapter({ onComplete, childName }: Props) {
           {selected
             ? feedback === 'correct'
               ? `🎉 Correct! The ${(round.answer==='a'?round.a:round.b).label} is the answer!`
-              : `The ${(round.answer==='a'?round.a:round.b).label} was right!`
+              : `Almost! It's the ${(round.answer==='a'?round.a:round.b).label} — now you know.`
             : round.question}
         </div>
       </div>
@@ -370,13 +369,13 @@ export default function MeasurementChapter({ onComplete, childName }: Props) {
       {feedback && (
         <div style={{
           position:'fixed', top:'38%', left:'50%', transform:'translate(-50%,-50%)',
-          background: feedback==='correct' ? 'var(--garden-green)' : 'var(--apple-red)',
+          background: feedback==='correct' ? 'var(--garden-green)' : 'var(--milo-orange)',
           color:'#fff', fontFamily:'var(--font-display)', fontWeight:900, fontSize:38,
           padding:'18px 44px', borderRadius:28, border:'4px solid var(--outline)',
           boxShadow:'0 8px 0 rgba(61,37,22,.2)', zIndex:50, textAlign:'center',
           animation:'modal-in 280ms cubic-bezier(.34,1.56,.64,1) both',
         }}>
-          {feedback==='correct' ? '✅ That\'s right!' : '❌ Not quite!'}
+          {feedback==='correct' ? '✅ That\'s right!' : 'Let\'s look together! 🙂'}
         </div>
       )}
 

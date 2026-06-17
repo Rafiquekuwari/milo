@@ -80,7 +80,7 @@ export default function ShapeHouseChapter({ onComplete, childName }: Props) {
       speakAt(`Yes! That's the ${SHAPES[round.target].label}! ${ada.praise}`, answerRef.current)
     } else {
       setWrong(w => w + 1)
-      speakAt(`That's a ${SHAPES[name].label}. We wanted the ${SHAPES[round.target].label}. ${ada.encouragement}`, answerRef.current)
+      speakAt(`Almost! That's a ${SHAPES[name].label}. We were looking for the ${SHAPES[round.target].label}. ${ada.encouragement}`, answerRef.current)
     }
     afterSpeech(() => {
       setFeedback(null)
@@ -125,7 +125,7 @@ export default function ShapeHouseChapter({ onComplete, childName }: Props) {
           {picked
             ? feedback === 'correct'
               ? `🎉 Yes! That's the ${SHAPES[round.target].label}!`
-              : `That was the ${SHAPES[round.target].label}!`
+              : `Almost! It's the ${SHAPES[round.target].label} — now you know! 🙂`
             : <>Tap the <strong style={{color:COLORS[round.target],textTransform:'capitalize'}}>{SHAPES[round.target].label}</strong>!</>}
         </div>
       </div>
@@ -146,29 +146,28 @@ export default function ShapeHouseChapter({ onComplete, childName }: Props) {
               ref={isTarget ? (el) => { answerRef.current = el } : undefined}
               style={{
               ...S.optBtn,
-              background: isPicked
-                ? (isTarget ? 'var(--garden-green-soft)' : 'var(--apple-red-soft)')
-                : showRight ? 'var(--garden-green-soft)' : 'var(--paper)',
-              borderColor: isPicked
-                ? (isTarget ? 'var(--garden-green)' : 'var(--apple-red)')
-                : showRight ? 'var(--garden-green)' : 'var(--outline)',
-              boxShadow: isPicked
-                ? `0 6px 0 ${isTarget ? 'var(--garden-green-deep)' : 'var(--apple-red-deep)'}`
+              background: (picked && isTarget)
+                ? 'var(--garden-green-soft)'
+                : isPicked ? 'var(--bg-page)' : 'var(--paper)',
+              borderColor: (picked && isTarget)
+                ? 'var(--garden-green)'
+                : isPicked ? 'var(--ink-muted)' : 'var(--outline)',
+              boxShadow: (picked && isTarget)
+                ? '0 6px 0 var(--garden-green-deep)'
                 : '0 6px 0 #c8ac79',
-              transform: isPicked ? 'scale(1.08) translateY(-3px)' : 'scale(1)',
+              transform: ((picked && isTarget) || isPicked) ? 'scale(1.08) translateY(-3px)' : 'scale(1)',
               cursor: picked ? 'default' : 'pointer',
             }}>
               <ShapeSVG name={n} size={68}/>
               {isPicked && isTarget && <span style={S.tick}>✅</span>}
-              {isPicked && !isTarget && <span style={S.tick}>❌</span>}
             </button>
           )
         })}
       </div>
 
       {feedback && (
-        <div style={{...S.flash, background: feedback==='correct' ? 'var(--garden-green)' : 'var(--apple-red)'}}>
-          {feedback==='correct' ? `🎉 ${SHAPES[round.target].label}!` : `It was the ${SHAPES[round.target].label}`}
+        <div style={{...S.flash, background: feedback==='correct' ? 'var(--garden-green)' : 'var(--milo-orange)'}}>
+          {feedback==='correct' ? `🎉 ${SHAPES[round.target].label}!` : `It's the ${SHAPES[round.target].label} — now you know! 🙂`}
         </div>
       )}
 

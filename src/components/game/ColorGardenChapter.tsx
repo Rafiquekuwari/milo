@@ -104,7 +104,7 @@ export default function ColorGardenChapter({ onComplete, childName }: Props) {
     const newRun = ok ? 0 : wrongRun + 1
     setWrongRun(newRun)
     if (ok) { setCorrect(c=>c+1); speakAt(`Yes! ${color.name}! ${ada.praise}`, answerRef.current) }
-    else    { setWrong(w=>w+1);   speakAt(`Oops! The answer was ${round.targetColor.name}. ${ada.encouragement}`, answerRef.current); window.setTimeout(()=>setFlowerColor(round.targetColor.hex), 500) }
+    else    { setWrong(w=>w+1);   speakAt(`Almost! It's ${round.targetColor.name} — now you know. ${ada.encouragement}`, answerRef.current); window.setTimeout(()=>setFlowerColor(round.targetColor.hex), 500) }
     afterSpeech(() => {
       setFeedback(null)
       // 3 wrong in a row → re-teach this colour, then check
@@ -170,19 +170,19 @@ export default function ColorGardenChapter({ onComplete, childName }: Props) {
               style={{
               ...S.bucket,
               background: color.hex,
-              borderColor: isSel ? (isOk?'var(--garden-green)':'var(--apple-red)') : 'var(--outline)',
+              borderColor: isSel ? (isOk?'var(--garden-green)':'var(--ink-muted)') : 'var(--outline)',
               transform: isSel ? 'scale(1.1) translateY(-6px)' : 'scale(1)',
               boxShadow: `0 5px 0 ${color.hex}aa`,
             }}>
               🪣
               <span style={{ fontFamily:'var(--font-body)', fontSize:12, fontWeight:700, color:'#fff', textShadow:'0 1px 2px rgba(0,0,0,.4)', textTransform:'capitalize' }}>{color.name}</span>
-              {isSel && <span style={{ position:'absolute', top:-12, right:-12, fontSize:24 }}>{isOk?'✅':'❌'}</span>}
+              {isSel && <span style={{ position:'absolute', top:-12, right:-12, fontSize:24 }}>{isOk?'✅':''}</span>}
             </button>
           )
         })}
       </div>
 
-      {feedback && <div style={{position:'fixed',top:'38%',left:'50%',transform:'translate(-50%,-50%)',color:'#fff',fontFamily:'var(--font-display)',fontWeight:900,fontSize:'var(--t-h1)',padding:'20px 40px',borderRadius:24,border:'4px solid var(--outline)',boxShadow:'0 8px 0 rgba(61,37,22,.2)',zIndex:50,textAlign:'center',animation:'modal-in 280ms cubic-bezier(.34,1.56,.64,1) both',background:feedback==='correct'?'var(--garden-green)':'var(--apple-red)'}}>{feedback==='correct'?`🌸 ${round.targetColor.name}!`:`It was ${round.targetColor.name}!`}</div>}
+      {feedback && <div style={{position:'fixed',top:'38%',left:'50%',transform:'translate(-50%,-50%)',color:'#fff',fontFamily:'var(--font-display)',fontWeight:900,fontSize:'var(--t-h1)',padding:'20px 40px',borderRadius:24,border:'4px solid var(--outline)',boxShadow:'0 8px 0 rgba(61,37,22,.2)',zIndex:50,textAlign:'center',animation:'modal-in 280ms cubic-bezier(.34,1.56,.64,1) both',background:feedback==='correct'?'var(--garden-green)':'var(--milo-orange)'}}>{feedback==='correct'?`🌸 ${round.targetColor.name}!`:`It's ${round.targetColor.name} — now you know! 🙂`}</div>}
       <p style={S.label}>Round {Math.min(roundIdx+1,TOTAL_ROUNDS)} of {TOTAL_ROUNDS}</p>
 
       {reMed?.phase==='reteach' && (
@@ -266,7 +266,7 @@ function CheckColor({color,shapeKey,onDone}:{color:ColorDef;shapeKey:string;onDo
           return (
             <button key={c.name} onClick={()=>pick(c)} disabled={picked!=null} style={{
               width:90,height:100,borderRadius:20,background:c.hex,
-              border:`4px solid ${isRight?'var(--garden-green)':isWrong?'var(--apple-red)':'var(--outline)'}`,
+              border:`4px solid ${isRight?'var(--garden-green)':isWrong?'var(--ink-muted)':'var(--outline)'}`,
               boxShadow:`0 5px 0 ${c.hex}aa`,cursor:picked!=null?'default':'pointer',
               display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:4,fontSize:38,position:'relative',
               transform:isRight?'scale(1.1) translateY(-6px)':'scale(1)',transition:'transform 160ms cubic-bezier(.34,1.56,.64,1)',

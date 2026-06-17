@@ -95,7 +95,7 @@ export default function Shapes2D3DChapter({ onComplete, childName }: Props) {
   if (phase === 'lesson') return <Shapes2D3DLesson childName={childName} onLessonComplete={startPractice} />
 
   const bubbleText = selected !== null
-    ? feedback === 'correct' ? '🎉 Correct!' : `It was ${round.answer}.`
+    ? feedback === 'correct' ? '🎉 Correct!' : `It's ${round.answer} — now you know.`
     : round.mode === 'name' ? 'What shape is this?' : 'How many sides?'
 
   return (
@@ -126,20 +126,20 @@ export default function Shapes2D3DChapter({ onComplete, childName }: Props) {
             <button key={String(ch)} disabled={selected !== null} onClick={() => handleAnswer(ch)}
               ref={isOk ? (el) => { answerRef.current = el } : undefined} style={{
                 minWidth: 92, height: 76, padding: '0 18px',
-                background: isSel ? (isOk ? 'var(--garden-green-soft)' : 'var(--apple-red-soft)') : 'var(--paper)',
-                border: `4px solid ${isSel ? (isOk ? 'var(--garden-green)' : 'var(--apple-red)') : 'var(--outline)'}`,
-                borderRadius: 20, boxShadow: isSel ? `0 6px 0 ${isOk ? 'var(--garden-green-deep)' : 'var(--apple-red-deep)'}` : '0 6px 0 #c8ac79',
+                background: (selected !== null && isOk) ? 'var(--garden-green-soft)' : 'var(--paper)',
+                border: `4px solid ${(selected !== null && isOk) ? 'var(--garden-green)' : isSel ? 'var(--ink-muted)' : 'var(--outline)'}`,
+                borderRadius: 20, boxShadow: `0 6px 0 ${(selected !== null && isOk) ? 'var(--garden-green-deep)' : '#c8ac79'}`,
                 fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: round.mode === 'name' ? 20 : 32, color: 'var(--ink)',
                 cursor: selected !== null ? 'default' : 'pointer', textTransform: 'capitalize',
-                transform: isSel ? 'scale(1.08) translateY(-3px)' : 'scale(1)',
+                transform: ((selected !== null && isOk) || isSel) ? 'scale(1.08) translateY(-3px)' : 'scale(1)',
                 transition: 'transform 160ms cubic-bezier(.34,1.56,.64,1),background 160ms ease',
               }}>{ch}</button>
           )
         })}
       </div>
 
-      {feedback && <div style={{ ...S.flash, background: feedback === 'correct' ? 'var(--garden-green)' : 'var(--apple-red)', textTransform: 'capitalize' }}>
-        {feedback === 'correct' ? '✅ Yes!' : `${round.answer}`}
+      {feedback && <div style={{ ...S.flash, background: feedback === 'correct' ? 'var(--garden-green)' : 'var(--milo-orange)', textTransform: 'capitalize' }}>
+        {feedback === 'correct' ? '✅ Yes!' : `It's ${round.answer} — now you know! 🙂`}
       </div>}
       <p style={S.roundLabel}>Round {Math.min(roundIdx + 1, TOTAL_ROUNDS)} of {TOTAL_ROUNDS}</p>
 

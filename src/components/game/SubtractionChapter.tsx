@@ -74,7 +74,7 @@ export default function SubtractionChapter({onComplete,childName}:Props){
     const newRun=ok?0:wrongRun+1
     setWrongRun(newRun)
     if(ok){setCorrect(c=>c+1);speakAt(`Yes! ${total} minus ${take} is ${ans}! ${ada.praise}`, answerRef.current)}
-    else  {setWrong(w=>w+1);speakAt(`${total} take away ${take} equals ${ans}. ${ada.encouragement}`, answerRef.current)}
+    else  {setWrong(w=>w+1);speakAt(`Almost! ${total} take away ${take} is ${ans} — now you know. ${ada.encouragement}`, answerRef.current)}
     afterSpeech(()=>{
       setFeedback(null)
       // 3 wrong in a row → re-teach this take-away, then check
@@ -114,7 +114,7 @@ export default function SubtractionChapter({onComplete,childName}:Props){
           alt="Milo" style={S.milo} onError={e=>{(e.target as HTMLImageElement).style.display='none'}}/>
         <div className="milo-bubble" style={{flex:1,fontSize:20}}>
           {selected!==null
-            ?feedback==='correct'?`🎉 ${total} − ${take} = ${ans}!`:`The answer was ${ans}!`
+            ?feedback==='correct'?`🎉 ${total} − ${take} = ${ans}!`:`It's ${ans} — now you know.`
             :stage==='showAll'?`There are ${total} ${theme.subject}!`
             :stage==='takeAway'?theme.lineB(take)
             :`How many ${theme.subject} are left?`}
@@ -122,7 +122,7 @@ export default function SubtractionChapter({onComplete,childName}:Props){
       </div>
       {/* Equation */}
       <div style={S.eq}>
-        {[{v:total,col:'var(--milo-orange)',dep:'var(--milo-orange-deep)'},{v:null,col:'',dep:''},{v:take,col:'var(--apple-red)',dep:'var(--apple-red-deep)'},{v:null,col:'',dep:''},{v:selected!==null?ans:null,col:feedback==='correct'?'var(--garden-green)':feedback==='wrong'?'var(--apple-red)':'var(--milo-orange)',dep:''}]
+        {[{v:total,col:'var(--milo-orange)',dep:'var(--milo-orange-deep)'},{v:null,col:'',dep:''},{v:take,col:'var(--apple-red)',dep:'var(--apple-red-deep)'},{v:null,col:'',dep:''},{v:selected!==null?ans:null,col:selected!==null?'var(--garden-green)':'var(--milo-orange)',dep:''}]
           .map((item,i)=>i%2===1
             ?<span key={i} style={{fontFamily:'var(--font-display)',fontWeight:900,fontSize:36,color:'var(--ink-soft)'}}>{i===1?'−':'='}</span>
             :<div key={i} style={{textAlign:'center'}}>
@@ -192,12 +192,12 @@ export default function SubtractionChapter({onComplete,childName}:Props){
             return(
               <button key={ch} disabled={selected!==null} onClick={()=>handleAnswer(ch)}
                 ref={isOk ? (el)=>{answerRef.current=el} : undefined} style={{
-                width:96,height:96,background:isSel?(isOk?'var(--garden-green-soft)':'var(--apple-red-soft)'):'var(--paper)',
-                border:`4px solid ${isSel?(isOk?'var(--garden-green)':'var(--apple-red)'):'var(--outline)'}`,
-                borderRadius:24,boxShadow:isSel?`0 6px 0 ${isOk?'var(--garden-green-deep)':'var(--apple-red-deep)'}`:'0 6px 0 #c8ac79',
+                width:96,height:96,background:(selected!==null&&isOk)?'var(--garden-green-soft)':'var(--paper)',
+                border:`4px solid ${(selected!==null&&isOk)?'var(--garden-green)':isSel?'var(--ink-muted)':'var(--outline)'}`,
+                borderRadius:24,boxShadow:`0 6px 0 ${(selected!==null&&isOk)?'var(--garden-green-deep)':'#c8ac79'}`,
                 fontFamily:'var(--font-display)',fontWeight:900,fontSize:42,color:'var(--ink)',
                 cursor:selected!==null?'default':'pointer',
-                transform:isSel?'scale(1.1) translateY(-4px)':'scale(1)',
+                transform:((selected!==null&&isOk)||isSel)?'scale(1.1) translateY(-4px)':'scale(1)',
                 transition:'transform 160ms cubic-bezier(.34,1.56,.64,1),background 160ms ease'}}
                 onMouseDown={e=>{if(!selected)(e.currentTarget.style.transform='translateY(6px)')}}
                 onMouseUp={e=>{if(!selected)(e.currentTarget.style.transform='')}}
@@ -207,8 +207,8 @@ export default function SubtractionChapter({onComplete,childName}:Props){
           })}
         </div>
       )}
-      {feedback&&<div style={{...S.flash,background:feedback==='correct'?'var(--garden-green)':'var(--apple-red)'}}>
-        {feedback==='correct'?`✅ ${total} − ${take} = ${ans}!`:`The answer was ${ans}`}
+      {feedback&&<div style={{...S.flash,background:feedback==='correct'?'var(--garden-green)':'var(--milo-orange)'}}>
+        {feedback==='correct'?`✅ ${total} − ${take} = ${ans}!`:`It's ${ans} — now you know! 🙂`}
       </div>}
       <p style={S.roundLabel}>Round {Math.min(roundIdx+1,TOTAL_ROUNDS)} of {TOTAL_ROUNDS}</p>
 

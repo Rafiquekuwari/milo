@@ -50,6 +50,7 @@ export default function NumberOrderingChapter({ onComplete, childName }: Props) 
   const [round, setRound]       = useState<Round>(()=>buildRound(0,1))
   const [tapped, setTapped]     = useState<number[]>([])
   const [answered, setAnswered] = useState(false)
+  const [selected, setSelected] = useState<number|null>(null)
   const [correct, setCorrect]   = useState(0)
   const [wrong, setWrong]       = useState(0)
   const [feedback, setFeedback] = useState<'correct'|'wrong'|null>(null)
@@ -69,7 +70,7 @@ export default function NumberOrderingChapter({ onComplete, childName }: Props) 
   useEffect(() => {
     if (phase !== 'practice') return   // don't build/speak a round over the lesson
     const r = buildRound(roundIdx % 5, ada.difficulty)
-    setRound(r); setTapped([]); setAnswered(false)
+    setRound(r); setTapped([]); setAnswered(false); setSelected(null)
     window.setTimeout(() => {
       if (r.type === 'tapInOrder') speakAfterCurrent(roundIdx===0?`Let's put numbers in order! Tap from smallest to biggest!`:`Tap the numbers in order!`)
       else if (r.type === 'fillMissing') speakAfterCurrent(`Which number is missing?`)
@@ -106,14 +107,14 @@ export default function NumberOrderingChapter({ onComplete, childName }: Props) 
       }
     } else {
       setWrong(w=>w+1); ada.record(false); setFeedback('wrong')
-      speak(`Oops! Next is ${round.sequence[tapped.length]}`)
+      speak(`Almost! Next is ${round.sequence[tapped.length]}`)
       window.setTimeout(()=>setFeedback(null), 900)
     }
   }
 
   function handleChoice(choice: number) {
     if (answered) return
-    setAnswered(true)
+    setAnswered(true); setSelected(choice)
     const ok = choice === round.answer
     setFeedback(ok?'correct':'wrong')
     ada.record(ok)
@@ -185,18 +186,30 @@ export default function NumberOrderingChapter({ onComplete, childName }: Props) 
       {/* Choice buttons */}
       {round.type!=='tapInOrder'&&(
         <div style={S.choiceRow}>
-          {round.choices.map(c=>(
-            <button key={c} className="milo-btn tone-blue" onClick={()=>handleChoice(c)} disabled={answered}
-              ref={c===round.answer ? (el)=>{answerRef.current=el} : undefined}
-              style={{width:88,height:88,fontSize:38,borderRadius:22}}>
-              {c}
-            </button>
-          ))}
+          {round.choices.map(c=>{
+            const isSel = selected===c, isOk = c===round.answer
+            return (
+              <button key={c} onClick={()=>handleChoice(c)} disabled={answered}
+                ref={isOk ? (el)=>{answerRef.current=el} : undefined}
+                style={{
+                  width:88,height:88,fontSize:38,borderRadius:22,
+                  background:(answered&&isOk)?'var(--garden-green-soft)':'var(--paper)',
+                  border:`4px solid ${(answered&&isOk)?'var(--garden-green)':isSel?'var(--ink-muted)':'var(--outline)'}`,
+                  boxShadow:`0 6px 0 ${(answered&&isOk)?'var(--garden-green-deep)':'#c8ac79'}`,
+                  fontFamily:'var(--font-display)',fontWeight:900,color:'var(--ink)',
+                  cursor:answered?'default':'pointer',
+                  transform:((answered&&isOk)||isSel)?'scale(1.08) translateY(-4px)':'scale(1)',
+                  transition:'transform 160ms cubic-bezier(.34,1.56,.64,1),background 160ms ease',
+                }}>
+                {c}
+              </button>
+            )
+          })}
         </div>
       )}
 
-      {feedback&&<div style={{...S.flash,background:feedback==='correct'?'var(--garden-green)':'var(--apple-red)'}}>
-        {feedback==='correct'?'✅ Correct!':'❌ Try again!'}
+      {feedback&&<div style={{...S.flash,background:feedback==='correct'?'var(--garden-green)':'var(--milo-orange)'}}>
+        {feedback==='correct'?'✅ Correct!':"Let's look together! 🙂"}
       </div>}
       <p style={S.label}>Round {Math.min(roundIdx+1,TOTAL_ROUNDS)} of {TOTAL_ROUNDS}</p>
 

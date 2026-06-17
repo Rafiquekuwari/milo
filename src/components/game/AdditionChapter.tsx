@@ -80,7 +80,7 @@ export default function AdditionChapter({onComplete,childName}:Props){
     const newRun=ok?0:wrongRun+1
     setWrongRun(newRun)
     if(ok){setCorrect(c=>c+1);speakAt(`Yes! ${a} plus ${b} is ${ans}! ${ada.praise}`, answerRef.current)}
-    else  {setWrong(w=>w+1);speakAt(`${a} plus ${b} equals ${ans}. ${ada.encouragement}`, answerRef.current)}
+    else  {setWrong(w=>w+1);speakAt(`${a} plus ${b} is ${ans} — now you know. ${ada.encouragement}`, answerRef.current)}
     afterSpeech(()=>{
       setFeedback(null)
       // 3 wrong in a row → re-teach this sum by counting it, then check
@@ -108,7 +108,7 @@ export default function AdditionChapter({onComplete,childName}:Props){
 
   const ans=a+b
   const bubbleText=selected!==null
-    ?feedback==='correct'?`🎉 ${a} + ${b} = ${ans}!`:`The answer was ${ans}!`
+    ?feedback==='correct'?`🎉 ${a} + ${b} = ${ans}!`:`It's ${a} + ${b} = ${ans} — now you know.`
     :stage==='groupA'?`Milo has ${a} ${nounFor(a,story.subject)}…`
     :stage==='groupB'?`He gets ${b} more ${nounFor(b,story.subject)}!`
     :`How many ${story.subject} altogether?`
@@ -168,8 +168,8 @@ export default function AdditionChapter({onComplete,childName}:Props){
         <div style={S.op}>=</div>
         {/* Total */}
         <div style={{...S.totalBox,
-          background:feedback==='correct'?'var(--garden-green)':feedback==='wrong'?'var(--apple-red)':'var(--milo-orange)',
-          borderColor:feedback==='correct'?'var(--garden-green-deep)':feedback==='wrong'?'var(--apple-red-deep)':'var(--milo-orange-deep)',
+          background:feedback==='correct'?'var(--garden-green)':'var(--milo-orange)',
+          borderColor:feedback==='correct'?'var(--garden-green-deep)':'var(--milo-orange-deep)',
           opacity:selected!==null?1:0.2,transform:selected!==null?'scale(1)':'scale(0.6)',
           transition:'all 400ms cubic-bezier(.34,1.56,.64,1)'}}>
           {/* Hide the sum until the child answers — show '?' instead of the
@@ -200,11 +200,11 @@ export default function AdditionChapter({onComplete,childName}:Props){
             return(
               <button key={ch} disabled={selected!==null} onClick={()=>handleAnswer(ch)}
                 ref={isOk ? (el)=>{answerRef.current=el} : undefined} style={{
-                width:96,height:96,background:isSel?(isOk?'var(--garden-green-soft)':'var(--apple-red-soft)'):'var(--paper)',
-                border:`4px solid ${isSel?(isOk?'var(--garden-green)':'var(--apple-red)'):'var(--outline)'}`,
-                borderRadius:24,boxShadow:isSel?`0 6px 0 ${isOk?'var(--garden-green-deep)':'var(--apple-red-deep)'}`:'0 6px 0 #c8ac79',
+                width:96,height:96,background:(selected!==null&&isOk)?'var(--garden-green-soft)':'var(--paper)',
+                border:`4px solid ${(selected!==null&&isOk)?'var(--garden-green)':isSel?'var(--ink-muted)':'var(--outline)'}`,
+                borderRadius:24,boxShadow:`0 6px 0 ${(selected!==null&&isOk)?'var(--garden-green-deep)':'#c8ac79'}`,
                 fontFamily:'var(--font-display)',fontWeight:900,fontSize:42,color:'var(--ink)',cursor:selected!==null?'default':'pointer',
-                transform:isSel?'scale(1.1) translateY(-4px)':'scale(1)',
+                transform:((selected!==null&&isOk)||isSel)?'scale(1.1) translateY(-4px)':'scale(1)',
                 transition:'transform 160ms cubic-bezier(.34,1.56,.64,1),background 160ms ease',
               }}
               onMouseDown={e=>{if(!selected)(e.currentTarget.style.transform='translateY(6px)')}}
@@ -215,8 +215,8 @@ export default function AdditionChapter({onComplete,childName}:Props){
           })}
         </div>
       )}
-      {feedback&&<div style={{...S.flash,background:feedback==='correct'?'var(--garden-green)':'var(--apple-red)'}}>
-        {feedback==='correct'?`✅ ${a} + ${b} = ${ans}!`:`The answer was ${ans}`}
+      {feedback&&<div style={{...S.flash,background:feedback==='correct'?'var(--garden-green)':'var(--milo-orange)'}}>
+        {feedback==='correct'?`✅ ${a} + ${b} = ${ans}!`:`It's ${a} + ${b} = ${ans} — now you know! 🙂`}
       </div>}
       <p style={S.roundLabel}>Round {Math.min(roundIdx+1,TOTAL_ROUNDS)} of {TOTAL_ROUNDS}</p>
 

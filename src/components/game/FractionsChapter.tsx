@@ -74,7 +74,7 @@ export default function FractionsChapter({ onComplete, childName }: Props) {
     setWrongRun(newRun)
     const ansSpoken = round.type === 'name' ? `one ${fracWord(round.answer)}` : `${round.answer}`
     if (ok) { setCorrect(c => c + 1); speakAt(`Yes! ${ansSpoken}! ${ada.praise}`, answerRef.current) }
-    else { setWrong(w => w + 1); speakAt(`It was ${ansSpoken}. ${ada.encouragement}`, answerRef.current) }
+    else { setWrong(w => w + 1); speakAt(`It's ${ansSpoken}. ${ada.encouragement}`, answerRef.current) }
     afterSpeech(() => {
       setFeedback(null)
       if (!ok && newRun >= 3) { setReMed({ phase: 'reteach', round }); return }
@@ -94,7 +94,7 @@ export default function FractionsChapter({ onComplete, childName }: Props) {
 
   const ansLabel = round.type === 'name' ? `one ${fracWord(round.answer)}` : `${round.answer}`
   const bubbleText = selected !== null
-    ? feedback === 'correct' ? '🎉 Correct!' : `It was ${ansLabel}.`
+    ? feedback === 'correct' ? '🎉 Correct!' : `It's ${ansLabel} — now you know.`
     : round.type === 'name' ? 'What fraction is shaded?' : `One ${fracWord(round.den)} of ${round.total}?`
 
   return (
@@ -129,21 +129,21 @@ export default function FractionsChapter({ onComplete, childName }: Props) {
             <button key={ch} disabled={selected !== null} onClick={() => handleAnswer(ch)}
               ref={isOk ? (el) => { answerRef.current = el } : undefined} style={{
                 width: 92, height: 92,
-                background: isSel ? (isOk ? 'var(--garden-green-soft)' : 'var(--apple-red-soft)') : 'var(--paper)',
-                border: `4px solid ${isSel ? (isOk ? 'var(--garden-green)' : 'var(--apple-red)') : 'var(--outline)'}`,
-                borderRadius: 24, boxShadow: isSel ? `0 6px 0 ${isOk ? 'var(--garden-green-deep)' : 'var(--apple-red-deep)'}` : '0 6px 0 #c8ac79',
+                background: (selected !== null && isOk) ? 'var(--garden-green-soft)' : 'var(--paper)',
+                border: `4px solid ${(selected !== null && isOk) ? 'var(--garden-green)' : isSel ? 'var(--ink-muted)' : 'var(--outline)'}`,
+                borderRadius: 24, boxShadow: `0 6px 0 ${(selected !== null && isOk) ? 'var(--garden-green-deep)' : '#c8ac79'}`,
                 fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 40, color: 'var(--ink)',
                 cursor: selected !== null ? 'default' : 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                transform: isSel ? 'scale(1.1) translateY(-4px)' : 'scale(1)',
+                transform: ((selected !== null && isOk) || isSel) ? 'scale(1.1) translateY(-4px)' : 'scale(1)',
                 transition: 'transform 160ms cubic-bezier(.34,1.56,.64,1),background 160ms ease',
               }}>{round.type === 'name' ? <Frac n={1} d={ch} size={24} /> : ch}</button>
           )
         })}
       </div>
 
-      {feedback && <div style={{ ...S.flash, background: feedback === 'correct' ? 'var(--garden-green)' : 'var(--apple-red)' }}>
-        {feedback === 'correct' ? '✅ Yes!' : `It was ${ansLabel}`}
+      {feedback && <div style={{ ...S.flash, background: feedback === 'correct' ? 'var(--garden-green)' : 'var(--milo-orange)' }}>
+        {feedback === 'correct' ? '✅ Yes!' : `It's ${ansLabel} — now you know! 🙂`}
       </div>}
       <p style={S.roundLabel}>Round {Math.min(roundIdx + 1, TOTAL_ROUNDS)} of {TOTAL_ROUNDS}</p>
 

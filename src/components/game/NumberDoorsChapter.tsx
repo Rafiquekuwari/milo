@@ -78,7 +78,7 @@ export default function NumberDoorsChapter({ onComplete, childName }: Props) {
     const newRun = ok ? 0 : wrongRun + 1
     setWrongRun(newRun)
     if (ok) { setCorrect(c=>c+1); speakAt(`Yes! Number ${round.correct}! ${ada.praise}`, answerRef.current) }
-    else    { setWrong(w=>w+1);   speakAt(`Door ${round.correct} was right! ${ada.encouragement}`, answerRef.current) }
+    else    { setWrong(w=>w+1);   speakAt(`Almost! It's ${round.correct} — now you know. ${ada.encouragement}`, answerRef.current) }
     afterSpeech(() => {
           setFeedback(null)
           // 3 wrong in a row → re-teach the number, then check
@@ -115,19 +115,21 @@ export default function NumberDoorsChapter({ onComplete, childName }: Props) {
         {round.doors.map((num,i) => {
           const col = DOOR_COLORS[i%DOOR_COLORS.length]
           const isSel = selected===num; const isOk=num===round.correct
+          const reveal = selected!==null && isOk        // correct door turns green once answered
+          const softPick = isSel && !isOk               // wrong pick: soft/neutral, never red
           return (
             <button key={num} onClick={()=>handleDoor(num)} disabled={selected!==null}
               ref={isOk ? (el)=>{answerRef.current=el} : undefined}
               style={{
               ...S.door,
-              background:isSel?(isOk?'var(--garden-green-soft)':'var(--apple-red-soft)'):col.bg,
-              borderColor:isSel?(isOk?'var(--garden-green)':'var(--apple-red)'):col.border,
-              boxShadow:`0 6px 0 ${isSel?(isOk?'var(--garden-green-deep)':'var(--apple-red-deep)'):col.shadow}`,
-              transform:isSel?'scale(1.08) translateY(-4px)':'scale(1)',
+              background:reveal?'var(--garden-green-soft)':softPick?'var(--paper)':col.bg,
+              borderColor:reveal?'var(--garden-green)':softPick?'var(--ink-muted)':col.border,
+              boxShadow:`0 6px 0 ${reveal?'var(--garden-green-deep)':softPick?'#c8ac79':col.shadow}`,
+              transform:(reveal||isSel)?'scale(1.08) translateY(-4px)':'scale(1)',
             }}>
               <span style={{fontFamily:'var(--font-display)',fontWeight:900,fontSize:64,color:'var(--ink)',lineHeight:1}}>{num}</span>
               <div style={{width:12,height:12,borderRadius:'50%',background:'var(--outline)',marginTop:16}}/>
-              {isSel&&<span style={{position:'absolute',top:-16,left:'50%',transform:'translateX(-50%)',fontSize:32}}>{isOk?'✅':'❌'}</span>}
+              {isSel&&<span style={{position:'absolute',top:-16,left:'50%',transform:'translateX(-50%)',fontSize:32}}>{isOk?'✅':''}</span>}
             </button>
           )
         })}
@@ -140,8 +142,8 @@ export default function NumberDoorsChapter({ onComplete, childName }: Props) {
         🔊 Hear it again
       </button>
       {feedback && (
-        <div style={{...S.flash, background: feedback==='correct' ? 'var(--garden-green)' : 'var(--apple-red)'}}>
-          {feedback==='correct' ? `🎉 Correct!` : `It was ${round.correct}`}
+        <div style={{...S.flash, background: feedback==='correct' ? 'var(--garden-green)' : 'var(--milo-orange)'}}>
+          {feedback==='correct' ? `🎉 Correct!` : `It's ${round.correct} — now you know! 🙂`}
         </div>
       )}
       <p style={S.label}>Round {Math.min(roundIdx+1,TOTAL_ROUNDS)} of {TOTAL_ROUNDS}</p>
@@ -228,9 +230,9 @@ function CheckNumber({target,onDone}:{target:number;onDone:()=>void}){
           return (
             <button key={n} onClick={()=>pick(n)} disabled={picked!=null} style={{
               width:96,height:130,borderRadius:'14px 14px 4px 4px',
-              background:isRight?'var(--garden-green-soft)':isWrong?'var(--apple-red-soft)':'var(--sky-blue-soft)',
-              border:`4px solid ${isRight?'var(--garden-green)':isWrong?'var(--apple-red)':'var(--sky-blue)'}`,
-              boxShadow:`0 6px 0 ${isRight?'var(--garden-green-deep)':isWrong?'var(--apple-red-deep)':'var(--sky-blue-deep)'}`,
+              background:isRight?'var(--garden-green-soft)':isWrong?'var(--paper)':'var(--sky-blue-soft)',
+              border:`4px solid ${isRight?'var(--garden-green)':isWrong?'var(--ink-muted)':'var(--sky-blue)'}`,
+              boxShadow:`0 6px 0 ${isRight?'var(--garden-green-deep)':isWrong?'#c8ac79':'var(--sky-blue-deep)'}`,
               cursor:picked!=null?'default':'pointer',
               transform:isRight?'scale(1.08) translateY(-4px)':'scale(1)',transition:'transform 160ms cubic-bezier(.34,1.56,.64,1)',
             }}>

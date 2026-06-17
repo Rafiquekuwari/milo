@@ -145,7 +145,7 @@ export default function PatternsChapter({ onComplete, childName }: Props) {
       speakAt(roundIdx % 3 === 0 ? `Amazing! You found the pattern! ${ada.praise}` : `Yes! Great pattern thinking! ${ada.praise}`, answerRef.current)
     } else {
       setWrong(w => w + 1)
-      speakAt(`Not quite! The answer was ${round.answer}. ${ada.encouragement}`, answerRef.current)
+      speakAt(`Almost! It's ${round.answer} — now you know. ${ada.encouragement}`, answerRef.current)
     }
 
     afterSpeech(() => {
@@ -167,7 +167,7 @@ export default function PatternsChapter({ onComplete, childName }: Props) {
 
   // Derive bubble text
   const bubbleText = selected !== null
-    ? feedback === 'correct' ? '🎉 Correct! Great pattern thinking!' : `The answer was ${round.answer}`
+    ? feedback === 'correct' ? '🎉 Correct! Great pattern thinking!' : `It's ${round.answer} — now you know.`
     : TYPE_LABEL[round.type]
 
   // ── Lesson phase (animated baby-step lesson) ───────────────
@@ -286,9 +286,7 @@ export default function PatternsChapter({ onComplete, childName }: Props) {
         {round.choices.map(ch => {
           const isCorrect  = ch === round.answer
           const isSelected = selected === ch
-          let bg = 'var(--paper)'
-          if (isSelected && feedback === 'correct') bg = 'var(--garden-green-soft)'
-          if (isSelected && feedback === 'wrong')   bg = 'var(--apple-red-soft)'
+          const revealCorrect = selected !== null && isCorrect
 
           return (
             <button
@@ -298,14 +296,12 @@ export default function PatternsChapter({ onComplete, childName }: Props) {
               ref={isCorrect ? (el) => { answerRef.current = el } : undefined}
               style={{
                 ...S.choiceBtn,
-                background: bg,
-                borderColor: isSelected
-                  ? (isCorrect ? 'var(--garden-green)' : 'var(--apple-red)')
-                  : 'var(--outline)',
-                boxShadow: isSelected
-                  ? `0 5px 0 ${isCorrect ? 'var(--garden-green-deep)' : 'var(--apple-red-deep)'}`
-                  : '0 5px 0 var(--outline)',
-                transform: isSelected ? 'scale(1.08) translateY(-2px)' : 'scale(1)',
+                background: revealCorrect ? 'var(--garden-green-soft)' : 'var(--paper)',
+                borderColor: revealCorrect
+                  ? 'var(--garden-green)'
+                  : isSelected ? 'var(--ink-muted)' : 'var(--outline)',
+                boxShadow: `0 5px 0 ${revealCorrect ? 'var(--garden-green-deep)' : '#c8ac79'}`,
+                transform: (revealCorrect || isSelected) ? 'scale(1.08) translateY(-2px)' : 'scale(1)',
               }}
             >
               <span style={{ fontSize: 48, lineHeight: 1 }}>{ch}</span>
@@ -315,7 +311,7 @@ export default function PatternsChapter({ onComplete, childName }: Props) {
       </div>
 
       {feedback && (
-        <div style={{position:'fixed',top:'38%',left:'50%',transform:'translate(-50%,-50%)',color:'#fff',fontFamily:'var(--font-display)',fontWeight:900,fontSize:'var(--t-h1)',padding:'20px 40px',borderRadius:24,border:'4px solid var(--outline)',boxShadow:'0 8px 0 rgba(61,37,22,.2)',zIndex:50,textAlign:'center',animation:'modal-in 280ms cubic-bezier(.34,1.56,.64,1) both',background:feedback==='correct'?'var(--garden-green)':'var(--apple-red)'}}>{feedback==='correct'?'🎉 You got it!':`It was ${round.answer}`}</div>
+        <div style={{position:'fixed',top:'38%',left:'50%',transform:'translate(-50%,-50%)',color:'#fff',fontFamily:'var(--font-display)',fontWeight:900,fontSize:'var(--t-h1)',padding:'20px 40px',borderRadius:24,border:'4px solid var(--outline)',boxShadow:'0 8px 0 rgba(61,37,22,.2)',zIndex:50,textAlign:'center',animation:'modal-in 280ms cubic-bezier(.34,1.56,.64,1) both',background:feedback==='correct'?'var(--garden-green)':'var(--milo-orange)'}}>{feedback==='correct'?'🎉 You got it!':`It's ${round.answer} — now you know! 🙂`}</div>
       )}
 
       <p style={S.roundLabel}>

@@ -125,7 +125,7 @@ export default function CountingChapter({onComplete,childName}:Props){
     if(ok) missLog.current = []
     else   missLog.current = [...missLog.current, { target, choice, taps: tapped.length }]
     if(ok){setCorrect(c=>c+1);speakAt(ada.isOnFire?ada.praise:`Yes! ${target} ${nounFor(target,emojiSet.label)}! ${ada.praise}`, answerRef.current)}
-    else   {setWrong(w=>w+1);speakAt(`Oops! There ${target===1?'is':'are'} ${target} ${nounFor(target,emojiSet.label)}. ${ada.encouragement}`, answerRef.current)}
+    else   {setWrong(w=>w+1);speakAt(`Almost! There ${target===1?'is':'are'} ${target} ${nounFor(target,emojiSet.label)}. ${ada.encouragement}`, answerRef.current)}
     afterSpeech(() => {
           setFeedback(null)
           // 3 wrong in a row → diagnose the difficulty, then re-teach accordingly
@@ -233,8 +233,8 @@ export default function CountingChapter({onComplete,childName}:Props){
         ))}
       </div>
       )}
-      {feedback&&<div style={{...S.flash,background:feedback==='correct'?'var(--garden-green)':'var(--apple-red)'}}>
-        {feedback==='correct'?`✅ ${target}!`:`It was ${target}`}
+      {feedback&&<div style={{...S.flash,background:feedback==='correct'?'var(--garden-green)':'var(--milo-orange)'}}>
+        {feedback==='correct'?`✅ ${target}!`:`It's ${target} — now you know! 🙂`}
       </div>}
       <p style={S.label}>Round {Math.min(roundIdx+1,TOTAL_ROUNDS)} of {TOTAL_ROUNDS}</p>
       {remediation?.phase==='explain' && (
@@ -461,9 +461,9 @@ function CheckQuestion({target,emoji,label,kind,onResult}:{
             return (
               <button key={c} onClick={()=>pick(c)} disabled={picked!=null||!ready} style={{
                 width:88,height:88,borderRadius:22,
-                background:showState&&isRight?'var(--garden-green-soft)':showState&&isPicked?'var(--apple-red-soft)':'var(--paper)',
-                border:`4px solid ${showState&&isRight?'var(--garden-green)':showState&&isPicked?'var(--apple-red)':'var(--outline)'}`,
-                boxShadow:showState&&isRight?'0 6px 0 var(--garden-green-deep)':showState&&isPicked?'0 6px 0 var(--apple-red-deep)':'0 6px 0 #c8ac79',
+                background:showState&&isRight?'var(--garden-green-soft)':'var(--paper)',
+                border:`4px solid ${showState&&isRight?'var(--garden-green)':showState&&isPicked?'var(--ink-muted)':'var(--outline)'}`,
+                boxShadow:showState&&isRight?'0 6px 0 var(--garden-green-deep)':'0 6px 0 #c8ac79',
                 fontFamily:'var(--font-display)',fontWeight:900,fontSize:40,color:'var(--ink)',
                 cursor:picked!=null||!ready?'default':'pointer',
               }}>{c}</button>

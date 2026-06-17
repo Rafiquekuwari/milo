@@ -15,7 +15,7 @@
  * from any page.
  */
 
-export type AgeGroup = '3-5' | '6-8'
+export type AgeGroup = '3-5' | '6-8' | '9-11'
 
 export type ChapterType =
   // 3–5
@@ -25,6 +25,8 @@ export type ChapterType =
   // 6–8
   | 'numbersTo100' | 'placeValue' | 'skipCounting' | 'storyProblems' | 'multiplication' | 'fractions' | 'money' | 'time'
   | 'compareNumbers' | 'additionTo100' | 'subtractionTo100' | 'shapes2d3d'
+  // 9–11
+  | 'bigNumbers' | 'rounding' | 'timesTables' | 'division' | 'factorsMultiples' | 'fractionsCompare' | 'decimals' | 'measurementUnits' | 'areaPerimeter' | 'anglesSymmetry'
 
 export interface ChapterMeta {
   id:          ChapterType
@@ -66,6 +68,18 @@ export const CHAPTERS: ChapterMeta[] = [
   { id: 'additionTo100',      name: 'Add to 100',         parentLabel: 'Add to 100',        emoji: '➕', asset: '/assets/objects/apple.png',          hint: 'Add two-digit numbers!', ageGroups: ['6-8'] },
   { id: 'subtractionTo100',   name: 'Subtract to 100',    parentLabel: 'Subtract to 100',   emoji: '➖', asset: '/assets/objects/firefly.png',        hint: 'Subtract two-digit numbers!', ageGroups: ['6-8'] },
   { id: 'shapes2d3d',         name: 'Shapes 2D & 3D',     parentLabel: 'Shapes 2D & 3D',    emoji: '🔷', asset: '/assets/shapes/house-complete.png',  hint: 'Name shapes and count sides!', ageGroups: ['6-8'] },
+
+  // ── 9–11 ──
+  { id: 'bigNumbers',         name: 'Big Numbers',        parentLabel: 'Big Numbers',       emoji: '🔢', asset: '/assets/objects/star.png',           hint: 'Place value to thousands!', ageGroups: ['9-11'] },
+  { id: 'rounding',           name: 'Rounding',           parentLabel: 'Rounding',          emoji: '🎯', asset: '/assets/objects/star.png',           hint: 'Round to the nearest 10 or 100!', ageGroups: ['9-11'] },
+  { id: 'timesTables',        name: 'Times Tables',       parentLabel: 'Times Tables',      emoji: '✖️', asset: '/assets/objects/star.png',           hint: 'Times tables & 2-digit × 1-digit!', ageGroups: ['9-11'] },
+  { id: 'division',           name: 'Division',           parentLabel: 'Division',          emoji: '➗', asset: '/assets/objects/star.png',           hint: 'Share equally — with remainders!', ageGroups: ['9-11'] },
+  { id: 'factorsMultiples',   name: 'Factors & Primes',   parentLabel: 'Factors & Primes',  emoji: '🧩', asset: '/assets/objects/star.png',           hint: 'Even/odd, multiples, factors & primes!', ageGroups: ['9-11'] },
+  { id: 'fractionsCompare',   name: 'Fractions',          parentLabel: 'Fractions',         emoji: '🍰', asset: '/assets/objects/apple.png',          hint: 'Equivalent, compare, add & subtract!', ageGroups: ['9-11'] },
+  { id: 'decimals',           name: 'Decimals',           parentLabel: 'Decimals',          emoji: '🔟', asset: '/assets/objects/star.png',           hint: 'Tenths, hundredths & the number line!', ageGroups: ['9-11'] },
+  { id: 'measurementUnits',   name: 'Measurement',        parentLabel: 'Measurement',       emoji: '📏', asset: '/assets/objects/star.png',           hint: 'Units & conversions for length, mass, capacity!', ageGroups: ['9-11'] },
+  { id: 'areaPerimeter',      name: 'Area & Perimeter',   parentLabel: 'Area & Perimeter',  emoji: '🟧', asset: '/assets/objects/star.png',           hint: 'Count squares and add the sides!', ageGroups: ['9-11'] },
+  { id: 'anglesSymmetry',     name: 'Angles & Symmetry',  parentLabel: 'Angles & Symmetry', emoji: '📐', asset: '/assets/objects/star.png',           hint: 'Acute, right, obtuse & lines of symmetry!', ageGroups: ['9-11'] },
 ]
 
 // ── Lookups ──────────────────────────────────────────────────────────────

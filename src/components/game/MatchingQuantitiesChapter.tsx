@@ -29,7 +29,6 @@ export default function MatchingQuantitiesChapter({ onComplete, childName }: Pro
   const [correct, setCorrect] = useState(0)
   const [wrong, setWrong] = useState(0)
   const [feedback, setFeedback] = useState<'correct'|'wrong'|null>(null)
-  const [shaking, setShaking] = useState(false)
   // Gates apple-tapping until Milo has FINISHED the round instruction, so the
   // counting can never jump ahead of "Put N apples in the basket!".
   const [ready, setReady] = useState(false)
@@ -85,7 +84,7 @@ export default function MatchingQuantitiesChapter({ onComplete, childName }: Pro
     const newRun = ok ? 0 : wrongRun + 1
     setWrongRun(newRun)
     if (ok) { setCorrect(c=>c+1); speakAt(`Yes! ${round.target} apples! ${ada.praise}`, basketRef.current) }
-    else { setWrong(w=>w+1); setShaking(true); speakAt(`We needed ${round.target}. ${ada.encouragement}`, basketRef.current); window.setTimeout(()=>setShaking(false),500) }
+    else { setWrong(w=>w+1); speakAt(`It's ${round.target}. ${ada.encouragement}`, basketRef.current) }
     afterSpeech(() => {
           setFeedback(null)
           // 3 wrong in a row → re-teach this target, then check with a small one.
@@ -132,7 +131,7 @@ export default function MatchingQuantitiesChapter({ onComplete, childName }: Pro
           ))}
         </div>
       </div>
-      <div ref={basketRef} style={{...S.basketArea, animation:shaking?'shake 400ms ease both':'none'}}>
+      <div ref={basketRef} style={S.basketArea}>
         <p style={S.areaLabel}>Your basket: <strong>{basket}</strong> / {round.target}</p>
         <div style={S.basketRow}>
           <span style={{fontSize:48}}>🧺</span>
@@ -151,8 +150,8 @@ export default function MatchingQuantitiesChapter({ onComplete, childName }: Pro
         disabled={submitted||basket===0} style={{opacity:submitted||basket===0?.5:1}}>
         ✅ Done!
       </button>
-      {feedback&&<div style={{...S.flash,background:feedback==='correct'?'var(--garden-green)':'var(--apple-red)'}}>
-        {feedback==='correct'?`🎉 ${round.target} apples!`:`We needed ${round.target}!`}
+      {feedback&&<div style={{...S.flash,background:feedback==='correct'?'var(--garden-green)':'var(--milo-orange)'}}>
+        {feedback==='correct'?`🎉 ${round.target} apples!`:`It's ${round.target} — now you know! 🙂`}
       </div>}
       <p style={S.label}>Round {Math.min(roundIdx+1,TOTAL_ROUNDS)} of {TOTAL_ROUNDS}</p>
 

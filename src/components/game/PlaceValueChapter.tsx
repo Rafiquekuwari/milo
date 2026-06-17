@@ -91,7 +91,7 @@ export default function PlaceValueChapter({ onComplete, childName }: Props) {
     const newRun = ok ? 0 : wrongRun + 1
     setWrongRun(newRun)
     if (ok) { setCorrect(c => c + 1); speakAt(`Yes! ${ada.praise}`, answerRef.current) }
-    else { setWrong(w => w + 1); speakAt(`The answer is ${numberToWords(round.answer)}. ${ada.encouragement}`, answerRef.current) }
+    else { setWrong(w => w + 1); speakAt(`It's ${numberToWords(round.answer)}. ${ada.encouragement}`, answerRef.current) }
     afterSpeech(() => {
       setFeedback(null)
       if (!ok && newRun >= 3) { setReMed({ phase: 'reteach', n: round.n, choices: nearNumbers(round.n) }); return }
@@ -110,7 +110,7 @@ export default function PlaceValueChapter({ onComplete, childName }: Props) {
   if (phase === 'lesson') return <PlaceValueLesson childName={childName} onLessonComplete={startPractice} />
 
   const bubbleText = selected !== null
-    ? feedback === 'correct' ? '🎉 Correct!' : `It was ${numberToWords(round.answer)}.`
+    ? feedback === 'correct' ? '🎉 Correct!' : `It's ${numberToWords(round.answer)} — now you know.`
     : round.question
 
   return (
@@ -152,20 +152,20 @@ export default function PlaceValueChapter({ onComplete, childName }: Props) {
             <button key={ch} disabled={selected !== null} onClick={() => handleAnswer(ch)}
               ref={isOk ? (el) => { answerRef.current = el } : undefined} style={{
                 width: 96, height: 96,
-                background: isSel ? (isOk ? 'var(--garden-green-soft)' : 'var(--apple-red-soft)') : 'var(--paper)',
-                border: `4px solid ${isSel ? (isOk ? 'var(--garden-green)' : 'var(--apple-red)') : 'var(--outline)'}`,
-                borderRadius: 24, boxShadow: isSel ? `0 6px 0 ${isOk ? 'var(--garden-green-deep)' : 'var(--apple-red-deep)'}` : '0 6px 0 #c8ac79',
+                background: (selected !== null && isOk) ? 'var(--garden-green-soft)' : 'var(--paper)',
+                border: `4px solid ${(selected !== null && isOk) ? 'var(--garden-green)' : isSel ? 'var(--ink-muted)' : 'var(--outline)'}`,
+                borderRadius: 24, boxShadow: `0 6px 0 ${(selected !== null && isOk) ? 'var(--garden-green-deep)' : '#c8ac79'}`,
                 fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 42, color: 'var(--ink)',
                 cursor: selected !== null ? 'default' : 'pointer',
-                transform: isSel ? 'scale(1.1) translateY(-4px)' : 'scale(1)',
+                transform: ((selected !== null && isOk) || isSel) ? 'scale(1.1) translateY(-4px)' : 'scale(1)',
                 transition: 'transform 160ms cubic-bezier(.34,1.56,.64,1),background 160ms ease',
               }}>{ch}</button>
           )
         })}
       </div>
 
-      {feedback && <div style={{ ...S.flash, background: feedback === 'correct' ? 'var(--garden-green)' : 'var(--apple-red)' }}>
-        {feedback === 'correct' ? '✅ Yes!' : `It was ${round.answer}`}
+      {feedback && <div style={{ ...S.flash, background: feedback === 'correct' ? 'var(--garden-green)' : 'var(--milo-orange)' }}>
+        {feedback === 'correct' ? '✅ Yes!' : `It's ${round.answer} — now you know! 🙂`}
       </div>}
       <p style={S.roundLabel}>Round {Math.min(roundIdx + 1, TOTAL_ROUNDS)} of {TOTAL_ROUNDS}</p>
 

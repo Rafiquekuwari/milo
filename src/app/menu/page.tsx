@@ -13,6 +13,8 @@ import { getActiveLearner, clearActiveLearner } from '@/lib/supabase/useLearnerS
 import { getLearnerBootstrap, saveLearnerState } from '@/lib/supabase/queries'
 import type { LearnerState } from '@/lib/supabase/types'
 import { getLastPlayed, setLastPlayed, reconcileLastPlayed } from '@/lib/lastPlayed'
+import { track } from '@/lib/analytics'
+import { dailyStatus, reconcileStreakFromDB } from '@/lib/daily'
 
 const AVATAR_SRCS = ['/assets/objects/fox.png','/assets/objects/bunny.png','/assets/objects/bear.png','/assets/objects/cat.png']
 const LEVEL_NAMES   = ['Beginner','Counter','Explorer','Number Star','Math Wizard','Champion',"Milo's Champion",'Legend']
@@ -47,6 +49,15 @@ export default function MainMenu() {
   const [learnerId,    setLearnerId]    = useState<string | null>(null)
   const [ageGroup,     setAgeGroup]     = useState<AgeGroup>('3-5')
   const [lastPlayed,   setLastPlayedState] = useState<ChapterType | null>(null)
+  const [daily,        setDaily]        = useState<{ available: boolean; streak: number; longest: number } | null>(null)
+
+  // Milo's Daily streak: show the local value instantly, then reconcile against
+  // the DB (daily_complete events = source of truth) so it's correct cross-device.
+  useEffect(() => {
+    if (!learnerId) return
+    setDaily(dailyStatus(learnerId))
+    reconcileStreakFromDB(learnerId).then(() => setDaily(dailyStatus(learnerId)))
+  }, [learnerId])
 
   useEffect(() => {
     const learner = getActiveLearner()
@@ -59,6 +70,7 @@ export default function MainMenu() {
       const lp = getLastPlayed(learner.id)?.chapter ?? null
       setLastPlayedState(lp)
       setReady(true)
+      track('session_start', { ageGroup: learner.age_group ?? '3-5' })
 
       // Cross-device sync: pull this learner's full state from Supabase (progress,
       // coins, shop items) and merge it in, so everything shows on whatever device
@@ -221,6 +233,32 @@ export default function MainMenu() {
             </div>
           </div>
         </div>
+
+        {/* ── Milo's Daily — the come-back-tomorrow loop ── */}
+        {daily && (() => {
+          const d = daily
+          return (
+            <button onClick={() => router.push('/daily')} className="milo-card" style={{
+              width: '100%', maxWidth: 700, padding: '14px 20px', textAlign: 'left', cursor: 'pointer',
+              background: d.available ? 'linear-gradient(135deg, var(--sun-yellow-soft) 0%, #fff 100%)' : 'var(--paper)',
+              border: `3px solid ${d.available ? 'var(--sun-yellow-deep)' : 'var(--outline)'}`,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', rowGap: 10 }}>
+                <div style={{ fontSize: 36 }}>{d.available ? '☀️' : '🌙'}</div>
+                <div style={{ flex: 1, minWidth: 150 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--sun-yellow-deep)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 }}>Milo&apos;s Daily</div>
+                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 20 }}>
+                    {d.available ? '5 quick reviews with Milo!' : 'All done today — see you tomorrow!'}
+                  </div>
+                  <div style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 2 }}>
+                    {d.streak > 0 ? `🔥 ${d.streak} day${d.streak === 1 ? '' : 's'} in a row${d.longest > d.streak ? ` · best ${d.longest}` : ''}` : 'Start your streak today!'}
+                  </div>
+                </div>
+                {d.available && <span style={{ flexShrink: 0, whiteSpace: 'nowrap', background: 'var(--sun-yellow)', border: '3px solid var(--sun-yellow-deep)', borderRadius: 50, padding: '8px 18px', fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 15, color: 'var(--ink)' }}>Start ▶</span>}
+              </div>
+            </button>
+          )
+        })()}
 
         {/* ── Resume card — shown when child has a chapter in progress ── */}
         {resumeChapter && (
