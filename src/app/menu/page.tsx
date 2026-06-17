@@ -260,6 +260,25 @@ export default function MainMenu() {
           )
         })()}
 
+        {/* ── Story Mode — the 3–5 storyline adventure ── */}
+        {ageGroup === '3-5' && (
+          <button onClick={() => router.push('/story')} className="milo-card" style={{
+            width: '100%', maxWidth: 700, padding: '14px 20px', textAlign: 'left', cursor: 'pointer',
+            background: 'linear-gradient(135deg, var(--milo-orange-soft) 0%, #fff 100%)',
+            border: '3px solid var(--milo-orange)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', rowGap: 10 }}>
+              <div style={{ fontSize: 36 }}>🦊</div>
+              <div style={{ flex: 1, minWidth: 150 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--milo-orange)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 }}>Story Mode</div>
+                <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 20 }}>Go on an adventure with Milo!</div>
+                <div style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 2 }}>Milo&apos;s Picnic Party — count, knock, share &amp; more</div>
+              </div>
+              <span style={{ flexShrink: 0, whiteSpace: 'nowrap', background: 'var(--milo-orange)', border: '3px solid var(--milo-orange-deep)', borderRadius: 50, padding: '8px 18px', fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 15, color: '#fff' }}>Play ▶</span>
+            </div>
+          </button>
+        )}
+
         {/* ── Resume card — shown when child has a chapter in progress ── */}
         {resumeChapter && (
           <div className="milo-card" style={{
