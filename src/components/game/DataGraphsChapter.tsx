@@ -43,12 +43,16 @@ function makeChart(d: 1 | 2 | 3): ChartData {
   const set = pick(SETS)
   const n = d === 1 ? 3 : 4
   const cats = shuffle(set.cats.map(c => [...c])).slice(0, n)
+  // distinct values so "most"/"least" are never a tie (two correct answers) and
+  // "how many more" is never zero. Drawing distinct multipliers (≤5) for ≤4
+  // categories always terminates.
+  const usedMul = new Set<number>()
+  const distinctMul = (hiMul: number) => { let m = rint(1, hiMul); while (usedMul.has(m)) m = rint(1, hiMul); usedMul.add(m); return m }
   if (d === 3) {
     const per = pick([2, 5])
-    return { kind: 'picto', unit: set.unit, perSymbol: per, categories: cats.map(([label, emoji]) => ({ label, emoji, value: per * rint(1, 5) })) }
+    return { kind: 'picto', unit: set.unit, perSymbol: per, categories: cats.map(([label, emoji]) => ({ label, emoji, value: per * distinctMul(5) })) }
   }
   const hi = d === 1 ? 6 : 10
-  // distinct values so "most"/"least" are unambiguous
   const used = new Set<number>()
   const valueFor = () => { let v = rint(1, hi); while (used.has(v)) v = rint(1, hi); used.add(v); return v }
   return { kind: 'bar', unit: set.unit, categories: cats.map(([label, emoji]) => ({ label, emoji, value: valueFor() })) }

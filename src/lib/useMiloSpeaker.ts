@@ -27,6 +27,10 @@ let _lastPitch  = 1.05
 let _speakTimer: ReturnType<typeof setTimeout> | null = null
 let _onEndCbs: Array<() => void> = []
 let _keepalive: ReturnType<typeof setInterval> | null = null
+// Safety watchdog for a single utterance: if onstart fires but onend/onerror
+// never do (a known mobile interruption), this clears _speaking so SpeakingLock
+// can't freeze the whole screen and afterSpeech() callbacks still run.
+let _singleWatch: ReturnType<typeof setTimeout> | null = null
 // Cancel fn for an in-flight speakSeq(). stopSpeech()/speak() call this so a
 // sequence is truly stopped — otherwise cancelling its current utterance just
 // makes it advance to the next line (it would keep talking after Skip).
@@ -41,6 +45,7 @@ function _setSpeaking(v: boolean) {
   _notify()
   if (!v) {
     if (_keepalive) { clearInterval(_keepalive); _keepalive = null }
+    if (_singleWatch) { clearTimeout(_singleWatch); _singleWatch = null }
     const cbs = [..._onEndCbs]; _onEndCbs = []
     cbs.forEach(cb => cb())
   }
@@ -135,6 +140,10 @@ function _actuallySpeak(text: string, rate: number, pitch: number) {
         if (window.speechSynthesis.paused) window.speechSynthesis.resume()
       } catch {}
     }, 5000)
+    // If onend/onerror never arrive, force-clear after a generous ceiling so the
+    // invisible SpeakingLock tap-blocker can't stay up over the child forever.
+    if (_singleWatch) clearTimeout(_singleWatch)
+    _singleWatch = setTimeout(() => _setSpeaking(false), Math.max(6000, text.length * 140))
   }
 
   u.onend = () => _setSpeaking(false)
@@ -242,13 +251,26 @@ export function speakSeq(
     const idx = i; i++
     const txt = words[idx]
     if (!txt || !txt.trim()) { next(); return }
+    // Per-line guard: exactly ONE of {onend, onerror, throw, watchdog} advances.
+    let moved = false, started = false
+    let watch: ReturnType<typeof setTimeout> | null = null
+    const clearWatch = () => { if (watch) { clearTimeout(watch); watch = null } }
+    const advance = () => { if (moved || cancelled) return; moved = true; clearWatch(); next() }
     const u = new SpeechSynthesisUtterance(txt)
     u.rate = rate; u.pitch = pitch; u.volume = 1; u.lang = 'en-US'
     const v = _pickVoice(); if (v) u.voice = v
-    u.onstart = () => { _setSpeaking(true); try { onWord?.(idx) } catch {} }
-    u.onend   = () => { if (!cancelled) next() }
-    u.onerror = () => { if (!cancelled) next() }
-    try { window.speechSynthesis.speak(u) } catch { next() }
+    u.onstart = () => {
+      started = true; _setSpeaking(true); try { onWord?.(idx) } catch {}
+      // It started — guard against an end event that never arrives.
+      clearWatch(); watch = setTimeout(advance, Math.max(5000, txt.length * 140))
+    }
+    u.onend   = advance
+    u.onerror = advance
+    try { window.speechSynthesis.speak(u) } catch { advance(); return }
+    // If speech never even STARTS (iOS/Safari can silently drop speak() with no
+    // onstart/onend/onerror), advance anyway so the lesson can never hang on a
+    // frozen, silent slide. This is the safety net for older speakSeq-only steps.
+    watch = setTimeout(() => { if (!started) advance() }, 2200)
   }
   _activeSeqCancel = cancel
   try { window.speechSynthesis.cancel() } catch {}

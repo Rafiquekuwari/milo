@@ -38,6 +38,7 @@ export default function ParentDashboard() {
   const [learners,     setLearners]     = useState<LearnerData[]>([])
   const [selected,     setSelected]     = useState<string | null>(null)
   const [loading,      setLoading]      = useState(true)
+  const [loadError,    setLoadError]    = useState(false)
   const [parentName,   setParentName]   = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
   const [invites,      setInvites]      = useState<InviteWithLearner[]>([])
@@ -48,35 +49,43 @@ export default function ParentDashboard() {
 
   async function loadAll() {
     setLoading(true)
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { router.replace('/auth'); return }
-    setParentName(user.user_metadata?.full_name?.split(' ')[0] ?? 'there')
+    setLoadError(false)
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { router.replace('/auth'); return }
+      setParentName(user.user_metadata?.full_name?.split(' ')[0] ?? 'there')
 
-    const [list, pendingInvites] = await Promise.all([
-      getMyLearners(),
-      getReceivedInvites(),
-    ])
-    setInvites(pendingInvites)
+      const [list, pendingInvites] = await Promise.all([
+        getMyLearners(),
+        getReceivedInvites(),
+      ])
+      setInvites(pendingInvites)
 
-    if (list.length === 0) {
-      setLearners([]); setSelected(null); setLoading(false); return
+      if (list.length === 0) {
+        setLearners([]); setSelected(null); return
+      }
+
+      const data = await Promise.all(list.map(async learner => ({
+        learner,
+        stats:      await getLearnerStats(learner.id),
+        progress:   await getLearnerProgress(learner.id),
+        sessions:   await getRecentSessions(learner.id, 3),
+        accessRole: await getMyAccessRole(learner.id),
+      })))
+
+      setLearners(data)
+      setSelected(prev => {
+        if (prev && data.find(d => d.learner.id === prev)) return prev
+        return data[0].learner.id
+      })
+    } catch (e) {
+      // A flaky network must never leave the parent stuck on the splash forever.
+      console.warn('[parent] loadAll failed:', e)
+      setLoadError(true)
+    } finally {
+      setLoading(false)
     }
-
-    const data = await Promise.all(list.map(async learner => ({
-      learner,
-      stats:      await getLearnerStats(learner.id),
-      progress:   await getLearnerProgress(learner.id),
-      sessions:   await getRecentSessions(learner.id, 3),
-      accessRole: await getMyAccessRole(learner.id),
-    })))
-
-    setLearners(data)
-    setSelected(prev => {
-      if (prev && data.find(d => d.learner.id === prev)) return prev
-      return data[0].learner.id
-    })
-    setLoading(false)
   }
 
   useEffect(() => { loadAll() }, []) // eslint-disable-line
@@ -129,6 +138,15 @@ export default function ParentDashboard() {
 
   if (loading) return (
     <div style={{ minHeight:'100dvh', display:'flex', alignItems:'center', justifyContent:'center', background:'#FCEAB6', fontSize:48 }}>🦊</div>
+  )
+
+  if (loadError) return (
+    <div style={{ minHeight:'100dvh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:16, background:'#FCEAB6', padding:24, textAlign:'center' }}>
+      <div style={{ fontSize:56 }}>🦊</div>
+      <p style={{ fontSize:18, fontWeight:700, color:'#3D2516', margin:0 }}>Hmm, we couldn&apos;t load your dashboard.</p>
+      <p style={{ fontSize:14, color:'#7a6a55', margin:0 }}>Check your connection and try again.</p>
+      <button onClick={loadAll} style={{ padding:'14px 28px', background:'linear-gradient(135deg,#F26B2C 0%,#e05a1f 100%)', color:'#fff', border:'none', borderRadius:50, fontSize:16, fontWeight:800, cursor:'pointer' }}>Try again</button>
+    </div>
   )
 
   return (

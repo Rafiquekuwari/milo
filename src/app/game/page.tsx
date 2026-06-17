@@ -104,6 +104,10 @@ export default function GamePage() {
   // the viewport, so it's BIG but never scrolls. Recomputes on resize / content
   // change. MAX caps how large; it shrinks below 1 only on very short screens.
   const fitRef = useRef<HTMLDivElement>(null)
+  // Guards against a chapter firing onComplete twice (double-tap / re-render):
+  // a second call would double-count XP, coins and stars both locally and via
+  // sync. Reset when a new chapter opens.
+  const completedRef = useRef(false)
   const zoomRef = useRef(1)
   const [zoom, setZoom] = useState(1)
   // The chapter's themed background, painted across the whole stage so the colour
@@ -164,6 +168,7 @@ export default function GamePage() {
       setPlayingChapter(currentChapter)
       track('chapter_open', { chapter: currentChapter })
       setChapterDone(false)
+      completedRef.current = false
       setReady(true)
       return
     }
@@ -176,6 +181,8 @@ export default function GamePage() {
 
   async function handleComplete(correct: number, wrong: number) {
     if (!playingChapter) return
+    if (completedRef.current) return   // ignore a double-fired completion
+    completedRef.current = true
     setChapterDone(true)
     track('practice_complete', { chapter: playingChapter, correct, wrong })
     // Works offline — queues locally (IndexedDB via kv) if no network
