@@ -4,7 +4,7 @@
  * Zero dependencies, tiny, scales crisply, and animates with CSS. A big step up
  * from emoji while the premium Rive/Lottie pipeline is sorted. See docs/story-mode-3-5.md.
  */
-import React from 'react'
+import React, { useState } from 'react'
 
 // ─── Full-bleed scene backdrops ────────────────────────────────
 export type BackdropKind = 'meadow' | 'dusk' | 'stream' | 'orchard'
@@ -88,15 +88,81 @@ export function Backdrop({ kind }: { kind: BackdropKind }) {
 // ─── Objects ───────────────────────────────────────────────────
 export function Firefly({ lit, size = 56 }: { lit: boolean; size?: number }) {
   return (
-    <svg viewBox="0 0 60 60" width={size} height={size}>
-      {lit && <circle cx="30" cy="32" r="26" fill="#fff3b0" opacity="0.85" />}
-      <ellipse cx="22" cy="28" rx="13" ry="9" fill="#bfe3ff" opacity={lit ? 0.9 : 0.5} transform="rotate(-25 22 28)" />
-      <ellipse cx="38" cy="28" rx="13" ry="9" fill="#bfe3ff" opacity={lit ? 0.9 : 0.5} transform="rotate(25 38 28)" />
-      <ellipse cx="30" cy="36" rx="11" ry="14" fill={lit ? '#ffd23f' : '#cdbf8f'} stroke="#b8860b" strokeWidth="1.5" />
-      <circle cx="30" cy="24" r="7" fill="#5a4a2a" />
-      <circle cx="30" cy="44" r="5" fill={lit ? '#fff6c0' : '#e8dca8'} />
-    </svg>
+    <img src="/assets/objects/firefly.png" alt="firefly" draggable={false} width={size} height={size}
+      style={{ objectFit: 'contain', transition: 'opacity .3s ease, filter .3s ease',
+        opacity: lit ? 1 : 0.5, filter: lit ? 'drop-shadow(0 0 9px #fff3b0)' : 'grayscale(.55) brightness(.92)' }} />
   )
+}
+
+// Real generated object PNGs, used as tappable count items across Story Mode.
+// butterfly/pigeon have no art yet — they fall back to an emoji placeholder and
+// auto-upgrade the moment /assets/objects/butterfly.png (or pigeon.png) is added.
+export type CountKind = 'firefly' | 'mushroom' | 'apple' | 'flower' | 'butterfly' | 'pigeon'
+// Each kind can have several art variants (e.g. butterflies of different colors, a
+// pigeon flying left vs right); instances cycle through them for variety.
+export const COUNT_SRC: Record<CountKind, string[]> = {
+  firefly: ['/assets/objects/firefly.png'],
+  mushroom: ['/assets/objects/mushroom.png'],
+  apple: ['/assets/objects/apple.png'],
+  flower: ['/assets/objects/flower-red.png'],
+  butterfly: ['/assets/objects/butterfly_1.png', '/assets/objects/butterfly_2.png'],
+  pigeon: ['/assets/objects/pigeon_1.png', '/assets/objects/pigeon_2.png'],
+}
+export const COUNT_EMOJI: Record<CountKind, string> = { firefly: '🪲', mushroom: '🍄', apple: '🍎', flower: '🌸', butterfly: '🦋', pigeon: '🕊️' }
+export const COUNT_LABEL: Record<CountKind, string> = { firefly: 'firefly', mushroom: 'mushroom', apple: 'apple', flower: 'flower', butterfly: 'butterfly', pigeon: 'pigeon' }
+export const COUNT_PLURAL: Record<CountKind, string> = { firefly: 'fireflies', mushroom: 'mushrooms', apple: 'apples', flower: 'flowers', butterfly: 'butterflies', pigeon: 'pigeons' }
+
+// `on` = counted/collected. Objects always render at full color with a bright white
+// halo + drop shadow so they stand out from the dense forest; tapping pops + glows
+// them. Missing art (placeholders) falls back to a big emoji.
+export function CountItem({ kind, on, size = 56, variant = 0 }: { kind: CountKind; on: boolean; size?: number; variant?: number }) {
+  const [missing, setMissing] = useState(false)
+  const glow = kind === 'firefly'
+  const srcs = COUNT_SRC[kind]
+  if (missing) {
+    return (
+      <span role="img" aria-label={kind} style={{ display: 'inline-block', width: size, height: size, lineHeight: `${size}px`, textAlign: 'center',
+        fontSize: Math.round(size * 0.82), transition: 'filter .25s, transform .18s',
+        filter: on ? 'drop-shadow(0 0 4px #fff) drop-shadow(0 5px 6px rgba(0,0,0,.45))' : 'drop-shadow(0 0 4px rgba(255,255,255,.9)) drop-shadow(0 4px 6px rgba(0,0,0,.5))',
+        transform: on ? 'translateY(-7px) scale(1.24)' : 'none' }}>{COUNT_EMOJI[kind]}</span>
+    )
+  }
+  return (
+    <img src={srcs[variant % srcs.length]} alt={kind} draggable={false} width={size} height={size} onError={() => setMissing(true)}
+      style={{ objectFit: 'contain', transition: 'transform .18s ease, filter .25s ease',
+        filter: on
+          ? (glow ? 'drop-shadow(0 0 16px #fff3b0) brightness(1.05)' : 'drop-shadow(0 0 5px #fff) drop-shadow(0 6px 7px rgba(0,0,0,.45)) brightness(1.06)')
+          : (glow ? 'drop-shadow(0 0 8px #fff6c2)' : 'drop-shadow(0 0 5px rgba(255,255,255,.92)) drop-shadow(0 4px 6px rgba(0,0,0,.5))'),
+        transform: on ? 'translateY(-7px) scale(1.24)' : 'none' }} />
+  )
+}
+
+// Places the count items in a fitting setting so counting always has context:
+// apples grow ON the tree, mushrooms/flowers sit on the grass, fireflies float.
+const STAGE_TREE = '/assets/objects/tree_5.png'   // the bare apple tree
+export function CountStage({ kind, children }: { kind: CountKind; children: React.ReactNode }) {
+  if (kind === 'apple') {
+    return (
+      <div style={{ position: 'relative', width: 250, height: 250, margin: '0 auto', display: 'flex', justifyContent: 'center' }}>
+        <img src={STAGE_TREE} alt="" aria-hidden draggable={false}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }} />
+        {/* apples clustered over the canopy */}
+        <div style={{ position: 'absolute', top: 26, left: '50%', transform: 'translateX(-50%)', width: 170,
+          display: 'flex', flexWrap: 'wrap', gap: 2, justifyContent: 'center', zIndex: 1 }}>
+          {children}
+        </div>
+      </div>
+    )
+  }
+  if (kind === 'mushroom' || kind === 'flower') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', maxWidth: 320 }}>{children}</div>
+        <div style={{ width: 260, height: 16, borderRadius: '50%', background: 'radial-gradient(ellipse at center,#86ca63 0%,rgba(134,202,99,0) 70%)' }} />
+      </div>
+    )
+  }
+  return <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', maxWidth: 320 }}>{children}</div>
 }
 
 export function DoorArt({ n, highlight }: { n: number; highlight?: boolean }) {
@@ -112,14 +178,7 @@ export function DoorArt({ n, highlight }: { n: number; highlight?: boolean }) {
 }
 
 export function Apple({ size = 44 }: { size?: number }) {
-  return (
-    <svg viewBox="0 0 50 50" width={size} height={size}>
-      <path d="M25 12 Q30 6 36 8" fill="none" stroke="#6b4a2b" strokeWidth="3" strokeLinecap="round" />
-      <ellipse cx="31" cy="11" rx="6" ry="3.5" fill="#6fbe3f" transform="rotate(20 31 11)" />
-      <path d="M25 14 C12 14 8 26 12 36 C15 44 22 46 25 46 C28 46 35 44 38 36 C42 26 38 14 25 14 Z" fill="#e64545" stroke="#b8312f" strokeWidth="2" />
-      <ellipse cx="19" cy="24" rx="4" ry="6" fill="#fff" opacity="0.45" transform="rotate(-20 19 24)" />
-    </svg>
-  )
+  return <img src="/assets/objects/apple.png" alt="apple" draggable={false} width={size} height={size} style={{ objectFit: 'contain' }} />
 }
 
 export function Berry({ size = 26 }: { size?: number }) {

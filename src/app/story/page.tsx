@@ -1,11 +1,11 @@
 'use client'
 /**
- * /story — the 3–5 story-mode prototype (World 1: Milo's Picnic Party).
- * See docs/story-mode-3-5.md.
+ * /story — standalone preview of the Counting story-mode chapter (landscape forest
+ * walk). The same chapter also runs inside the game (see CountingStoryChapter).
  */
-import StoryWorld from '@/components/story/StoryWorld'
-import { world1 } from '@/components/story/world1'
+import ForestWalk from '@/components/story/ForestWalk'
+import { countingChapter } from '@/components/story/chapters'
 
 export default function StoryPage() {
-  return <StoryWorld world={world1} />
+  return <ForestWalk chapter={countingChapter} />
 }

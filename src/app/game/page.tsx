@@ -6,7 +6,7 @@ import { useMiloStore, type ChapterType } from '@/lib/store'
 
 import { getActiveLearner } from '@/lib/supabase/useLearnerSession'
 import { setLastPlayed } from '@/lib/lastPlayed'
-import CountingChapter from '@/components/game/CountingChapter'
+import CountingStoryChapter from '@/components/game/CountingStoryChapter'
 import NumberOrderingChapter from '@/components/game/NumberOrderingChapter'
 import NumberDoorsChapter from '@/components/game/NumberDoorsChapter'
 import MatchingQuantitiesChapter from '@/components/game/MatchingQuantitiesChapter'
@@ -50,7 +50,7 @@ import { track } from '@/lib/analytics'
 // new chapter needs one line here. TypeScript's Record enforces completeness.
 type ChapterProps = { onComplete: (correct: number, wrong: number) => void; childName: string }
 const CHAPTER_COMPONENTS: Record<ChapterType, React.ComponentType<ChapterProps>> = {
-  counting:           CountingChapter,
+  counting:           CountingStoryChapter,
   numberOrdering:     NumberOrderingChapter,
   numberRecognition:  NumberDoorsChapter,
   matchingQuantities: MatchingQuantitiesChapter,
@@ -207,8 +207,9 @@ export default function GamePage() {
       </div>
     </div>
     {/* Modal + pointer live OUTSIDE the zoom wrapper so they stay full-screen and
-        their fixed coords aren't double-scaled. */}
-    <CelebrationModal />
+        their fixed coords aren't double-scaled. The counting story renders its own
+        celebration over the forest, so we skip the global one there. */}
+    {playingChapter !== 'counting' && <CelebrationModal />}
     <MiloPointer />
     </>
   )

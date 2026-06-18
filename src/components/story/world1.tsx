@@ -5,18 +5,18 @@
  * order into one journey. Each skill scene is a SkillBeat (adaptive + re-teach +
  * warm feedback). Illustrated with hand-built SVG art (./art). See docs/story-mode-3-5.md.
  */
-import React, { useState, useEffect, useRef } from 'react'
-import { speak } from '@/lib/useMiloSpeaker'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
+import { speak, speakSeq, speakAfterCurrent, useIsSpeaking } from '@/lib/useMiloSpeaker'
 import { type Difficulty } from '@/lib/adaptive'
 import type { World, Beat } from './StoryWorld'
-import { Firefly, DoorArt, Apple, Berry, Stone, Basket } from './art'
+import { CountItem, CountStage, type CountKind, COUNT_LABEL, COUNT_PLURAL, DoorArt, Apple, Berry, Stone, Basket } from './art'
 
 const rint = (lo: number, hi: number) => lo + Math.floor(Math.random() * (hi - lo + 1))
 const shuffle = <T,>(a: T[]) => a.slice().sort(() => Math.random() - 0.5)
 const bare: React.CSSProperties = { background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }
 
-// ── Scene 1: COUNTING (tap each firefly; counts aloud; success-only) ──
-interface CountData { n: number }
+// ── Scene 1: COUNTING (tap each object; counts aloud; success-only) ──
+interface CountData { n: number; obj: CountKind }
 const CountPlay: React.FC<{ data: CountData; onSubmit: (c: boolean) => void }> = ({ data, onSubmit }) => {
   const [lit, setLit] = useState<boolean[]>(() => Array(data.n).fill(false))
   const done = useRef(false)
@@ -31,11 +31,11 @@ const CountPlay: React.FC<{ data: CountData; onSubmit: (c: boolean) => void }> =
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
       <div style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 52, color: '#fff', textShadow: '0 2px 6px rgba(0,0,0,.35)' }}>{count}</div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', maxWidth: 320 }}>
+      <CountStage kind={data.obj}>
         {lit.map((on, i) => (
-          <button key={i} onClick={() => tap(i)} style={{ ...bare, animation: on ? 'none' : 's_twinkle 2s ease-in-out infinite' }}><Firefly lit={on} /></button>
+          <button key={i} onClick={() => tap(i)} style={{ ...bare, animation: on || data.obj !== 'firefly' ? 'none' : 's_twinkle 2s ease-in-out infinite' }}><CountItem kind={data.obj} on={on} /></button>
         ))}
-      </div>
+      </CountStage>
     </div>
   )
 }
@@ -53,17 +53,209 @@ const AutoCountReteach: React.FC<{ data: CountData; onDone: () => void }> = ({ d
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
       <div style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 52, color: '#fff', textShadow: '0 2px 6px rgba(0,0,0,.35)' }}>{shown}</div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', maxWidth: 320 }}>
-        {Array.from({ length: data.n }).map((_, i) => <span key={i} style={{ opacity: i < shown ? 1 : 0.3, transition: 'opacity .3s' }}><Firefly lit={i < shown} /></span>)}
-      </div>
+      <CountStage kind={data.obj}>
+        {Array.from({ length: data.n }).map((_, i) => <span key={i} style={{ opacity: i < shown ? 1 : 0.3, transition: 'opacity .3s' }}><CountItem kind={data.obj} on={i < shown} /></span>)}
+      </CountStage>
     </div>
   )
 }
-const countBeat: Beat<CountData> = {
-  skillId: 'counting', rounds: 1,
-  make: d => ({ n: d === 1 ? rint(2, 3) : d === 2 ? rint(4, 5) : rint(6, 8) }),
-  prompt: () => 'Fireflies! Tap each one to count them.',
-  Play: CountPlay, Reteach: AutoCountReteach,
+// One counting beat per object type, so a chapter can count fireflies, then
+// apples, then mushrooms… (the quantity stays adaptive; only the thing changes).
+export function countBeatFor(obj: CountKind): Beat<CountData> {
+  return {
+    skillId: 'counting', rounds: 1,
+    make: d => ({ n: d === 1 ? rint(2, 3) : d === 2 ? rint(4, 5) : rint(6, 8), obj }),
+    prompt: d => `Tap each ${COUNT_LABEL[d.obj]} to count them!`,
+    Play: CountPlay, Reteach: AutoCountReteach,
+  }
+}
+export const countBeat = countBeatFor('firefly')
+export const countApples = countBeatFor('apple')
+export const countMushrooms = countBeatFor('mushroom')
+
+// ── In-scene counting: objects fly around the FOREST (not a canvas) ──
+// Fireflies/butterflies/pigeons appear scattered over the whole scene, big and
+// floating, and the child taps each one. Positions are stable per round and kept
+// clear of the top bar, Milo (far left), and the edges.
+const frac = (x: number) => x - Math.floor(x)
+const seed = (i: number, s: number) => frac(Math.sin((i + 1) * s) * 43758.5453)
+// Lay objects out on a loose GRID (+ small jitter) so they never collapse onto
+// each other — every object stays in its own cell and is individually tappable.
+// `demo` objects are a touch smaller (up to 10 on screen); practice ones bigger.
+function scatter(n: number, demo = false) {
+  const cols = Math.min(5, Math.max(1, Math.ceil(Math.sqrt(n * 2.2))))
+  const rows = Math.ceil(n / cols)
+  const X0 = 12, X1 = 90, Y0 = 16, Y1 = 78
+  const cw = (X1 - X0) / cols, ch = (Y1 - Y0) / rows
+  const base = demo ? 124 : 150
+  const rng = demo ? 22 : 28
+  return Array.from({ length: n }, (_, i) => {
+    const r = Math.floor(i / cols), c = i % cols
+    const jx = (seed(i, 12.9898) - 0.5) * cw * 0.36
+    const jy = (seed(i, 78.233) - 0.5) * ch * 0.36
+    return {
+      left: X0 + cw * (c + 0.5) + jx,   // %
+      top: Y0 + ch * (r + 0.5) + jy,    // %
+      size: base + Math.round(seed(i, 3.17) * rng),
+      dur: 4.6 + seed(i, 5.71) * 3,     // s
+    }
+  })
+}
+
+// Big, prominent running-count badge (kept large so the number is easy to read).
+const CountBadge: React.FC<{ value: number | string }> = ({ value }) => (
+  <div style={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 30,
+    minWidth: 100, height: 100, padding: '0 20px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+    background: 'var(--paper)', border: '5px solid var(--milo-orange)', borderRadius: 999,
+    fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 66, lineHeight: 1, color: 'var(--milo-orange)', boxShadow: '0 6px 0 rgba(242,107,44,.3)' }}>{value}</div>
+)
+export const FlyingCountPlay: React.FC<{ data: CountData; onSubmit: (c: boolean) => void }> = ({ data, onSubmit }) => {
+  const [lit, setLit] = useState<boolean[]>(() => Array(data.n).fill(false))
+  const done = useRef(false)
+  const speaking = useIsSpeaking()              // block taps while Milo says a number,
+  const spots = useMemo(() => scatter(data.n), [data.n])  // so fast taps can't skip the count
+  const count = lit.filter(Boolean).length
+  function tap(i: number) {
+    if (lit[i] || done.current || speaking) return
+    const nl = lit.slice(); nl[i] = true; setLit(nl)
+    const c = nl.filter(Boolean).length
+    speak(String(c))
+    if (c === data.n) { done.current = true; window.setTimeout(() => onSubmit(true), 950) }
+  }
+  return (
+    <>
+      {spots.map((p, i) => (
+        <button key={i} onClick={() => tap(i)} aria-label={data.obj} disabled={speaking}
+          style={{ ...bare, position: 'fixed', left: `${p.left}%`, top: `${p.top}%`, zIndex: 30,
+            animation: lit[i] ? 'none' : `fw_fly ${p.dur}s ease-in-out ${i * 0.3}s infinite` }}>
+          <CountItem kind={data.obj} on={lit[i]} size={p.size} variant={i} />
+        </button>
+      ))}
+      {/* running count, pinned at the bottom so it never hides an object */}
+      <CountBadge value={count} />
+    </>
+  )
+}
+const CATCH_INTRO: Partial<Record<CountKind, string>> = {
+  firefly: 'Fireflies are out!', butterfly: 'Look, butterflies!', pigeon: 'Pigeons in the forest!',
+}
+export function flyingCountBeatFor(obj: CountKind): Beat<CountData> {
+  return {
+    skillId: 'counting', rounds: 1,
+    make: d => ({ n: d === 1 ? rint(2, 3) : d === 2 ? rint(4, 5) : rint(6, 8), obj }),
+    prompt: d => `Tap each ${COUNT_LABEL[d.obj]} you see!`,
+    // Spoken when the practice auto-starts — the explanation IS the practice intro,
+    // so there's no separate "Next" step between telling and doing.
+    say: d => `${CATCH_INTRO[d.obj] ?? ''} Tap each ${COUNT_LABEL[d.obj]} you see!`.trim(),
+    Play: FlyingCountPlay, Reteach: AutoCountReteach,
+  }
+}
+
+// The opening demo, in the SAME flying-in-the-scene style as the practice: Milo
+// reveals one object per number and says 1…N aloud, so explanation → practice is
+// one continuous flow (no jump to a different-looking canvas).
+export const FlyingCountDemo: React.FC<{ to: number; obj: CountKind; onDone: () => void }> = ({ to, obj, onDone }) => {
+  const [shown, setShown] = useState(0)
+  const ran = useRef(false)
+  const spots = useMemo(() => scatter(to, true), [to])
+  useEffect(() => {
+    if (ran.current) return; ran.current = true
+    // speakSeq plays each phrase only after the previous one ENDS — so numbers are
+    // never cut off, and the matching object appears exactly as its number is said.
+    const words = ["Let's count together!", ...Array.from({ length: to }, (_, k) => String(k + 1))]
+    const cancel = speakSeq(words, {
+      onWord: i => { if (i >= 1) setShown(i) },        // i=0 is the intro line
+      onDone: () => { window.setTimeout(onDone, 1400) },
+    })
+    return () => cancel()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  return (
+    <>
+      {spots.map((p, i) => i < shown && (
+        <span key={i} style={{ position: 'fixed', left: `${p.left}%`, top: `${p.top}%`, zIndex: 30,
+          animation: `fw_fly ${p.dur}s ease-in-out ${i * 0.3}s infinite` }}>
+          <CountItem kind={obj} on size={p.size} variant={i} />
+        </span>
+      ))}
+      <CountBadge value={shown} />
+    </>
+  )
+}
+
+// ── The PRACTICE: 10 adaptive "How many do you see?" questions ──
+// Objects fly around the scene; the child counts and taps the matching number.
+// Wrong is possible (unlike tap-to-collect), so the adaptive + 3-wrong-streak
+// re-explanation actually fires. Re-explanation = Milo counts them out (a flying
+// demo of exactly this quantity).
+const COUNTABLES: CountKind[] = ['firefly', 'butterfly', 'pigeon']
+const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)]
+interface HowManyData { n: number; obj: CountKind; choices: number[] }
+// Two steps: (1) the child taps each flying object to COUNT it — each tap grows the
+// object (so none are recounted or missed) and Milo says the running count; (2) once
+// every object is tapped, the number choices appear and the child picks the answer.
+const HowManyPlay: React.FC<{ data: HowManyData; onSubmit: (c: boolean) => void }> = ({ data, onSubmit }) => {
+  // The child just taps each object to count it — it grows so it isn't recounted.
+  // No number on the object, no running-count pill: only the tap. Once every object
+  // is tapped, the number choices appear.
+  const [tapped, setTapped] = useState<boolean[]>(() => Array(data.n).fill(false))
+  const [picked, setPicked] = useState<number | null>(null)
+  const speaking = useIsSpeaking()                 // taps are blocked until Milo finishes
+  const spots = useMemo(() => scatter(data.n), [data.n])
+  const allTapped = tapped.every(Boolean)
+  const asked = useRef(false)
+  function tap(i: number) {
+    if (tapped[i] || picked != null || speaking) return
+    const nt = tapped.slice(); nt[i] = true; setTapped(nt)   // mark counted; no voice, no number
+  }
+  function choose(v: number) { if (picked != null || speaking) return; setPicked(v); window.setTimeout(() => onSubmit(v === data.n), 450) }
+  useEffect(() => {
+    if (allTapped && !asked.current) { asked.current = true; speakAfterCurrent('So how many? Tap the number!') }
+  }, [allTapped])
+  return (
+    <>
+      {spots.map((p, i) => (
+        <button key={i} onClick={() => tap(i)} aria-label={data.obj} disabled={picked != null || speaking}
+          style={{ ...bare, position: 'fixed', left: `${p.left}%`, top: `${p.top}%`, zIndex: 30,
+            animation: tapped[i] ? 'none' : `fw_fly ${p.dur}s ease-in-out ${i * 0.3}s infinite` }}>
+          <CountItem kind={data.obj} on={tapped[i]} size={p.size} variant={i} />
+        </button>
+      ))}
+      {allTapped && (
+        <div style={{ position: 'fixed', bottom: 18, left: '50%', transform: 'translateX(-50%)', zIndex: 30, display: 'flex', gap: 16, animation: 'fw_pop .35s ease both' }}>
+          {data.choices.map(v => {
+            const isPick = picked === v, ok = isPick && v === data.n
+            return (
+              <button key={v} onClick={() => choose(v)} disabled={picked != null || speaking} style={{
+                width: 96, height: 96, borderRadius: 22, fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 46, cursor: picked != null ? 'default' : 'pointer',
+                color: ok ? '#fff' : 'var(--milo-orange)', background: ok ? 'var(--garden-green)' : 'var(--paper)',
+                border: `5px solid ${ok ? 'var(--garden-green-deep)' : 'var(--milo-orange)'}`, boxShadow: '0 6px 0 rgba(242,107,44,.3)',
+                transform: isPick ? 'translateY(-4px)' : 'none', transition: 'all .15s' }}>{v}</button>
+            )
+          })}
+        </div>
+      )}
+    </>
+  )
+}
+// Re-explanation: Milo counts these objects out, 1…n, flying in the scene.
+const FlyingReteach: React.FC<{ data: HowManyData; onDone: () => void }> = ({ data, onDone }) =>
+  <FlyingCountDemo to={data.n} obj={data.obj} onDone={onDone} />
+
+export const practiceCountBeat: Beat<HowManyData> = {
+  skillId: 'counting', rounds: 10, reteachAfter: 3, walkEvery: 2,
+  make: d => {
+    const obj = pick(COUNTABLES)
+    const n = d === 1 ? rint(1, 4) : d === 2 ? rint(3, 7) : rint(5, 10)
+    const set = new Set<number>([n])
+    while (set.size < 3) { const c = Math.min(10, Math.max(1, n + rint(-2, 2))); if (c !== n) set.add(c) }
+    return { n, obj, choices: shuffle([...set]) }
+  },
+  // Clear action for the child: tap each one to count it. (After they've tapped all,
+  // HowManyPlay says "So how many? Tap the number!" for the answer step.)
+  prompt: d => `Tap and count the ${COUNT_PLURAL[d.obj]}!`,
+  say: d => `Tap and count the ${COUNT_PLURAL[d.obj]}! Tap each one.`,
+  Play: HowManyPlay, Reteach: FlyingReteach,
 }
 
 // ── Scene 2: NUMBER RECOGNITION (knock on door N) ──
