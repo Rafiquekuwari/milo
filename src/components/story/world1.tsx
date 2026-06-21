@@ -10,13 +10,14 @@ import { speak, speakSeq, speakAfterCurrent, useIsSpeaking } from '@/lib/useMilo
 import { type Difficulty } from '@/lib/adaptive'
 import type { World, Beat } from './StoryWorld'
 import { CountItem, CountStage, type CountKind, COUNT_LABEL, COUNT_PLURAL, DoorArt, Apple, Berry, Stone, Basket } from './art'
+import { BIOMES, BIOME_ORDER, type Band, type Biome, type BiomeId } from './biomes'
 
 const rint = (lo: number, hi: number) => lo + Math.floor(Math.random() * (hi - lo + 1))
 const shuffle = <T,>(a: T[]) => a.slice().sort(() => Math.random() - 0.5)
 const bare: React.CSSProperties = { background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }
 
 // ── Scene 1: COUNTING (tap each object; counts aloud; success-only) ──
-interface CountData { n: number; obj: CountKind }
+interface CountData { n: number; obj: CountKind; band?: Band }
 const CountPlay: React.FC<{ data: CountData; onSubmit: (c: boolean) => void }> = ({ data, onSubmit }) => {
   const [lit, setLit] = useState<boolean[]>(() => Array(data.n).fill(false))
   const done = useRef(false)
@@ -73,33 +74,79 @@ export const countBeat = countBeatFor('firefly')
 export const countApples = countBeatFor('apple')
 export const countMushrooms = countBeatFor('mushroom')
 
-// ── In-scene counting: objects fly around the FOREST (not a canvas) ──
-// Fireflies/butterflies/pigeons appear scattered over the whole scene, big and
-// floating, and the child taps each one. Positions are stable per round and kept
-// clear of the top bar, Milo (far left), and the edges.
+// ── In-scene counting: objects HIDE in the forest, the child hunts & counts ──
+// Fireflies/butterflies/pigeons are tucked into the leafy FOLIAGE BAND of the
+// frozen forest (the tree-tops), not the sky or the grass path, so the child has
+// to find each one and tap it. Positions are stable per round and kept clear of
+// the top bar, Milo (far left), and the edges.
 const frac = (x: number) => x - Math.floor(x)
 const seed = (i: number, s: number) => frac(Math.sin((i + 1) * s) * 43758.5453)
-// Lay objects out on a loose GRID (+ small jitter) so they never collapse onto
-// each other — every object stays in its own cell and is individually tappable.
-// `demo` objects are a touch smaller (up to 10 on screen); practice ones bigger.
-function scatter(n: number, demo = false) {
-  const cols = Math.min(5, Math.max(1, Math.ceil(Math.sqrt(n * 2.2))))
+// Lay objects out so they look SCATTERED across the tree — perched at many
+// different heights and tilted, not parked in tidy rows. We still seat each one
+// in its own grid cell (so they never pile up and each stays tappable), but then:
+//   • shove it hard in Y (±0.5 cell) → every object sits at its own "branch" height
+//   • stagger alternate rows sideways → columns don't line up
+//   • tilt it a little → it reads as resting on a branch, not floating upright
+// The window (X0..X1, Y0..Y1) is the tree-canopy band: left clears Milo, bottom
+// stays above the trunks/grass so objects read as "in the leaves".
+type Spot = { left: number; top: number; size: number; dur: number; rot: number; delay: number }
+// `band` is the per-biome spawn window (water low, sky high, leaves mid). Defaults
+// to the forest canopy so non-biome callers keep working.
+function scatter(n: number, band: Band = BIOMES.forest.band, demo = false): Spot[] {
+  // Favour WIDE layouts (landscape) and keep objects mostly in their grid cells so they
+  // don't bunch up and overlap — overlapping objects made the right one hard to tap.
+  const cols = Math.min(6, Math.max(1, Math.round(Math.sqrt(n) * 1.7)))
   const rows = Math.ceil(n / cols)
-  const X0 = 12, X1 = 90, Y0 = 16, Y1 = 78
+  const { x0: X0, x1: X1, y0: Y0, y1: Y1 } = band       // this biome's spawn window
   const cw = (X1 - X0) / cols, ch = (Y1 - Y0) / rows
-  const base = demo ? 124 : 150
-  const rng = demo ? 22 : 28
+  const base = demo ? 68 : 78                           // a touch smaller → more gaps, easier taps
+  const rng = demo ? 20 : 24
   return Array.from({ length: n }, (_, i) => {
     const r = Math.floor(i / cols), c = i % cols
-    const jx = (seed(i, 12.9898) - 0.5) * cw * 0.36
-    const jy = (seed(i, 78.233) - 0.5) * ch * 0.36
+    const stagger = (r % 2 ? 0.14 : -0.14) * cw          // small odd/even shift so columns don't line up dead-straight
+    const jx = (seed(i, 12.9898) - 0.5) * cw * 0.26 + stagger   // gentle jitter — stays well inside the cell
+    const jy = (seed(i, 78.233) - 0.5) * ch * 0.45       // gentle vertical jitter (no cross-row bleed)
     return {
-      left: X0 + cw * (c + 0.5) + jx,   // %
-      top: Y0 + ch * (r + 0.5) + jy,    // %
+      left: Math.max(X0, Math.min(X1, X0 + cw * (c + 0.5) + jx)),   // %
+      top: Math.max(Y0, Math.min(Y1, Y0 + ch * (r + 0.5) + jy)),    // %
       size: base + Math.round(seed(i, 3.17) * rng),
-      dur: 4.6 + seed(i, 5.71) * 3,     // s
+      dur: 3.4 + seed(i, 5.71) * 2.4,                    // s — gentle flutter
+      rot: Math.round((seed(i, 5.11) - 0.5) * 24),       // ±12° perched tilt
+      delay: +(seed(i, 9.73) * 2).toFixed(2),            // s — desync the flutter
     }
   })
+}
+
+// One hidden object, perched: an outer flutter (gentle in-place bob, desynced per
+// item) wrapping a static tilt, so objects look like they're resting on branches
+// rather than drifting in formation. The pop+glow on "found" lives in CountItem.
+// Some creatures read too small / camouflaged at the base size (their source art has
+// more empty padding around the subject), so scale them up wherever they appear
+// (demo + guided + practice all flow through here). Art is untouched — just display size.
+const SIZE_BOOST: Partial<Record<CountKind, number>> = { firefly: 2.6, eagle: 1.9, pigeon: 1.9, fish: 2.0, turtle: 1.8, octopus: 1.6, crab: 1.7, ant: 1.75, snail: 1.5, squirrel: 1.5, rabbit: 1.6 }
+// `num` (when given) shows the count number on the object once it's counted — used by
+// the explanation so the child sees 1, 2, 3… land on each one. Until an object is
+// counted (`on`) it BLINKS to invite a tap; tapping stops the blink. No more ✓ badge.
+const PerchedItem: React.FC<{ p: Spot; obj: CountKind; on: boolean; idx: number; num?: number }> = ({ p, obj, on, idx, num }) => {
+  const size = Math.round(p.size * (SIZE_BOOST[obj] ?? 1))
+  return (
+    <span style={{ display: 'block', position: 'relative',
+      animation: on ? 'fw_tap .45s cubic-bezier(.36,.07,.19,.97) both' : 'fw_blink .9s ease-in-out infinite' }}>
+      <span style={{ display: 'block', transform: `rotate(${p.rot}deg)` }}>
+        <CountItem kind={obj} on={on} size={size} variant={idx} blend />
+      </span>
+      {on && num != null && (
+        // Centred ON the object (outer span centres; inner pops) so the number clearly
+        // belongs to that object — not floating off in a far corner.
+        <span aria-hidden style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: 2, pointerEvents: 'none' }}>
+          <span style={{ display: 'flex', minWidth: 34, height: 34, padding: '0 7px', alignItems: 'center', justifyContent: 'center',
+            background: 'var(--paper)', border: '3px solid var(--milo-orange)', borderRadius: 999,
+            fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 20, color: 'var(--milo-orange)', lineHeight: 1,
+            boxShadow: '0 2px 5px rgba(0,0,0,.3)', animation: 'fw_check .35s cubic-bezier(.36,.07,.19,.97) both' }}>{num}</span>
+        </span>
+      )}
+    </span>
+  )
 }
 
 // Big, prominent running-count badge (kept large so the number is easy to read).
@@ -113,7 +160,7 @@ export const FlyingCountPlay: React.FC<{ data: CountData; onSubmit: (c: boolean)
   const [lit, setLit] = useState<boolean[]>(() => Array(data.n).fill(false))
   const done = useRef(false)
   const speaking = useIsSpeaking()              // block taps while Milo says a number,
-  const spots = useMemo(() => scatter(data.n), [data.n])  // so fast taps can't skip the count
+  const spots = useMemo(() => scatter(data.n, data.band), [data.n, data.band])  // so fast taps can't skip the count
   const count = lit.filter(Boolean).length
   function tap(i: number) {
     if (lit[i] || done.current || speaking) return
@@ -126,9 +173,8 @@ export const FlyingCountPlay: React.FC<{ data: CountData; onSubmit: (c: boolean)
     <>
       {spots.map((p, i) => (
         <button key={i} onClick={() => tap(i)} aria-label={data.obj} disabled={speaking}
-          style={{ ...bare, position: 'fixed', left: `${p.left}%`, top: `${p.top}%`, zIndex: 30,
-            animation: lit[i] ? 'none' : `fw_fly ${p.dur}s ease-in-out ${i * 0.3}s infinite` }}>
-          <CountItem kind={data.obj} on={lit[i]} size={p.size} variant={i} />
+          style={{ ...bare, position: 'fixed', left: `${p.left}%`, top: `${p.top}%`, zIndex: 30 }}>
+          <PerchedItem p={p} obj={data.obj} on={lit[i]} idx={i} />
         </button>
       ))}
       {/* running count, pinned at the bottom so it never hides an object */}
@@ -154,28 +200,34 @@ export function flyingCountBeatFor(obj: CountKind): Beat<CountData> {
 // The opening demo, in the SAME flying-in-the-scene style as the practice: Milo
 // reveals one object per number and says 1…N aloud, so explanation → practice is
 // one continuous flow (no jump to a different-looking canvas).
-export const FlyingCountDemo: React.FC<{ to: number; obj: CountKind; onDone: () => void }> = ({ to, obj, onDone }) => {
+export const FlyingCountDemo: React.FC<{ to: number; obj: CountKind; band?: Band; onDone: () => void }> = ({ to, obj, band, onDone }) => {
   const [shown, setShown] = useState(0)
   const ran = useRef(false)
-  const spots = useMemo(() => scatter(to, true), [to])
+  const spots = useMemo(() => scatter(to, band, true), [to, band])
   useEffect(() => {
     if (ran.current) return; ran.current = true
-    // speakSeq plays each phrase only after the previous one ENDS — so numbers are
-    // never cut off, and the matching object appears exactly as its number is said.
-    const words = ["Let's count together!", ...Array.from({ length: to }, (_, k) => String(k + 1))]
-    const cancel = speakSeq(words, {
-      onWord: i => { if (i >= 1) setShown(i) },        // i=0 is the intro line
-      onDone: () => { window.setTimeout(onDone, 1400) },
-    })
-    return () => cancel()
+    // Reveal one object per number on a fixed TIMER — NOT on speech events. The
+    // very first slide plays before the child has tapped, so the browser blocks
+    // Milo's voice and speech `onstart`/`onWord` never fire; a speech-gated demo
+    // would show no fireflies at all and skip straight to the next beat. Driving
+    // the reveal off setTimeout makes the counting concept always play and the
+    // fireflies always appear (scattered in the tree). We still speak each number,
+    // best effort — the visuals never wait on it.
+    const ids: number[] = []
+    const step = 780
+    speak("Let's count together!")
+    for (let k = 1; k <= to; k++) {
+      ids.push(window.setTimeout(() => { setShown(k); speak(String(k)) }, 600 + k * step))
+    }
+    ids.push(window.setTimeout(onDone, 600 + to * step + 1300))
+    return () => ids.forEach(clearTimeout)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   return (
     <>
       {spots.map((p, i) => i < shown && (
-        <span key={i} style={{ position: 'fixed', left: `${p.left}%`, top: `${p.top}%`, zIndex: 30,
-          animation: `fw_fly ${p.dur}s ease-in-out ${i * 0.3}s infinite` }}>
-          <CountItem kind={obj} on size={p.size} variant={i} />
+        <span key={i} style={{ position: 'fixed', left: `${p.left}%`, top: `${p.top}%`, zIndex: 30 }}>
+          <PerchedItem p={p} obj={obj} on idx={i} num={i + 1} />
         </span>
       ))}
       <CountBadge value={shown} />
@@ -188,9 +240,7 @@ export const FlyingCountDemo: React.FC<{ to: number; obj: CountKind; onDone: () 
 // Wrong is possible (unlike tap-to-collect), so the adaptive + 3-wrong-streak
 // re-explanation actually fires. Re-explanation = Milo counts them out (a flying
 // demo of exactly this quantity).
-const COUNTABLES: CountKind[] = ['firefly', 'butterfly', 'pigeon']
-const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)]
-interface HowManyData { n: number; obj: CountKind; choices: number[] }
+interface HowManyData { n: number; obj: CountKind; choices: number[]; band?: Band; biomeId?: BiomeId }
 // Two steps: (1) the child taps each flying object to COUNT it — each tap grows the
 // object (so none are recounted or missed) and Milo says the running count; (2) once
 // every object is tapped, the number choices appear and the child picks the answer.
@@ -201,7 +251,7 @@ const HowManyPlay: React.FC<{ data: HowManyData; onSubmit: (c: boolean) => void 
   const [tapped, setTapped] = useState<boolean[]>(() => Array(data.n).fill(false))
   const [picked, setPicked] = useState<number | null>(null)
   const speaking = useIsSpeaking()                 // taps are blocked until Milo finishes
-  const spots = useMemo(() => scatter(data.n), [data.n])
+  const spots = useMemo(() => scatter(data.n, data.band), [data.n, data.band])
   const allTapped = tapped.every(Boolean)
   const asked = useRef(false)
   function tap(i: number) {
@@ -216,9 +266,8 @@ const HowManyPlay: React.FC<{ data: HowManyData; onSubmit: (c: boolean) => void 
     <>
       {spots.map((p, i) => (
         <button key={i} onClick={() => tap(i)} aria-label={data.obj} disabled={picked != null || speaking}
-          style={{ ...bare, position: 'fixed', left: `${p.left}%`, top: `${p.top}%`, zIndex: 30,
-            animation: tapped[i] ? 'none' : `fw_fly ${p.dur}s ease-in-out ${i * 0.3}s infinite` }}>
-          <CountItem kind={data.obj} on={tapped[i]} size={p.size} variant={i} />
+          style={{ ...bare, position: 'fixed', left: `${p.left}%`, top: `${p.top}%`, zIndex: 30 }}>
+          <PerchedItem p={p} obj={data.obj} on={tapped[i]} idx={i} />
         </button>
       ))}
       {allTapped && (
@@ -240,19 +289,81 @@ const HowManyPlay: React.FC<{ data: HowManyData; onSubmit: (c: boolean) => void 
 }
 // Re-explanation: Milo counts these objects out, 1…n, flying in the scene.
 const FlyingReteach: React.FC<{ data: HowManyData; onDone: () => void }> = ({ data, onDone }) =>
-  <FlyingCountDemo to={data.n} obj={data.obj} onDone={onDone} />
+  <FlyingCountDemo to={data.n} obj={data.obj} band={data.band} onDone={onDone} />
 
+// Quantity for a round, by adaptive difficulty: easy 1–4, medium 3–7, hard 5–10.
+function quantityFor(d: 1 | 2 | 3): number {
+  return d === 1 ? rint(1, 4) : d === 2 ? rint(3, 7) : rint(5, 10)
+}
+// Per-creature spawn band overrides so each animal appears where it naturally lives.
+// Y0 = top of window, Y1 = bottom (viewport %). X0 clears Milo on the left.
+function bandFor(biome: Biome, obj: CountKind): Band {
+  const b = biome.band
+  switch (obj) {
+    // FOREST
+    case 'butterfly': return { ...b, y0: 8,  y1: 52 }   // flutter high in the canopy
+    case 'firefly':   return { ...b, y0: 28, y1: 70 }   // hover near mid-forest / undergrowth
+    case 'rabbit':    return { ...b, x0: 18, x1: 90, y0: 60, y1: 82 }   // hop along the forest floor
+    // UNDERWATER
+    case 'fish':      return { ...b, y0: 12, y1: 68 }   // swim freely through the water column
+    case 'turtle':    return { ...b, y0: 52, y1: 80 }   // cruise near the bottom
+    case 'octopus':   return { ...b, y0: 50, y1: 80 }   // near the seabed
+    case 'crab':      return { ...b, y0: 60, y1: 82 }   // scuttle on the seabed
+    // SKY
+    case 'pigeon':    return { ...b, y0: 6,  y1: 38 }   // soar high
+    case 'eagle':     return { ...b, x0: 13, x1: 92, y0: 24, y1: 52 }   // BELOW the sun (top-right), full width
+    // GARDEN — all on the open central ground, away from the edge flower beds / bushes
+    case 'squirrel':  return { ...b, x0: 22, x1: 88, y0: 58, y1: 86 }   // scurry on the ground
+    case 'snail':     return { ...b, x0: 24, x1: 86, y0: 60, y1: 84 }   // crawl on the ground
+    case 'ant':       return { ...b, x0: 22, x1: 88, y0: 60, y1: 88 }   // march on the ground
+    default:          return b
+  }
+}
+function howManyData(biome: Biome, obj: CountKind, d: 1 | 2 | 3): HowManyData {
+  const n = quantityFor(d)
+  const set = new Set<number>([n])
+  while (set.size < 3) { const c = Math.min(10, Math.max(1, n + rint(-2, 2))); if (c !== n) set.add(c) }
+  return { n, obj, band: bandFor(biome, obj), choices: shuffle([...set]), biomeId: biome.id }
+}
+
+// THE scored practice — ONE continuous 10-round adaptive sequence. The pedagogy is
+// unbroken across all 10 rounds:
+//   • difficulty ramps UP on a correct streak and DOWN when struggling (adaptive),
+//   • a walk interlude plays every 3 rounds so Milo stays animated,
+//   • after 3 wrong IN A ROW Milo re-explains by counting that exact quantity out.
+// Background cross-fades smoothly via BiomeBackground's 1s opacity transition.
+type PlanCell = { biome: Biome; obj: CountKind }
+// Objects used by the opening explanation (count demo) + guided slide — kept OUT of
+// the practice so a single session NEVER repeats a creature. (countingChapter's count
+// beat = firefly, guide = butterfly.) Every other biome creature appears exactly once.
+const EXPLAIN_OBJS = new Set<CountKind>(['firefly', 'butterfly'])
+let _plan: PlanCell[] = []
+// Build a 10-round plan: every biome creature (except the explanation ones) used ONCE,
+// shuffled, then nudged so the same biome never runs two rounds in a row.
+function buildPlan(): PlanCell[] {
+  let pool: PlanCell[] = []
+  for (const id of BIOME_ORDER) {
+    for (const obj of BIOMES[id].objects) {
+      if (!EXPLAIN_OBJS.has(obj)) pool.push({ biome: BIOMES[id], obj })
+    }
+  }
+  pool = shuffle(pool)
+  for (let i = 1; i < pool.length; i++) {
+    if (pool[i].biome.id === pool[i - 1].biome.id) {
+      const j = pool.findIndex((c, k) => k > i && c.biome.id !== pool[i - 1].biome.id)
+      if (j > -1) { const t = pool[i]; pool[i] = pool[j]; pool[j] = t }
+    }
+  }
+  return pool
+}
 export const practiceCountBeat: Beat<HowManyData> = {
-  skillId: 'counting', rounds: 10, reteachAfter: 3, walkEvery: 2,
-  make: d => {
-    const obj = pick(COUNTABLES)
-    const n = d === 1 ? rint(1, 4) : d === 2 ? rint(3, 7) : rint(5, 10)
-    const set = new Set<number>([n])
-    while (set.size < 3) { const c = Math.min(10, Math.max(1, n + rint(-2, 2))); if (c !== n) set.add(c) }
-    return { n, obj, choices: shuffle([...set]) }
+  skillId: 'counting', rounds: 10, reteachAfter: 3,
+  walkEvery: 3,
+  make: (d, round = 0) => {
+    if (round === 0) _plan = buildPlan()
+    const cell = _plan[round] ?? _plan[_plan.length - 1] ?? { biome: BIOMES.forest, obj: 'butterfly' as CountKind }
+    return howManyData(cell.biome, cell.obj, d)
   },
-  // Clear action for the child: tap each one to count it. (After they've tapped all,
-  // HowManyPlay says "So how many? Tap the number!" for the answer step.)
   prompt: d => `Tap and count the ${COUNT_PLURAL[d.obj]}!`,
   say: d => `Tap and count the ${COUNT_PLURAL[d.obj]}! Tap each one.`,
   Play: HowManyPlay, Reteach: FlyingReteach,

@@ -97,33 +97,91 @@ export function Firefly({ lit, size = 56 }: { lit: boolean; size?: number }) {
 // Real generated object PNGs, used as tappable count items across Story Mode.
 // butterfly/pigeon have no art yet — they fall back to an emoji placeholder and
 // auto-upgrade the moment /assets/objects/butterfly.png (or pigeon.png) is added.
-export type CountKind = 'firefly' | 'mushroom' | 'apple' | 'flower' | 'butterfly' | 'pigeon'
+export type CountKind =
+  // forest
+  | 'firefly' | 'butterfly' | 'rabbit'
+  // pond (legacy — pond biome removed; duck no longer used in a biome)
+  | 'duck'
+  // underwater
+  | 'fish' | 'turtle' | 'octopus' | 'crab'
+  // sky
+  | 'pigeon' | 'bee' | 'eagle'
+  // garden
+  | 'snail' | 'squirrel' | 'ant'
+  // other scenes
+  | 'mushroom' | 'apple' | 'flower'
 // Each kind can have several art variants (e.g. butterflies of different colors, a
-// pigeon flying left vs right); instances cycle through them for variety.
+// pigeon flying left vs right); instances cycle through them for variety. Kinds
+// with an EMPTY list have no painted art yet → they render as a big emoji and
+// auto-upgrade the moment a PNG is dropped in here.
 export const COUNT_SRC: Record<CountKind, string[]> = {
   firefly: ['/assets/objects/firefly.png'],
+  butterfly: ['/assets/objects/butterfly_1.png', '/assets/objects/butterfly_2.png'],
+  pigeon: ['/assets/objects/pigeon_1.png', '/assets/objects/pigeon_2.png'],
   mushroom: ['/assets/objects/mushroom.png'],
   apple: ['/assets/objects/apple.png'],
   flower: ['/assets/objects/flower-red.png'],
-  butterfly: ['/assets/objects/butterfly_1.png', '/assets/objects/butterfly_2.png'],
-  pigeon: ['/assets/objects/pigeon_1.png', '/assets/objects/pigeon_2.png'],
+  duck: ['/assets/objects/duck.png'],
+  fish: ['/assets/objects/fish.png'],
+  turtle: ['/assets/objects/turtle.png'],
+  bee: ['/assets/objects/bee.png'],
+  snail: ['/assets/objects/snail.png'],
+  squirrel: ['/assets/objects/squirrel.png'],
+  ant: ['/assets/objects/ant.png'],
+  // Two eagle variants dropped in for comparison — instances cycle through both so
+  // you can see them side by side; once you pick, drop the other from this array.
+  eagle: ['/assets/objects/eagle1.png', '/assets/objects/eagle2.png'],
+  // New objects so a session never repeats a creature — render as emoji until the PNG
+  // is dropped in (then they auto-upgrade).
+  octopus: ['/assets/objects/octopus.png'],
+  crab: ['/assets/objects/crab.png'],
+  rabbit: ['/assets/objects/rabbit.png'],
 }
-export const COUNT_EMOJI: Record<CountKind, string> = { firefly: '🪲', mushroom: '🍄', apple: '🍎', flower: '🌸', butterfly: '🦋', pigeon: '🕊️' }
-export const COUNT_LABEL: Record<CountKind, string> = { firefly: 'firefly', mushroom: 'mushroom', apple: 'apple', flower: 'flower', butterfly: 'butterfly', pigeon: 'pigeon' }
-export const COUNT_PLURAL: Record<CountKind, string> = { firefly: 'fireflies', mushroom: 'mushrooms', apple: 'apples', flower: 'flowers', butterfly: 'butterflies', pigeon: 'pigeons' }
+export const COUNT_EMOJI: Record<CountKind, string> = {
+  firefly: '🪲', butterfly: '🦋',
+  duck: '🦆', fish: '🐟', turtle: '🐢',
+  pigeon: '🐦', bee: '🐝', eagle: '🦅',
+  snail: '🐌', squirrel: '🐿️', ant: '🐜',
+  mushroom: '🍄', apple: '🍎', flower: '🌸',
+  octopus: '🐙', crab: '🦀', rabbit: '🐰',
+}
+export const COUNT_LABEL: Record<CountKind, string> = {
+  firefly: 'firefly', butterfly: 'butterfly',
+  duck: 'duck', fish: 'fish', turtle: 'turtle',
+  pigeon: 'bird', bee: 'bee', eagle: 'eagle',
+  snail: 'snail', squirrel: 'squirrel', ant: 'ant',
+  mushroom: 'mushroom', apple: 'apple', flower: 'flower',
+  octopus: 'octopus', crab: 'crab', rabbit: 'rabbit',
+}
+export const COUNT_PLURAL: Record<CountKind, string> = {
+  firefly: 'fireflies', butterfly: 'butterflies',
+  duck: 'ducks', fish: 'fish', turtle: 'turtles',
+  pigeon: 'birds', bee: 'bees', eagle: 'eagles',
+  snail: 'snails', squirrel: 'squirrels', ant: 'ants',
+  mushroom: 'mushrooms', apple: 'apples', flower: 'flowers',
+  octopus: 'octopuses', crab: 'crabs', rabbit: 'rabbits',
+}
 
-// `on` = counted/collected. Objects always render at full color with a bright white
-// halo + drop shadow so they stand out from the dense forest; tapping pops + glows
-// them. Missing art (placeholders) falls back to a big emoji.
-export function CountItem({ kind, on, size = 56, variant = 0 }: { kind: CountKind; on: boolean; size?: number; variant?: number }) {
+// `on` = counted/found. When tapped, an object pops + glows so "I found one!" is
+// clear. At rest the look depends on `blend`:
+//   • blend=false (default) — bright white halo so it stands out (canvas scenes).
+//   • blend=true — soft natural shadow only, so it tucks INTO the forest foliage
+//     and the child has to HUNT for it (the forest-walk find-and-count beats).
+// Missing art (placeholders) falls back to a big emoji.
+export function CountItem({ kind, on, size = 56, variant = 0, blend = false }: { kind: CountKind; on: boolean; size?: number; variant?: number; blend?: boolean }) {
   const [missing, setMissing] = useState(false)
   const glow = kind === 'firefly'
   const srcs = COUNT_SRC[kind]
-  if (missing) {
+  // Resting filter: blended objects sit in the leaves with just a soft contact
+  // shadow (no bright halo); non-blended keep the stand-out white halo.
+  const rest = blend
+    ? (glow ? 'drop-shadow(0 0 5px rgba(255,246,194,.5))' : 'drop-shadow(0 2px 5px rgba(0,0,0,.42))')
+    : (glow ? 'drop-shadow(0 0 8px #fff6c2)' : 'drop-shadow(0 0 5px rgba(255,255,255,.92)) drop-shadow(0 4px 6px rgba(0,0,0,.5))')
+  if (missing || !srcs.length) {
     return (
       <span role="img" aria-label={kind} style={{ display: 'inline-block', width: size, height: size, lineHeight: `${size}px`, textAlign: 'center',
         fontSize: Math.round(size * 0.82), transition: 'filter .25s, transform .18s',
-        filter: on ? 'drop-shadow(0 0 4px #fff) drop-shadow(0 5px 6px rgba(0,0,0,.45))' : 'drop-shadow(0 0 4px rgba(255,255,255,.9)) drop-shadow(0 4px 6px rgba(0,0,0,.5))',
+        filter: on ? 'drop-shadow(0 0 4px #fff) drop-shadow(0 5px 6px rgba(0,0,0,.45))' : (blend ? 'drop-shadow(0 2px 5px rgba(0,0,0,.42))' : 'drop-shadow(0 0 4px rgba(255,255,255,.9)) drop-shadow(0 4px 6px rgba(0,0,0,.5))'),
         transform: on ? 'translateY(-7px) scale(1.24)' : 'none' }}>{COUNT_EMOJI[kind]}</span>
     )
   }
@@ -132,7 +190,7 @@ export function CountItem({ kind, on, size = 56, variant = 0 }: { kind: CountKin
       style={{ objectFit: 'contain', transition: 'transform .18s ease, filter .25s ease',
         filter: on
           ? (glow ? 'drop-shadow(0 0 16px #fff3b0) brightness(1.05)' : 'drop-shadow(0 0 5px #fff) drop-shadow(0 6px 7px rgba(0,0,0,.45)) brightness(1.06)')
-          : (glow ? 'drop-shadow(0 0 8px #fff6c2)' : 'drop-shadow(0 0 5px rgba(255,255,255,.92)) drop-shadow(0 4px 6px rgba(0,0,0,.5))'),
+          : rest,
         transform: on ? 'translateY(-7px) scale(1.24)' : 'none' }} />
   )
 }

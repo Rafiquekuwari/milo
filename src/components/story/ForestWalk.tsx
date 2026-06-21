@@ -13,31 +13,99 @@ import MiloSprite from './MiloSprite'
 import { SkillBeat, type Beat } from './StoryWorld'
 import { type CountKind } from './art'
 import { FlyingCountDemo, FlyingCountPlay } from './world1'
-
-// ─── Forest background ─────────────────────────────────────────
-// A full painted dense-forest scene that scrolls behind Milo. It is mirror-tiled
-// (every other copy flipped) so the left/right edges always meet → seamless loop.
-const FOREST = '/assets/backgrounds/forest_1.jpeg'
+import { BIOMES, BIOME_ORDER, type BiomeId } from './biomes'
 
 const CSS = `
 @keyframes fw_bg  { to { transform: translateX(-25%) } }
 @keyframes fw_pop { 0%{transform:translateY(10px) scale(.9);opacity:0} 100%{transform:translateY(0) scale(1);opacity:1} }
 @keyframes fw_fly { 0%{transform:translate(0,0) rotate(0)} 25%{transform:translate(12px,-14px) rotate(5deg)} 50%{transform:translate(-9px,9px) rotate(-4deg)} 75%{transform:translate(9px,5px) rotate(3deg)} 100%{transform:translate(0,0) rotate(0)} }
+@keyframes fw_bob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
+@keyframes fw_blink { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(1.05)} }
+@keyframes fw_tap { 0%{transform:scale(1)} 30%{transform:scale(1.65)} 65%{transform:scale(1.1)} 100%{transform:scale(1.25)} }
+@keyframes fw_check { 0%{transform:scale(0) rotate(-45deg);opacity:0} 60%{transform:scale(1.3) rotate(5deg);opacity:1} 100%{transform:scale(1) rotate(0deg);opacity:1} }
+@keyframes fw_drift { from{transform:translateX(0)} to{transform:translateX(-60px)} }
+@keyframes fw_boat { 0%,100%{transform:translateY(0) rotate(-1.4deg)} 50%{transform:translateY(-3%) rotate(1.4deg)} }
 `
 
-function ForestBackground({ walking }: { walking: boolean }) {
-  // 8 copies, alternating normal / mirrored. Translating -25% advances exactly two
-  // copies (one mirror pair) — the point where the pattern repeats — so it loops
-  // with no visible seam.
+// Milo on screen. Underwater gets a scuba sprite (gently bobs); everywhere else he
+// walks. Falls back to the normal walk sprite if the asset is missing.
+function MiloAvatar({ biome, walking }: { biome: BiomeId; walking: boolean }) {
+  const [underwaterOk, setUnderwaterOk] = useState(true)
+  if (biome === 'underwater' && underwaterOk) {
+    return (
+      <img src="/assets/characters/milo_underwater.png" alt="Milo underwater" draggable={false}
+        onError={() => setUnderwaterOk(false)}
+        style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'bottom center', animation: 'fw_boat 3.2s ease-in-out infinite' }} />
+    )
+  }
+  return <MiloSprite play={walking} style={{ pointerEvents: 'none' }} />
+}
+
+// ─── Biome backgrounds ─────────────────────────────────────────
+// A painted scene scrolls behind Milo as he walks. Image biomes (forest, garden)
+// tile a real JPEG/PNG; the others render a gradient placeholder until painted art
+// is dropped into BIOMES[id].bgImage. All biome layers are stacked and cross-fade
+// by opacity, so walking from forest→pond→sky→garden dissolves smoothly.
+
+// Painted background: 8 copies, alternating normal/mirrored so the seam never shows.
+// Walking → scroll; stopped → ease to a fixed "hero" frame so hidden objects line up.
+function ImageScroll({ src, moving }: { src: string; moving: boolean }) {
   return (
-    <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
-      <div style={{ position: 'absolute', inset: 0, display: 'flex', width: 'max-content', filter: 'brightness(.8) saturate(1.05)',
-        animation: 'fw_bg 30s linear infinite', animationPlayState: walking ? 'running' : 'paused' }}>
-        {Array.from({ length: 8 }).map((_, i) => (
-          <img key={i} src={FOREST} alt="" draggable={false}
-            style={{ height: '100%', width: 'auto', display: 'block', flexShrink: 0, transform: i % 2 ? 'scaleX(-1)' : 'none' }} />
+    <div style={{ position: 'absolute', inset: 0, display: 'flex', width: 'max-content', filter: 'brightness(.85) saturate(1.05)',
+      animation: moving ? 'fw_bg 30s linear infinite' : 'none',
+      transform: moving ? undefined : 'translateX(0)',
+      transition: moving ? 'none' : 'transform .7s ease-out' }}>
+      {Array.from({ length: 8 }).map((_, i) => (
+        <img key={i} src={src} alt="" draggable={false}
+          style={{ height: '100%', width: 'auto', display: 'block', flexShrink: 0, transform: i % 2 ? 'scaleX(-1)' : 'none' }} />
+      ))}
+    </div>
+  )
+}
+
+// Gradient placeholder scenes for biomes without painted art yet. Tasteful enough
+// to read clearly as "sky" / "water"; swapped out the moment a bgImage is added.
+function SceneBg({ id, moving }: { id: BiomeId; moving: boolean }) {
+  if (id === 'sky') {
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg,#7ec6f0 0%,#a7dcf6 45%,#d8f0e6 100%)' }}>
+        <div style={{ position: 'absolute', top: '12%', right: '12%', width: 90, height: 90, borderRadius: '50%', background: 'radial-gradient(circle,#fff6c2,#ffe9a8)', boxShadow: '0 0 60px 20px rgba(255,233,168,.5)' }} />
+        <div style={{ position: 'absolute', inset: 0, animation: moving ? 'fw_drift 6s linear infinite' : 'none' }}>
+          {[[14, 26, 1], [44, 16, 1.3], [70, 32, 0.9], [88, 20, 1.1]].map(([x, y, s], i) => (
+            <div key={i} style={{ position: 'absolute', left: `${x}%`, top: `${y}%`, width: 120 * s, height: 46 * s, borderRadius: 999, background: 'rgba(255,255,255,.92)', boxShadow: '0 8px 24px rgba(120,160,190,.25)' }} />
+          ))}
+        </div>
+      </div>
+    )
+  }
+  // pond
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg,#bfe6f7 0%,#d8f0e6 38%,#8fd0e8 46%,#5fb4d8 72%,#3f97c2 100%)' }}>
+      <div style={{ position: 'absolute', top: '8%', left: '16%', width: 70, height: 70, borderRadius: '50%', background: 'radial-gradient(circle,#fff6c2,#ffe9a8)', opacity: 0.9 }} />
+      {/* water ripples */}
+      <div style={{ position: 'absolute', inset: 0, animation: moving ? 'fw_drift 5s linear infinite' : 'none' }}>
+        {[52, 64, 76, 88].map((y, i) => (
+          <div key={i} style={{ position: 'absolute', left: '-5%', right: '-5%', top: `${y}%`, height: 3, borderRadius: 3, background: 'rgba(255,255,255,.35)' }} />
         ))}
       </div>
+    </div>
+  )
+}
+
+function BiomeBackground({ biome, walking }: { biome: BiomeId; walking: boolean }) {
+  return (
+    <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: '#bfe6f7' }}>
+      {BIOME_ORDER.map(id => {
+        const active = id === biome
+        const b = BIOMES[id]
+        return (
+          <div key={id} style={{ position: 'absolute', inset: 0, overflow: 'hidden', opacity: active ? 1 : 0, transition: 'opacity 1s ease', pointerEvents: 'none' }}>
+            {b.bgImage
+              ? <ImageScroll src={b.bgImage} moving={active && walking} />
+              : <SceneBg id={id} moving={active && walking} />}
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -56,12 +124,15 @@ function useNeedsRotate() {
 }
 
 // ─── Beats ─────────────────────────────────────────────────────
+// `biome` sets the place (background + where creatures spawn). It carries forward
+// until the next beat overrides it; a `walk` with `toBiome` switches the background
+// DURING the walk, so Milo arrives somewhere new.
 export type WalkBeat =
-  | { kind: 'walk'; ms?: number }
-  | { kind: 'say'; text: string }
-  | { kind: 'count'; to: number; obj: CountKind }   // Milo demonstrates counting 1→N aloud
-  | { kind: 'guide'; n: number; obj: CountKind }    // child taps all N to count (guided, unscored)
-  | { kind: 'catch'; beat: Beat<any> }              // the scored practice (SkillBeat) // eslint-disable-line @typescript-eslint/no-explicit-any
+  | { kind: 'walk'; ms?: number; toBiome?: BiomeId }
+  | { kind: 'say'; text: string; biome?: BiomeId }
+  | { kind: 'count'; to: number; obj: CountKind; biome?: BiomeId }   // Milo demonstrates counting 1→N aloud
+  | { kind: 'guide'; n: number; obj: CountKind; biome?: BiomeId }    // child taps all N to count (guided, unscored)
+  | { kind: 'catch'; beat: Beat<any>; biome?: BiomeId }              // the scored practice (SkillBeat) // eslint-disable-line @typescript-eslint/no-explicit-any
   | { kind: 'skill'; beat: Beat<any> } // eslint-disable-line @typescript-eslint/no-explicit-any
 
 export interface Chapter { id: string; title: string; beats: WalkBeat[] }
@@ -81,10 +152,23 @@ export default function ForestWalk({ chapter, onFinish, onExit }: {
   }, [])
   const miloH = Math.min(Math.round((vp.h || 450) * 0.46), 320)
   const miloW = Math.round(miloH * 0.82)
-  const [idx, setIdx] = useState(0)
+  // ?skip jumps straight to the catch/practice beat (dev shortcut to preview biome changes)
+  const skipToPractice = typeof window !== 'undefined' && window.location.search.includes('skip')
+  const startIdx = skipToPractice ? chapter.beats.findIndex(b => b.kind === 'catch') : 0
+  const [idx, setIdx] = useState(Math.max(0, startIdx))
   const [forceWalk, setForceWalk] = useState(false)   // brief walk interlude during practice
+  const [biome, setBiome] = useState<BiomeId>('forest')   // current place (bg + spawn band)
   const beat = chapter.beats[idx]
   const walking = beat?.kind === 'walk' || forceWalk
+  const band = BIOMES[biome].band
+  // The place follows the beats: a beat's `biome` sets it; a `walk` with `toBiome`
+  // switches it as the walk starts, so the background cross-fades while Milo travels.
+  useEffect(() => {
+    if (!beat) return
+    if (beat.kind === 'walk') { if (beat.toBiome) setBiome(beat.toBiome) }
+    else if ('biome' in beat && beat.biome) setBiome(beat.biome)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idx])
   // Milo walks a couple of steps, then resolves so the practice resumes.
   const interlude = useCallback(() => new Promise<void>(resolve => {
     setForceWalk(true)
@@ -141,17 +225,15 @@ export default function ForestWalk({ chapter, onFinish, onExit }: {
   return (
     <div style={{ position: 'relative', width: '100vw', height: '100dvh', overflow: 'hidden', background: '#bfe6f7' }}>
       <style>{CSS}</style>
-      <ForestBackground walking={walking} />
+      <BiomeBackground biome={biome} walking={walking} />
 
-      {/* During counting, dim the forest so the bright flying objects stand out —
-          but not during a walk interlude, where the bright forest reads as travel. */}
-      {(beat?.kind === 'count' || beat?.kind === 'catch' || beat?.kind === 'guide') && !forceWalk && (
-        <div style={{ position: 'absolute', inset: 0, zIndex: 8, background: 'rgba(10,18,8,0.36)', pointerEvents: 'none' }} />
-      )}
+      {/* No dim overlay during counting: the objects are meant to HIDE in the
+          foliage (a find-and-count hunt), so the forest stays bright and they
+          blend in until the child finds and taps each one (then it pops + glows). */}
 
       {/* Milo — 2D sprite walk cycle (faces right); turns to idle when he stops. */}
       <div style={{ position: 'absolute', left: '4%', bottom: 24, width: miloW, height: miloH, zIndex: 12, pointerEvents: 'none' }}>
-        <MiloSprite play={walking} style={{ pointerEvents: 'none' }} />
+        <MiloAvatar biome={biome} walking={walking} />
       </div>
 
       {/* Top bar */}
@@ -181,7 +263,7 @@ export default function ForestWalk({ chapter, onFinish, onExit }: {
             <div style={{ background: 'var(--paper)', border: '3px solid var(--milo-orange)', borderRadius: 999, padding: '10px 24px',
               fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 19, color: 'var(--milo-orange)', boxShadow: '0 4px 0 rgba(242,107,44,.25)' }}>Let&apos;s count together! 🔢</div>
           </div>
-          <FlyingCountDemo key={idx} to={beat.to} obj={beat.obj} onDone={advance} />
+          <FlyingCountDemo key={idx} to={beat.to} obj={beat.obj} band={band} onDone={advance} />
         </>
       )}
 
@@ -192,14 +274,16 @@ export default function ForestWalk({ chapter, onFinish, onExit }: {
             <div style={{ background: 'var(--paper)', border: '3px solid var(--milo-orange)', borderRadius: 999, padding: '10px 24px',
               fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 19, color: 'var(--milo-orange)', boxShadow: '0 4px 0 rgba(242,107,44,.25)' }}>Now you count — tap each one! 👆</div>
           </div>
-          <FlyingCountPlay key={idx} data={{ n: beat.n, obj: beat.obj }} onSubmit={advance} />
+          <FlyingCountPlay key={idx} data={{ n: beat.n, obj: beat.obj, band }} onSubmit={advance} />
         </>
       )}
 
       {/* Catch station — the scored practice; only the prompt sits up top. */}
       {beat?.kind === 'catch' && (
         <div style={{ position: 'absolute', top: 48, left: 0, right: 0, zIndex: 20, display: 'flex', justifyContent: 'center', padding: '0 12px' }}>
-          <SkillBeat beat={beat.beat} onInterlude={interlude} onComplete={(c, w) => { result.current.correct += c; result.current.wrong += w; advance() }} />
+          <SkillBeat beat={beat.beat} onInterlude={interlude}
+            onRound={(data) => { if (data?.biomeId) setBiome(data.biomeId) }}
+            onComplete={(c, w) => { result.current.correct += c; result.current.wrong += w; advance() }} />
         </div>
       )}
 

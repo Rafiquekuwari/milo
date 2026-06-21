@@ -6,25 +6,28 @@
 import { type Chapter } from './ForestWalk'
 import { practiceCountBeat } from './world1'
 
-// Counting — "Chapter 1". Three teaching slides flow straight into the practice,
-// all auto-advancing (no Next buttons):
-//   1. Milo counts 1→10 by himself (fireflies).
-//   2. "Now you count!" — the child taps all 10 (butterflies).
-//   3. A smaller number, to show counting isn't always to ten (pigeons → 5).
-// Then the scored practice: 10 adaptive "how many?" questions, with Milo
-// re-explaining (counting them out) after 3 wrong in a row. XP comes from these.
+// Counting — "Milo's Counting Journey". The teaching is fixed and always runs the
+// same way (only the visuals change):
+//   1. Milo counts up to 10 by himself (fireflies)            — the explanation.
+//   2. The child taps to count up to 10 (butterflies)         — guided practice.
+//   3. Milo counts a smaller number by himself (dragonflies → 5)— shows it's not always 10.
+// Then ONE scored practice of 10 adaptive "how many?" questions (practiceCountBeat).
+// That single practice carries the whole pedagogy unbroken: right answers make it
+// harder, struggling makes it easier, and 3 wrong in a row triggers Milo's
+// re-explanation. The biome rotates inside the practice (forest→pond→sky→garden) for
+// variety, but it stays one continuous adaptive sequence. XP comes from this practice.
 export const countingChapter: Chapter = {
   id: 'counting',
-  title: 'Counting in the Forest',
+  title: "Milo's Counting Journey",
   beats: [
-    { kind: 'say', text: "Let's learn to count in the forest!" },
-    { kind: 'count', to: 10, obj: 'firefly' },
-    { kind: 'walk', ms: 2600 },                 // Milo walks a few steps to the next spot
-    { kind: 'guide', n: 10, obj: 'butterfly' },
-    { kind: 'walk', ms: 2600 },
-    { kind: 'count', to: 5, obj: 'pigeon' },
-    { kind: 'walk', ms: 3000 },
-    { kind: 'catch', beat: practiceCountBeat }, // 10 questions; Milo walks every 2 (walkEvery)
-    { kind: 'say', text: 'You are a counting star! 🌟' },
+    { kind: 'say', text: "Let's learn to count in the forest!", biome: 'forest' },
+    { kind: 'count', to: 10, obj: 'firefly', biome: 'forest' },   // 1. Milo counts to 10
+    { kind: 'guide', n: 10, obj: 'butterfly', biome: 'forest' },  // 2. child taps to count to 10
+    { kind: 'catch', beat: practiceCountBeat, biome: 'forest' },  // 3–4. scored adaptive practice (10 Qs)
+    { kind: 'say', text: 'You counted everywhere! You are a counting star! 🌟', biome: 'garden' },
   ],
 }
+
+// Number Order (Chapter 2) is no longer a ForestWalk chapter — it was redesigned as the
+// top-down RiverCrossing experience. See story/RiverCrossing.tsx (wrapped by
+// game/NumberOrderingChapter.tsx).

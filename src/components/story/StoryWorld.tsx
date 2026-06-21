@@ -35,7 +35,13 @@ export interface Beat<T> {
                                          // re-explanation (defaults to 2)
   walkEvery?: number                     // play a short walk interlude every N rounds,
                                          // so a long practice feels like a journey
-  make: (d: Difficulty) => T
+  walkBeforeRound?: (round: number) => boolean   // play a walk interlude right BEFORE
+                                         // these rounds (e.g. when the scene/biome
+                                         // changes), so a change always reads as
+                                         // "Milo travelled there". Overrides walkEvery.
+  make: (d: Difficulty, round?: number) => T   // `round` lets one practice vary by
+                                               // round (e.g. rotate the biome) while
+                                               // staying ONE adaptive sequence
   prompt: (data: T) => string            // shown on screen
   say?: (data: T) => string              // spoken by Milo (defaults to prompt). Use
                                          // a different `say` when the answer must be
@@ -54,7 +60,7 @@ export interface World { id: string; title: string; scenes: Scene[] }
 // ─── SkillBeat: the unbreakable pedagogy core ──────────────────
 // Runs `rounds` adaptive rounds. Warm wrong-answers (no red X). On a 2-wrong
 // streak, Milo re-explains in-story, then the child retries.
-export function SkillBeat({ beat, onComplete, onInterlude }: { beat: Beat<any>; onComplete: (correct: number, wrong: number) => void; onInterlude?: () => Promise<void> }) { // eslint-disable-line @typescript-eslint/no-explicit-any
+export function SkillBeat({ beat, onComplete, onInterlude, onRound }: { beat: Beat<any>; onComplete: (correct: number, wrong: number) => void; onInterlude?: () => Promise<void>; onRound?: (data: any, round: number) => void }) { // eslint-disable-line @typescript-eslint/no-explicit-any
   const ada = useAdaptive(beat.skillId)
   const adaRef = useRef(ada); adaRef.current = ada
   const [roundIdx, setRoundIdx] = useState(0)
@@ -65,12 +71,13 @@ export function SkillBeat({ beat, onComplete, onInterlude }: { beat: Beat<any>; 
 
   // ONE data object per round. Must be stable across re-renders (it holds the
   // random target), or the Play UI and the answer-check would disagree and the
-  // round could never complete. Difficulty is read at round start.
-  const data = useMemo(() => beat.make(adaRef.current.difficulty), [roundIdx, beat])
+  // round could never complete. Difficulty is read at round start; `roundIdx` lets
+  // the beat rotate the scene (biome) while staying one continuous practice.
+  const data = useMemo(() => beat.make(adaRef.current.difficulty, roundIdx), [roundIdx, beat])
 
-  // Announce each new round. The SPOKEN text may differ from the shown text —
-  // e.g. doors reveal the number only by voice, not on screen.
+  // Announce each new round, and let the host react to it (e.g. follow the biome).
   useEffect(() => {
+    onRound?.(data, roundIdx)
     speak((beat.say ?? beat.prompt)(data))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roundIdx])
@@ -89,9 +96,11 @@ export function SkillBeat({ beat, onComplete, onInterlude }: { beat: Beat<any>; 
       if (!correct && newRun >= (beat.reteachAfter ?? 2)) { setPhase('reteach'); return }
       const next = roundIdx + 1
       if (next >= beat.rounds) { onComplete(tally.current.correct, tally.current.wrong); return }
-      // Storyline interlude: Milo walks a few steps every `walkEvery` rounds. The
-      // adaptive streak/tally carry across it untouched.
-      if (onInterlude && beat.walkEvery && next % beat.walkEvery === 0) {
+      // Storyline interlude: Milo walks a few steps before certain rounds (a scene/
+      // biome change), or every `walkEvery` rounds. The adaptive streak/tally carry
+      // across it untouched.
+      const wantWalk = beat.walkBeforeRound ? beat.walkBeforeRound(next) : !!(beat.walkEvery && next % beat.walkEvery === 0)
+      if (onInterlude && wantWalk) {
         setPhase('interlude')
         onInterlude().then(() => { setPhase('play'); setRoundIdx(next) })
         return

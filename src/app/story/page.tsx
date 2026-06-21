@@ -1,11 +1,22 @@
 'use client'
 /**
- * /story — standalone preview of the Counting story-mode chapter (landscape forest
- * walk). The same chapter also runs inside the game (see CountingStoryChapter).
+ * /story — standalone preview of the story-mode chapters (the same experiences also
+ * run inside the game via their chapter wrappers). Pick which one with `?ch=`:
+ *   /story            → Counting    (forest walk)        [default]
+ *   /story?ch=order   → Number Order (river crossing)
+ *   /story?ch=kitchen → Comparison   (magic kitchen)
  */
+import { useEffect, useState } from 'react'
 import ForestWalk from '@/components/story/ForestWalk'
 import { countingChapter } from '@/components/story/chapters'
+import RiverCrossing from '@/components/story/RiverCrossing'
+import Kitchen from '@/components/story/Kitchen'
 
 export default function StoryPage() {
+  const [ch, setCh] = useState('counting')
+  useEffect(() => { setCh(new URLSearchParams(window.location.search).get('ch') || 'counting') }, [])
+
+  if (ch === 'order') return <RiverCrossing />
+  if (ch === 'kitchen') return <Kitchen />
   return <ForestWalk chapter={countingChapter} />
 }
