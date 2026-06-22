@@ -14,7 +14,7 @@ import { practiceCountBeat } from './world1'
 // Then ONE scored practice of 10 adaptive "how many?" questions (practiceCountBeat).
 // That single practice carries the whole pedagogy unbroken: right answers make it
 // harder, struggling makes it easier, and 3 wrong in a row triggers Milo's
-// re-explanation. The biome rotates inside the practice (forest→pond→sky→garden) for
+// re-explanation. The biome rotates inside the practice (forest→underwater→garden) for
 // variety, but it stays one continuous adaptive sequence. XP comes from this practice.
 export const countingChapter: Chapter = {
   id: 'counting',

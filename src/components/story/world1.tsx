@@ -16,6 +16,27 @@ const rint = (lo: number, hi: number) => lo + Math.floor(Math.random() * (hi - l
 const shuffle = <T,>(a: T[]) => a.slice().sort(() => Math.random() - 0.5)
 const bare: React.CSSProperties = { background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }
 
+// Creatures are sized in px against a ~1000px-wide stage. On a tiny window they'd be
+// too big; on a wide desktop, fixed px would look small. So we grow them with the
+// viewport — but GENTLY (sub-linear): full proportional scaling made them look
+// oversized and crowded on a real ~1900px browser. This keeps them a "medium" size at
+// any width (≈ preview size at 1000px, only modestly bigger on a wide screen).
+const DESIGN_W = 1000
+function useScale() {
+  const [s, setS] = useState(1)
+  useEffect(() => {
+    const calc = () => {
+      const raw = window.innerWidth / DESIGN_W
+      const damped = raw <= 1 ? raw : 1 + (raw - 1) * 0.4   // only 40% of the extra width
+      setS(Math.max(0.85, Math.min(1.45, damped)))
+    }
+    calc()
+    window.addEventListener('resize', calc)
+    return () => window.removeEventListener('resize', calc)
+  }, [])
+  return s
+}
+
 // ── Scene 1: COUNTING (tap each object; counts aloud; success-only) ──
 interface CountData { n: number; obj: CountKind; band?: Band }
 const CountPlay: React.FC<{ data: CountData; onSubmit: (c: boolean) => void }> = ({ data, onSubmit }) => {
@@ -75,7 +96,7 @@ export const countApples = countBeatFor('apple')
 export const countMushrooms = countBeatFor('mushroom')
 
 // ── In-scene counting: objects HIDE in the forest, the child hunts & counts ──
-// Fireflies/butterflies/pigeons are tucked into the leafy FOLIAGE BAND of the
+// Fireflies/butterflies are tucked into the leafy FOLIAGE BAND of the
 // frozen forest (the tree-tops), not the sky or the grass path, so the child has
 // to find each one and tap it. Positions are stable per round and kept clear of
 // the top bar, Milo (far left), and the edges.
@@ -123,12 +144,14 @@ function scatter(n: number, band: Band = BIOMES.forest.band, demo = false): Spot
 // Some creatures read too small / camouflaged at the base size (their source art has
 // more empty padding around the subject), so scale them up wherever they appear
 // (demo + guided + practice all flow through here). Art is untouched — just display size.
-const SIZE_BOOST: Partial<Record<CountKind, number>> = { firefly: 2.6, eagle: 1.9, pigeon: 1.9, fish: 2.0, turtle: 1.8, octopus: 1.6, crab: 1.7, ant: 1.75, snail: 1.5, squirrel: 1.5, rabbit: 1.6 }
+const SIZE_BOOST: Partial<Record<CountKind, number>> = { firefly: 2.6, eagle: 1.9, fish: 2.6, shark: 2.4, turtle: 1.8, crab: 1.7, ant: 1.75, squirrel: 1.5, rabbit: 1.6, ladybug: 1.6 }
 // `num` (when given) shows the count number on the object once it's counted — used by
 // the explanation so the child sees 1, 2, 3… land on each one. Until an object is
 // counted (`on`) it BLINKS to invite a tap; tapping stops the blink. No more ✓ badge.
 const PerchedItem: React.FC<{ p: Spot; obj: CountKind; on: boolean; idx: number; num?: number }> = ({ p, obj, on, idx, num }) => {
-  const size = Math.round(p.size * (SIZE_BOOST[obj] ?? 1))
+  const scale = useScale()
+  const size = Math.round(p.size * (SIZE_BOOST[obj] ?? 1) * scale)
+  const badge = Math.round(34 * scale)   // keep the count number proportional to the creature
   return (
     <span style={{ display: 'block', position: 'relative',
       animation: on ? 'fw_tap .45s cubic-bezier(.36,.07,.19,.97) both' : 'fw_blink .9s ease-in-out infinite' }}>
@@ -139,9 +162,9 @@ const PerchedItem: React.FC<{ p: Spot; obj: CountKind; on: boolean; idx: number;
         // Centred ON the object (outer span centres; inner pops) so the number clearly
         // belongs to that object — not floating off in a far corner.
         <span aria-hidden style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: 2, pointerEvents: 'none' }}>
-          <span style={{ display: 'flex', minWidth: 34, height: 34, padding: '0 7px', alignItems: 'center', justifyContent: 'center',
+          <span style={{ display: 'flex', minWidth: badge, height: badge, padding: `0 ${Math.round(7 * scale)}px`, alignItems: 'center', justifyContent: 'center',
             background: 'var(--paper)', border: '3px solid var(--milo-orange)', borderRadius: 999,
-            fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 20, color: 'var(--milo-orange)', lineHeight: 1,
+            fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: Math.round(20 * scale), color: 'var(--milo-orange)', lineHeight: 1,
             boxShadow: '0 2px 5px rgba(0,0,0,.3)', animation: 'fw_check .35s cubic-bezier(.36,.07,.19,.97) both' }}>{num}</span>
         </span>
       )}
@@ -183,7 +206,7 @@ export const FlyingCountPlay: React.FC<{ data: CountData; onSubmit: (c: boolean)
   )
 }
 const CATCH_INTRO: Partial<Record<CountKind, string>> = {
-  firefly: 'Fireflies are out!', butterfly: 'Look, butterflies!', pigeon: 'Pigeons in the forest!',
+  firefly: 'Fireflies are out!', butterfly: 'Look, butterflies!', eagle: 'Eagles in the trees!',
 }
 export function flyingCountBeatFor(obj: CountKind): Beat<CountData> {
   return {
@@ -295,32 +318,33 @@ const FlyingReteach: React.FC<{ data: HowManyData; onDone: () => void }> = ({ da
 function quantityFor(d: 1 | 2 | 3): number {
   return d === 1 ? rint(1, 4) : d === 2 ? rint(3, 7) : rint(5, 10)
 }
+// Big creatures look better (and stay tappable) in small numbers — cap how many ever
+// appear at once. Eagles perch on the trees, so only a few; sharks are large too.
+const MAX_N: Partial<Record<CountKind, number>> = { eagle: 4, shark: 5 }
 // Per-creature spawn band overrides so each animal appears where it naturally lives.
 // Y0 = top of window, Y1 = bottom (viewport %). X0 clears Milo on the left.
 function bandFor(biome: Biome, obj: CountKind): Band {
   const b = biome.band
   switch (obj) {
     // FOREST
-    case 'butterfly': return { ...b, y0: 8,  y1: 52 }   // flutter high in the canopy
-    case 'firefly':   return { ...b, y0: 28, y1: 70 }   // hover near mid-forest / undergrowth
-    case 'rabbit':    return { ...b, x0: 18, x1: 90, y0: 60, y1: 82 }   // hop along the forest floor
+    case 'butterfly': return { ...b, y0: 8,  y1: 50 }   // flutter high in the canopy
+    case 'firefly':   return { ...b, x0: 13, x1: 72, y0: 28, y1: 66 }   // hover near mid-forest / undergrowth
+    case 'rabbit':    return { ...b, x0: 18, x1: 82, y0: 60, y1: 82 }   // hop along the forest floor
+    case 'eagle':     return { ...b, x0: 16, x1: 78, y0: 10, y1: 40 }   // perched up in the treetops (few of them)
     // UNDERWATER
-    case 'fish':      return { ...b, y0: 12, y1: 68 }   // swim freely through the water column
-    case 'turtle':    return { ...b, y0: 52, y1: 80 }   // cruise near the bottom
-    case 'octopus':   return { ...b, y0: 50, y1: 80 }   // near the seabed
-    case 'crab':      return { ...b, y0: 60, y1: 82 }   // scuttle on the seabed
-    // SKY
-    case 'pigeon':    return { ...b, y0: 6,  y1: 38 }   // soar high
-    case 'eagle':     return { ...b, x0: 13, x1: 92, y0: 24, y1: 52 }   // BELOW the sun (top-right), full width
-    // GARDEN — all on the open central ground, away from the edge flower beds / bushes
-    case 'squirrel':  return { ...b, x0: 22, x1: 88, y0: 58, y1: 86 }   // scurry on the ground
-    case 'snail':     return { ...b, x0: 24, x1: 86, y0: 60, y1: 84 }   // crawl on the ground
-    case 'ant':       return { ...b, x0: 22, x1: 88, y0: 60, y1: 88 }   // march on the ground
+    case 'fish':      return { ...b, x0: 12, x1: 72, y0: 14, y1: 62 }   // swim freely through the water column
+    case 'turtle':    return { ...b, x0: 12, x1: 80, y0: 42, y1: 76 }   // spread across the mid-lower water
+    case 'shark':     return { ...b, x0: 12, x1: 72, y0: 18, y1: 60 }   // cruise the open water column
+    case 'crab':      return { ...b, x0: 12, x1: 82, y0: 62, y1: 84 }   // scatter across the seabed
+    // GARDEN — on the open grass, away from the edge flower beds / bushes
+    case 'squirrel':  return { ...b, x0: 16, x1: 50, y0: 50, y1: 74 }   // by the cart/rock on the left
+    case 'ant':       return { ...b, x0: 30, x1: 74, y0: 58, y1: 80 }   // march on the open green grass
+    case 'ladybug':   return { ...b, x0: 24, x1: 80, y0: 54, y1: 80 }   // dot the grass / low flowers
     default:          return b
   }
 }
 function howManyData(biome: Biome, obj: CountKind, d: 1 | 2 | 3): HowManyData {
-  const n = quantityFor(d)
+  const n = Math.min(quantityFor(d), MAX_N[obj] ?? 10)
   const set = new Set<number>([n])
   while (set.size < 3) { const c = Math.min(10, Math.max(1, n + rint(-2, 2))); if (c !== n) set.add(c) }
   return { n, obj, band: bandFor(biome, obj), choices: shuffle([...set]), biomeId: biome.id }
@@ -338,15 +362,24 @@ type PlanCell = { biome: Biome; obj: CountKind }
 // beat = firefly, guide = butterfly.) Every other biome creature appears exactly once.
 const EXPLAIN_OBJS = new Set<CountKind>(['firefly', 'butterfly'])
 let _plan: PlanCell[] = []
-// Build a 10-round plan: every biome creature (except the explanation ones) used ONCE,
-// shuffled, then nudged so the same biome never runs two rounds in a row.
-function buildPlan(): PlanCell[] {
-  let pool: PlanCell[] = []
+// Every non-explanation biome creature, in biome order — the full practice pool.
+function practicePool(): PlanCell[] {
+  const pool: PlanCell[] = []
   for (const id of BIOME_ORDER) {
     for (const obj of BIOMES[id].objects) {
       if (!EXPLAIN_OBJS.has(obj)) pool.push({ biome: BIOMES[id], obj })
     }
   }
+  return pool
+}
+// The practice runs exactly ONE round per pool creature, so a correctly-answered
+// question never comes back — no creature repeats in a session. (If the roster
+// grows/shrinks, the round count follows it automatically.)
+const PRACTICE_ROUNDS = practicePool().length
+// Build the plan: every pool creature used ONCE, shuffled, then nudged so the same
+// biome never runs two rounds in a row.
+function buildPlan(): PlanCell[] {
+  let pool = practicePool()
   pool = shuffle(pool)
   for (let i = 1; i < pool.length; i++) {
     if (pool[i].biome.id === pool[i - 1].biome.id) {
@@ -357,7 +390,7 @@ function buildPlan(): PlanCell[] {
   return pool
 }
 export const practiceCountBeat: Beat<HowManyData> = {
-  skillId: 'counting', rounds: 10, reteachAfter: 3,
+  skillId: 'counting', rounds: PRACTICE_ROUNDS, reteachAfter: 3,
   walkEvery: 3,
   make: (d, round = 0) => {
     if (round === 0) _plan = buildPlan()

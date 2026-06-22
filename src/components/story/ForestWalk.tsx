@@ -63,22 +63,9 @@ function ImageScroll({ src, moving }: { src: string; moving: boolean }) {
   )
 }
 
-// Gradient placeholder scenes for biomes without painted art yet. Tasteful enough
-// to read clearly as "sky" / "water"; swapped out the moment a bgImage is added.
-function SceneBg({ id, moving }: { id: BiomeId; moving: boolean }) {
-  if (id === 'sky') {
-    return (
-      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg,#7ec6f0 0%,#a7dcf6 45%,#d8f0e6 100%)' }}>
-        <div style={{ position: 'absolute', top: '12%', right: '12%', width: 90, height: 90, borderRadius: '50%', background: 'radial-gradient(circle,#fff6c2,#ffe9a8)', boxShadow: '0 0 60px 20px rgba(255,233,168,.5)' }} />
-        <div style={{ position: 'absolute', inset: 0, animation: moving ? 'fw_drift 6s linear infinite' : 'none' }}>
-          {[[14, 26, 1], [44, 16, 1.3], [70, 32, 0.9], [88, 20, 1.1]].map(([x, y, s], i) => (
-            <div key={i} style={{ position: 'absolute', left: `${x}%`, top: `${y}%`, width: 120 * s, height: 46 * s, borderRadius: 999, background: 'rgba(255,255,255,.92)', boxShadow: '0 8px 24px rgba(120,160,190,.25)' }} />
-          ))}
-        </div>
-      </div>
-    )
-  }
-  // pond
+// Gradient placeholder for any biome without painted art yet (all current biomes —
+// forest, underwater, garden — ship a bgImage, so this is just a graceful fallback).
+function SceneBg({ moving }: { id: BiomeId; moving: boolean }) {
   return (
     <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg,#bfe6f7 0%,#d8f0e6 38%,#8fd0e8 46%,#5fb4d8 72%,#3f97c2 100%)' }}>
       <div style={{ position: 'absolute', top: '8%', left: '16%', width: 70, height: 70, borderRadius: '50%', background: 'radial-gradient(circle,#fff6c2,#ffe9a8)', opacity: 0.9 }} />
@@ -166,7 +153,10 @@ export default function ForestWalk({ chapter, onFinish, onExit }: {
   useEffect(() => {
     if (!beat) return
     if (beat.kind === 'walk') { if (beat.toBiome) setBiome(beat.toBiome) }
-    else if ('biome' in beat && beat.biome) setBiome(beat.biome)
+    // The 'catch' practice rotates biome PER ROUND via its SkillBeat onRound (below),
+    // so don't pin it here — otherwise this effect overrides round 1's biome on mount
+    // (child onRound runs first, then this parent effect would snap it back).
+    else if (beat.kind !== 'catch' && 'biome' in beat && beat.biome) setBiome(beat.biome)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idx])
   // Milo walks a couple of steps, then resolves so the practice resumes.

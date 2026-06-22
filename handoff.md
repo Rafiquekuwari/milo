@@ -1,6 +1,6 @@
 # Session Handoff — Milo Story Mode (Chapters 1, 2 & 3)
 
-_Last updated: 2026-06-22_
+_Last updated: 2026-06-23_
 
 ## TL;DR
 Three 3–5 story chapters are built: **Ch.1 Counting** (`ForestWalk`), **Ch.2 Number Order** (`RiverCrossing`), **Ch.3 Number Comparison** (`Kitchen`). This session (2026-06-21 → 22) did two big things:
@@ -14,6 +14,33 @@ Three 3–5 story chapters are built: **Ch.1 Counting** (`ForestWalk`), **Ch.2 N
 ⚠️ **Nothing is committed.** All work is in the working tree (modified + untracked files — see [Files changed](#files-changed)). The repo's last commit is `7057fb6`. Per project convention, **do not commit/push/deploy unless explicitly asked.**
 
 To preview a chapter standalone, see [How to test](#how-to-test).
+
+---
+
+## Session 2026-06-23 — Ch.1 roster rework, Ch.2 restructure, viewport scaling ✅
+
+This session made several user-requested changes across Chapters 1 & 2, all verified in preview (`tsc` clean, no console errors).
+
+### Chapter 1 (Counting / ForestWalk) — roster + placement rework
+- **Added rabbit + octopus art** earlier (now both painted in-game), then a bigger rework:
+- **Sky biome REMOVED.** Pigeon ("the bird") removed from all rosters; the `'sky'` BiomeId/biome/order and the `SceneBg` sky branch are gone. **3 biomes now:** forest, underwater, garden.
+- **Eagle → forest**, perched in the treetops, in SMALL numbers (new `MAX_N` cap map: `{eagle:4, shark:5}` clamps the count in `howManyData`).
+- **Octopus → SHARK** (underwater). **Snail → LADYBUG** (garden). Both new kinds render as emoji (🦈 / 🐞) until a PNG is dropped at `objects/shark.png` / `objects/ladybug.png` (art prompts were given to the user; old `octopus`/`snail`/`pigeon` kinds left dormant in art.tsx).
+- **Fish bigger** (`SIZE_BOOST` 2.0→2.6); **turtle spread**, **crab scattered**; **squirrel** → grass by the cart/rock (left), **ant** → open central grass (both moved out of the edge flower beds). Bands tuned against the real `garden.png`/`forest_1.jpeg`/`underwater.jpeg` art.
+- **Butterfly → 🦋 emoji** (per request): `COUNT_SRC.butterfly = []` so it falls back to the emoji (was wrongly still pointing at the deleted `butterfly_1/2.png` — fixed). Drop a PNG path back to upgrade.
+- **No-repeat fix (the "answered question repeats" bug):** the practice was hard-coded `rounds: 10` but the pool after sky-removal is **9** creatures, so round 10 fell back to `_plan[8]` and repeated. Now `rounds = PRACTICE_ROUNDS` (= pool size), so every round is a distinct creature and the count auto-follows the roster. Session is now **9 rounds**.
+- **Biome-pin fix:** the `catch` practice beat was pinned to `biome:'forest'`, which (on mount) overrode round 1's per-round biome. ForestWalk's beat-effect now skips `kind==='catch'`, letting `onRound` drive the biome every round.
+
+### Chapter 2 (Number Order / RiverCrossing) — restructure
+- **Removed the opening explanation** (intro screen + 1→10 demo + guided round). The chapter now opens **straight into practice** (`phase`/`Banner`/intro-demo-guided JSX deleted). The 3-wrong in-context re-teach is untouched.
+- **Theme changes EVERY round** now (`scenarioForRound = SCENARIO_ORDER[round % 4]`): crossing → bridge → train → fishing → … never two in a row. Replaced the old 3/2/2/3 blocks + `SCENARIO_STARTS`. `walkBeforeRound` → `walkEvery: 3` (light travel pause every 3 rounds; bg still cross-fades every round). Verified: 10 rounds, 0 adjacent repeats.
+
+### ⚠️ Viewport scaling — the lesson (don't repeat this mistake)
+**The bug:** Ch.1 & Ch.2 sized every sprite in **fixed px** (Milo 148, stones 124, cars 190, creatures base 78 × `SIZE_BOOST`, etc.). A 1000px preview looked right, but on a real ~1900px desktop browser each sprite occupied half the screen-fraction → everything looked tiny/sparse. **Ch.3 (Kitchen) already had this solved** via `useVesselScale` — Ch.1/Ch.2 never got it.
+**The fix:** a `useScale()` hook (one per file) that grows sprites with `window.innerWidth` (designed against `DESIGN_W = 1000`), applied to every sprite.
+- **Ch.2** uses **linear** scaling (`innerWidth/1000`, clamped 0.8–2.3) — the stones/cars/engine SHOULD fill the scene; user was happy.
+- **Ch.1** first used linear too, but that **overshot** — creatures looked oversized & crowded on a real browser. So Ch.1 uses a **DAMPENED, sub-linear curve**: `raw<=1 ? raw : 1 + (raw-1)*0.4`, clamped **0.85–1.45** → "medium" at any width (~preview size at 1000px, only modestly bigger on wide screens). The count-number badge scales with the creature too.
+**Rule of thumb for any NEW scene:** never hard-code sprite px sizes for a full-bleed `100vw` stage. Use a viewport-scale hook. For "objects that fill the scene" (stones/vessels) linear is fine; for "creatures scattered in a scene" use the dampened curve so they don't blow up on wide monitors.
 
 ---
 

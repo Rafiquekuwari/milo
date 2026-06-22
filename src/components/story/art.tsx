@@ -103,11 +103,15 @@ export type CountKind =
   // pond (legacy — pond biome removed; duck no longer used in a biome)
   | 'duck'
   // underwater
-  | 'fish' | 'turtle' | 'octopus' | 'crab'
-  // sky
+  | 'fish' | 'turtle' | 'shark' | 'crab'
+  // legacy underwater (octopus removed; replaced by shark)
+  | 'octopus'
+  // sky (legacy — sky biome removed; pigeon no longer used. eagle now perches in the forest)
   | 'pigeon' | 'bee' | 'eagle'
   // garden
-  | 'snail' | 'squirrel' | 'ant'
+  | 'squirrel' | 'ant' | 'ladybug'
+  // legacy garden (snail removed)
+  | 'snail'
   // other scenes
   | 'mushroom' | 'apple' | 'flower'
 // Each kind can have several art variants (e.g. butterflies of different colors, a
@@ -116,7 +120,7 @@ export type CountKind =
 // auto-upgrade the moment a PNG is dropped in here.
 export const COUNT_SRC: Record<CountKind, string[]> = {
   firefly: ['/assets/objects/firefly.png'],
-  butterfly: ['/assets/objects/butterfly_1.png', '/assets/objects/butterfly_2.png'],
+  butterfly: [],   // render as the 🦋 emoji (per request); drop a PNG path back here to upgrade
   pigeon: ['/assets/objects/pigeon_1.png', '/assets/objects/pigeon_2.png'],
   mushroom: ['/assets/objects/mushroom.png'],
   apple: ['/assets/objects/apple.png'],
@@ -136,6 +140,9 @@ export const COUNT_SRC: Record<CountKind, string[]> = {
   octopus: ['/assets/objects/octopus.png'],
   crab: ['/assets/objects/crab.png'],
   rabbit: ['/assets/objects/rabbit.png'],
+  // Render as emoji until the PNG is dropped in (then they auto-upgrade).
+  shark: ['/assets/objects/shark.png'],
+  ladybug: ['/assets/objects/ladybug.png'],
 }
 export const COUNT_EMOJI: Record<CountKind, string> = {
   firefly: '🪲', butterfly: '🦋',
@@ -144,6 +151,7 @@ export const COUNT_EMOJI: Record<CountKind, string> = {
   snail: '🐌', squirrel: '🐿️', ant: '🐜',
   mushroom: '🍄', apple: '🍎', flower: '🌸',
   octopus: '🐙', crab: '🦀', rabbit: '🐰',
+  shark: '🦈', ladybug: '🐞',
 }
 export const COUNT_LABEL: Record<CountKind, string> = {
   firefly: 'firefly', butterfly: 'butterfly',
@@ -152,6 +160,7 @@ export const COUNT_LABEL: Record<CountKind, string> = {
   snail: 'snail', squirrel: 'squirrel', ant: 'ant',
   mushroom: 'mushroom', apple: 'apple', flower: 'flower',
   octopus: 'octopus', crab: 'crab', rabbit: 'rabbit',
+  shark: 'shark', ladybug: 'ladybug',
 }
 export const COUNT_PLURAL: Record<CountKind, string> = {
   firefly: 'fireflies', butterfly: 'butterflies',
@@ -160,6 +169,7 @@ export const COUNT_PLURAL: Record<CountKind, string> = {
   snail: 'snails', squirrel: 'squirrels', ant: 'ants',
   mushroom: 'mushrooms', apple: 'apples', flower: 'flowers',
   octopus: 'octopuses', crab: 'crabs', rabbit: 'rabbits',
+  shark: 'sharks', ladybug: 'ladybugs',
 }
 
 // `on` = counted/found. When tapped, an object pops + glows so "I found one!" is

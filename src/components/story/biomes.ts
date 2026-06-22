@@ -11,7 +11,7 @@
  */
 import { type CountKind } from './art'
 
-export type BiomeId = 'forest' | 'underwater' | 'sky' | 'garden'
+export type BiomeId = 'forest' | 'underwater' | 'garden'
 
 // Spawn window in viewport %, where this biome's creatures scatter.
 export interface Band { x0: number; x1: number; y0: number; y1: number }
@@ -30,31 +30,24 @@ export const BIOMES: Record<BiomeId, Biome> = {
   forest: {
     id: 'forest', label: 'Forest', emoji: '🌳',
     arrive: "We're in the forest! Let's count what we find.",
-    objects: ['butterfly', 'firefly', 'rabbit'],
-    band: { x0: 13, x1: 95, y0: 9, y1: 71 },        // in the leaves (mid)
+    objects: ['butterfly', 'firefly', 'rabbit', 'eagle'],   // eagles perch in the treetops
+    band: { x0: 13, x1: 84, y0: 9, y1: 71 },        // in the leaves (mid); x1 pulled in so big sprites stay on-screen
     bgImage: '/assets/backgrounds/forest_1.jpeg',
   },
   underwater: {
     id: 'underwater', label: 'Underwater', emoji: '🐠',
     arrive: "We're underwater! What can we find here?",
-    objects: ['fish', 'turtle', 'octopus', 'crab'],
-    band: { x0: 10, x1: 94, y0: 15, y1: 78 },        // spread across the full depth
+    objects: ['fish', 'turtle', 'shark', 'crab'],   // shark replaces octopus
+    band: { x0: 10, x1: 84, y0: 15, y1: 78 },        // spread across the full depth
     bgImage: '/assets/backgrounds/underwater.jpeg',
-  },
-  sky: {
-    id: 'sky', label: 'Sky', emoji: '☁️',
-    arrive: 'Up on the hill — look at the sky!',
-    objects: ['pigeon', 'eagle'],
-    band: { x0: 13, x1: 95, y0: 6, y1: 47 },         // high, in the air
-    bgImage: '/assets/backgrounds/sky.jpeg',
   },
   garden: {
     id: 'garden', label: 'Garden', emoji: '🌷',
     arrive: 'A flower garden! Tiny friends everywhere.',
-    objects: ['snail', 'squirrel', 'ant'],
-    band: { x0: 20, x1: 92, y0: 40, y1: 79 },        // low-mid, on the flowers
+    objects: ['squirrel', 'ant', 'ladybug'],   // snail removed; ladybug replaces it
+    band: { x0: 20, x1: 84, y0: 40, y1: 79 },        // low-mid, on the grass
     bgImage: '/assets/backgrounds/garden.png',
   },
 }
 
-export const BIOME_ORDER: BiomeId[] = ['forest', 'underwater', 'sky', 'garden']
+export const BIOME_ORDER: BiomeId[] = ['forest', 'underwater', 'garden']

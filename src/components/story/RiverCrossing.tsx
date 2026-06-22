@@ -7,7 +7,8 @@
  *   🌉 Mend the Bridge — a plank is missing (1·2·?·4·5); tap the number that fits.
  *   🚂 Build the Train — tap cars smallest→biggest; they line up behind the engine.
  *   🎣 Go Fishing      — tap fish smallest→biggest; each is reeled into the bucket.
- * The chapter opens with a 1→10 number-line explanation + a guided round, then rotates.
+ * No opening explanation — practice starts immediately, and the theme CHANGES EVERY
+ * round (so each question feels fresh). Milo re-explains in-context after 3 wrong.
  */
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
@@ -25,24 +26,37 @@ const rint = (lo: number, hi: number) => lo + Math.floor(Math.random() * (hi - l
 const frac = (x: number) => x - Math.floor(x)
 const seed = (i: number, s: number) => frac(Math.sin((i + 1) * s) * 43758.5453)
 
+// Sprites are designed against a ~1000px-wide stage. On a real desktop browser the
+// window is far wider (e.g. 1900px), so fixed-px sprites end up occupying a tiny
+// fraction of the screen and look small/sparse — even though a 1000px preview looks
+// right. This scales every sprite by viewport width so it fills the SAME fraction of
+// the screen at any size. (Clamped so it never gets absurd on ultra-wide / tiny.)
+const DESIGN_W = 1000
+function useScale() {
+  const [s, setS] = useState(1)
+  useEffect(() => {
+    const calc = () => setS(Math.max(0.8, Math.min(2.3, window.innerWidth / DESIGN_W)))
+    calc()
+    window.addEventListener('resize', calc)
+    return () => window.removeEventListener('resize', calc)
+  }, [])
+  return s
+}
+
 // ─── Scenarios ─────────────────────────────────────────────────────────────────
 type Scenario = 'crossing' | 'bridge' | 'train' | 'fishing'
-const SCENARIO_PLAN: { s: Scenario; n: number }[] = [
-  { s: 'crossing', n: 3 }, { s: 'bridge', n: 2 }, { s: 'train', n: 2 }, { s: 'fishing', n: 3 },
-]
+const SCENARIO_ORDER: Scenario[] = ['crossing', 'bridge', 'train', 'fishing']
+// The theme CHANGES EVERY ROUND — crossing → bridge → train → fishing → crossing …
+// (never two of the same back-to-back), so each practice question feels fresh.
 function scenarioForRound(round: number): Scenario {
-  let a = 0
-  for (const seg of SCENARIO_PLAN) { if (round < a + seg.n) return seg.s; a += seg.n }
-  return 'fishing'
+  return SCENARIO_ORDER[round % SCENARIO_ORDER.length]
 }
-const SCENARIO_STARTS = new Set<number>([3, 5, 7])   // rounds where a new mini-game begins
 const SCENARIO_BG: Record<Scenario, { src: string; zoom: boolean }> = {
   crossing: { src: '/assets/backgrounds/River.jpeg', zoom: true },
   bridge:   { src: '/assets/backgrounds/pond_top.jpeg', zoom: true },
   train:    { src: '/assets/backgrounds/train_bg.jpeg', zoom: false },
   fishing:  { src: '/assets/backgrounds/fishing_bg.jpeg', zoom: false },
 }
-const SCENARIO_ORDER: Scenario[] = ['crossing', 'bridge', 'train', 'fishing']
 const SCENARIO_PROMPT: Record<Scenario, string> = {
   crossing: 'Put the stones in order — smallest first!',
   bridge: 'Build the bridge — smallest first!',
@@ -84,8 +98,9 @@ function scatterPos(i: number) {
 // ─── Top-down Milo + Stone (River Crossing + Bridge reuse these) ───────────────
 function MiloTop({ left, top, size = 148 }: { left: number; top: number; size?: number }) {
   const [missing, setMissing] = useState(false)
+  const sz = size * useScale()
   return (
-    <div style={{ position: 'fixed', left: `${left}%`, top: `${top}%`, transform: 'translate(-50%,-50%)', zIndex: 40, width: size, height: size, transition: 'left .55s cubic-bezier(.34,1.3,.64,1), top .55s cubic-bezier(.34,1.3,.64,1)' }}>
+    <div style={{ position: 'fixed', left: `${left}%`, top: `${top}%`, transform: 'translate(-50%,-50%)', zIndex: 40, width: sz, height: sz, transition: 'left .55s cubic-bezier(.34,1.3,.64,1), top .55s cubic-bezier(.34,1.3,.64,1)' }}>
       {missing
         ? <div style={{ width: '100%', height: '100%', borderRadius: '50%', background: 'radial-gradient(circle at 50% 38%, #ffb066, #f26b2c)', border: '4px solid #fff', boxShadow: '0 4px 10px rgba(0,0,0,.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 38 }}>🐴</div>
         : <img src="/assets/characters/milo_top.png" alt="Milo" draggable={false} onError={() => setMissing(true)} style={{ width: '100%', height: '100%', objectFit: 'contain', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,.35))' }} />}
@@ -95,17 +110,18 @@ function MiloTop({ left, top, size = 148 }: { left: number; top: number; size?: 
 // One tappable ordering item — a STONE (River Crossing) or a PLANK (Mend the Bridge).
 function OrderItem({ n, left, top, placed, wrong, onTap, size = 124, src = '/assets/objects/stone_top.png', aria = 'stone' }: { n: number; left: number; top: number; placed: boolean; wrong: boolean; onTap?: () => void; size?: number; src?: string; aria?: string }) {
   const [missing, setMissing] = useState(false)
+  const sz = size * useScale()
   return (
     <button onClick={onTap} disabled={!onTap || placed} aria-label={`${aria} ${n}`}
       style={{ position: 'fixed', left: `${left}%`, top: `${top}%`, transform: `translate(-50%,-50%) ${wrong ? 'rotate(-6deg)' : ''}`, zIndex: 30,
-        width: size, height: size, padding: 0, border: 'none', background: 'transparent', cursor: onTap && !placed ? 'pointer' : 'default',
+        width: sz, height: sz, padding: 0, border: 'none', background: 'transparent', cursor: onTap && !placed ? 'pointer' : 'default',
         transition: 'left .5s cubic-bezier(.34,1.3,.64,1), top .5s cubic-bezier(.34,1.3,.64,1), transform .15s' }}>
       {missing
-        ? <div style={{ width: '100%', height: '100%', borderRadius: '46% 46% 50% 50% / 56% 56% 44% 44%', background: placed ? '#a6dd84' : (wrong ? '#f3b0a0' : '#cabda9'), border: `4px solid ${placed ? '#6fbe3f' : (wrong ? '#d9512f' : '#9c8f7a')}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: size * 0.42, color: '#3d2516' }}>{n}</div>
+        ? <div style={{ width: '100%', height: '100%', borderRadius: '46% 46% 50% 50% / 56% 56% 44% 44%', background: placed ? '#a6dd84' : (wrong ? '#f3b0a0' : '#cabda9'), border: `4px solid ${placed ? '#6fbe3f' : (wrong ? '#d9512f' : '#9c8f7a')}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: sz * 0.42, color: '#3d2516' }}>{n}</div>
         : <div style={{ position: 'relative', width: '100%', height: '100%' }}>
             <img src={src} alt="" draggable={false} onError={() => setMissing(true)}
               style={{ width: '100%', height: '100%', objectFit: 'contain', filter: placed ? 'drop-shadow(0 0 12px rgba(111,190,63,.7))' : 'drop-shadow(0 4px 5px rgba(0,0,0,.4))' }} />
-            <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: size * 0.4, color: '#3d2516' }}>{n}</span>
+            <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: sz * 0.4, color: '#3d2516' }}>{n}</span>
           </div>}
     </button>
   )
@@ -204,7 +220,7 @@ const CrossingPlay: React.FC<{ nums: number[]; mode: Mode; horizontal?: boolean;
 const RAIL_Y = 70
 function EngineSprite({ left }: { left: number }) {
   const [m, setM] = useState(false)
-  const w = 250, h = w * 0.75
+  const w = 250 * useScale(), h = w * 0.75
   return (
     <div style={{ position: 'fixed', left: `${left}%`, top: `${RAIL_Y}%`, transform: 'translate(-50%,-92%)', zIndex: 36, width: w, height: h }}>
       {m ? <div style={{ fontSize: 110, transform: 'scaleX(-1)' }}>🚂</div>
@@ -214,7 +230,7 @@ function EngineSprite({ left }: { left: number }) {
 }
 function TrainCar({ n, left, top, placed, wrong, onTap }: { n: number; left: number; top: number; placed: boolean; wrong: boolean; onTap: () => void }) {
   const [m, setM] = useState(false)
-  const w = 190, h = w * 0.56
+  const w = 190 * useScale(), h = w * 0.56
   return (
     <button onClick={onTap} disabled={placed} aria-label={`car ${n}`}
       style={{ position: 'fixed', left: `${left}%`, top: `${top}%`, transform: `translate(-50%,-90%) ${wrong ? 'rotate(-5deg)' : ''}`, zIndex: 30, width: w, height: h, padding: 0, border: 'none', background: 'transparent', cursor: placed ? 'default' : 'pointer', transition: 'left .55s cubic-bezier(.34,1.3,.64,1), top .55s cubic-bezier(.34,1.3,.64,1), transform .15s' }}>
@@ -248,14 +264,16 @@ const TrainPlay: React.FC<{ nums: number[]; onSubmit: (c: boolean) => void }> = 
 
 // ─── 🎣 Go Fishing ─────────────────────────────────────────────────────────────
 function Bucket({ left, top }: { left: number; top: number }) {
-  return <img src="/assets/objects/bucket.png" alt="bucket" draggable={false} style={{ position: 'fixed', left: `${left}%`, top: `${top}%`, transform: 'translate(-50%,-50%)', zIndex: 28, width: 118, height: 118, objectFit: 'contain', filter: 'drop-shadow(0 4px 6px rgba(0,0,0,.3))' }} />
+  const b = 118 * useScale()
+  return <img src="/assets/objects/bucket.png" alt="bucket" draggable={false} style={{ position: 'fixed', left: `${left}%`, top: `${top}%`, transform: 'translate(-50%,-50%)', zIndex: 28, width: b, height: b, objectFit: 'contain', filter: 'drop-shadow(0 4px 6px rgba(0,0,0,.3))' }} />
 }
 function FishingMilo({ left, top }: { left: number; top: number }) {
   const [m, setM] = useState(false)
-  return <img src={m ? '/assets/characters/milo_idle.png' : '/assets/characters/milo_fishing.png'} alt="Milo" draggable={false} onError={() => setM(true)} style={{ position: 'fixed', left: `${left}%`, top: `${top}%`, transform: 'translate(-50%,-50%)', zIndex: 27, width: 150, height: 150, objectFit: 'contain', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,.3))' }} />
+  const sz = 150 * useScale()
+  return <img src={m ? '/assets/characters/milo_idle.png' : '/assets/characters/milo_fishing.png'} alt="Milo" draggable={false} onError={() => setM(true)} style={{ position: 'fixed', left: `${left}%`, top: `${top}%`, transform: 'translate(-50%,-50%)', zIndex: 27, width: sz, height: sz, objectFit: 'contain', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,.3))' }} />
 }
 function Fish({ n, left, top, caught, wrong, onTap }: { n: number; left: number; top: number; caught: boolean; wrong: boolean; onTap: () => void }) {
-  const w = 100
+  const w = 100 * useScale()
   return (
     <button onClick={onTap} disabled={caught} aria-label={`fish ${n}`}
       style={{ position: 'fixed', left: `${left}%`, top: `${top}%`, transform: `translate(-50%,-50%) ${wrong ? 'rotate(-8deg)' : ''}`, zIndex: 30, width: w, height: w * 0.72, padding: 0, border: 'none', background: 'transparent', cursor: caught ? 'default' : 'pointer', opacity: caught ? 0 : 1, transition: 'left .5s cubic-bezier(.34,1.3,.64,1), top .5s cubic-bezier(.34,1.3,.64,1), opacity .45s, transform .15s' }}>
@@ -286,7 +304,7 @@ const FishingPlay: React.FC<{ nums: number[]; onSubmit: (c: boolean) => void }> 
 interface OrderData { nums: number[]; scenario: Scenario }
 export const riverOrderBeat: Beat<OrderData> = {
   skillId: 'numberOrdering', rounds: 10, reteachAfter: 3,
-  walkBeforeRound: r => SCENARIO_STARTS.has(r),
+  walkEvery: 3,   // a brief travel pause every 3 rounds; the bg still cross-fades EVERY round
   make: (d, round = 0) => {
     const scenario = scenarioForRound(round)
     const diff = (d || 1) as 1 | 2 | 3
@@ -313,13 +331,11 @@ export const riverOrderBeat: Beat<OrderData> = {
 }
 
 // ─── Orchestrator ──────────────────────────────────────────────────────────────
-type Phase = 'intro' | 'demo' | 'guided' | 'practice'
 export default function RiverCrossing({ onFinish, onExit }: {
   onFinish?: (correct: number, wrong: number) => void
   onExit?: () => void
 }) {
   const router = useRouter()
-  const [phase, setPhase] = useState<Phase>('intro')
   const [scenario, setScenario] = useState<Scenario>('crossing')
   const result = useRef({ correct: 0, wrong: 0 })
   const finished = useRef(false)
@@ -339,40 +355,16 @@ export default function RiverCrossing({ onFinish, onExit }: {
       <button onClick={exit} style={{ padding: '7px 14px', borderRadius: 50, background: 'var(--paper)', border: '3px solid var(--milo-orange)', color: 'var(--milo-orange)', fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>← Menu</button>
     </div>
   )
-  const Banner = (text: string) => (
-    <div style={{ position: 'absolute', top: 50, left: 0, right: 0, zIndex: 45, display: 'flex', justifyContent: 'center', padding: '0 12px' }}>
-      <div style={{ background: 'var(--paper)', border: '3px solid var(--milo-orange)', borderRadius: 999, padding: '10px 24px', fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 19, color: 'var(--milo-orange)', boxShadow: '0 4px 0 rgba(242,107,44,.25)', textAlign: 'center' }}>{text}</div>
-    </div>
-  )
-
   return (
     <div style={{ position: 'relative', width: '100vw', height: '100dvh', overflow: 'hidden' }}>
-      <Background scenario={phase === 'practice' ? scenario : 'crossing'} />
+      <Background scenario={scenario} />
       {TopBar}
 
-      {phase === 'intro' && (
-        <div style={{ position: 'absolute', inset: 0, zIndex: 45, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20 }}>
-          <div style={{ maxWidth: '70%', background: '#fff', border: '3px solid var(--outline)', borderRadius: 18, padding: '14px 20px', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 19, color: 'var(--ink)', textAlign: 'center', boxShadow: '0 4px 0 rgba(61,37,22,.1)' }}>
-            Let&apos;s put numbers in order! First, watch me — smallest to biggest.
-          </div>
-          <button onClick={() => { speak('Watch me put the numbers in order, smallest to biggest!'); setPhase('demo') }}
-            style={{ padding: '14px 38px', borderRadius: 50, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg,var(--milo-orange),var(--milo-orange-deep,#d2541b))', color: '#fff', fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 22, boxShadow: '0 6px 16px rgba(242,107,44,.4)' }}>Let&apos;s go! ▶</button>
-        </div>
-      )}
-
-      {phase === 'demo' && (<>{Banner('Numbers in order: 1 to 10! 🔢')}
-        <CrossingPlay key="demo" nums={[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]} mode="demo" horizontal onComplete={() => setPhase('guided')} /></>)}
-
-      {phase === 'guided' && (<>{Banner('Now you! Smallest first 👆')}
-        <CrossingPlay key="guided" nums={shuffle([1, 2, 3, 4])} mode="guided" onComplete={() => setPhase('practice')} /></>)}
-
-      {phase === 'practice' && (
-        <div style={{ position: 'absolute', top: 48, left: 0, right: 0, zIndex: 45, display: 'flex', justifyContent: 'center', padding: '0 12px' }}>
-          <SkillBeat beat={riverOrderBeat} onInterlude={interlude}
-            onRound={(data) => { if (data?.scenario) setScenario(data.scenario) }}
-            onComplete={(c, w) => { result.current.correct += c; result.current.wrong += w; finishChapter(result.current.correct, result.current.wrong) }} />
-        </div>
-      )}
+      <div style={{ position: 'absolute', top: 48, left: 0, right: 0, zIndex: 45, display: 'flex', justifyContent: 'center', padding: '0 12px' }}>
+        <SkillBeat beat={riverOrderBeat} onInterlude={interlude}
+          onRound={(data) => { if (data?.scenario) setScenario(data.scenario) }}
+          onComplete={(c, w) => { result.current.correct += c; result.current.wrong += w; finishChapter(result.current.correct, result.current.wrong) }} />
+      </div>
     </div>
   )
 }
