@@ -1,6 +1,6 @@
 # Session Handoff — Milo Story Mode (Chapters 1, 2 & 3)
 
-_Last updated: 2026-06-23_
+_Last updated: 2026-06-25_
 
 ## TL;DR
 Three 3–5 story chapters are built: **Ch.1 Counting** (`ForestWalk`), **Ch.2 Number Order** (`RiverCrossing`), **Ch.3 Number Comparison** (`Kitchen`). This session (2026-06-21 → 22) did two big things:
@@ -14,6 +14,19 @@ Three 3–5 story chapters are built: **Ch.1 Counting** (`ForestWalk`), **Ch.2 N
 ⚠️ **Nothing is committed.** All work is in the working tree (modified + untracked files — see [Files changed](#files-changed)). The repo's last commit is `7057fb6`. Per project convention, **do not commit/push/deploy unless explicitly asked.**
 
 To preview a chapter standalone, see [How to test](#how-to-test).
+
+---
+
+## Session 2026-06-25 — Ch.3 natural fruit/candy/cookie piles ✅
+
+User feedback (with screenshots): the Kitchen vessels rendered items as a flat, evenly-spaced grid that looked unnatural — "the apples are coming out of the bowl", "the cookies are floating", "make them appear heaped INSIDE the vessel like the painted bowls in the background". Reworked all three item-vessels in `src/components/story/Kitchen.tsx` to a deterministic **natural pile**. (Cake unchanged — its vertical layer stack already encodes count.) `tsc` clean, lint clean (only the project's standard `<img>` warnings), verified at counts 1–9 + game scale, no console errors.
+
+- **`buildPile(val, opts)`** — new pure helper → per-index `{x,y,rot,z,size}` (design-box px). Wide base narrowing up = a rounded heap; bottom-row-first fill; front/bottom rows highest z. **Computed from the FINAL `val`, render only `pile.slice(0, visible)`** so the counted reveal pops each item into a FIXED slot with no reflow (item i always lands in slot i — deterministic, identical every question/practice/retry). Row recipes: `FRUIT_ROWS` / `CANDY_ROWS` / `COOKIE_TRAY_ROWS`.
+- **`CropSprite`** replaces `ItemImg` — the apple/candy/cookie PNGs are mostly transparent padding (apple body is only **32%** of its image width → looked like marbles in a big bowl). CropSprite crops each PNG to its measured alpha bbox (`SPRITE_BBOX`) so the item fills its slot; `size` = visible height. The slot anchor (translate+rotate) lives on an **outer wrapper div**, never on CropSprite's `mk_appear` span, or the pop animation's `transform:scale` fights the anchor.
+- **🍎 Fruit bowl** — rim-occlusion composite: bowl PNG painted twice, the 2nd clipped to its front belly (`clipPath:'inset(53% 0 0 0)'`) at **zIndex 200** so it covers the whole pile (apples reach ~z50); the lowest apples tuck behind the front rim = "inside the bowl". The original z-bug (overlay at z30, below the front apples) was exactly the "apples coming out of the bowl" the user saw.
+- **🍬 Candy jar** — same mound inside the glass body; its existing `overflow:hidden` is the occlusion (taller heap = fuller). `flatBottomRow` so the bottom gumdrops sit square.
+- **🍪 Cookie tray** — the tray PNG is ~32% tray + 68% empty margin (why it looked tiny and the cookies floated). Now **cropped to its bbox** → a big tray sitting low, with cookies RESTING on the surface in 1–2 receding rows (front lower & in front). 1 row up to 5, two rows for 6–9.
+- A temporary `?probe` grid (renders every vessel at counts 1–9 + game-scale pairs + a reveal sequence) was used to tune the layout, then **removed**. Dead `ItemImg`/unused `useMemo` import also removed.
 
 ---
 
@@ -134,7 +147,7 @@ A **brand-new theme** (deliberately NOT forest/river — user asked to "think in
 
 **Art:** painted (user supplied 2026-06-21). Backgrounds `kitchen_{fruit,oven,bakery,pantry}.jpeg` + `characters/milo_chef.png` auto-load. Vessels: 🍎 `objects/fruitbowl.png`+`apple.png`, 🍪 `objects/bakingTray.png`+`cookie.png`, 🎂 cake = `objects/cakeLayer1.png` stacked N times (height=count) + `objects/cherry.png`, 🍬 jar = **code-drawn clean glass** + `objects/candy.png`. ⚠️ `objects/emptyjar.png` AND `objects/candy.jpeg` are both DEAD — baked-in transparency checkerboard (no alpha), render as gray squares; re-export `emptyjar` transparent to use the painted jar. Image vessels fall back to `*Drawn`; `ItemImg`/`Cherry` have their own fallbacks; cake crops the layer's centred band (`backgroundSize:'100% auto'`), hidden `<img onError>` detects a missing layer.
 
-**Sizing:** vessels scale up via `useVesselScale(n)` (viewport-aware, `Vessel` renders the 188×210 design under `transform:scale`; everything grows together) — ~1.9× on a 1000-wide screen, 2-up wider than 3-up, never overlapping. 2-up x = `[28,72]`, `TOP=56`, Milo `min(26vh,220px)`. Apples sized `min(66, floor(168/k))` so they always sit in ONE row in the bowl opening (big, never a floating 2nd row; bowl unchanged). **Counting numbers** (1·2·3 popping as Milo counts each side) are a separate `CountNumber` (zIndex 47, above the banner) over each vessel's upper area — moved out of `Vessel` because the big vessels clipped them behind the banner.
+**Sizing:** vessels scale up via `useVesselScale(n)` (viewport-aware, `Vessel` renders the 188×210 design under `transform:scale`; everything grows together) — ~1.9× on a 1000-wide screen, 2-up wider than 3-up, never overlapping. 2-up x = `[28,72]`, `TOP=56`, Milo `min(26vh,220px)`. Items inside each vessel are now a deterministic **natural pile** (`buildPile` + `CropSprite` + rim occlusion) — see [Session 2026-06-25](#session-2026-06-25--ch3-natural-fruitcandycookie-piles); the old "apples in ONE row" rule is superseded. **Counting numbers** (1·2·3 popping as Milo counts each side) are a separate `CountNumber` (zIndex 47, above the banner) over each vessel's upper area — moved out of `Vessel` because the big vessels clipped them behind the banner.
 
 **Files:** `Kitchen.tsx`, `game/NumberComparisonChapter.tsx`, `app/story/page.tsx` (added `?ch=` switch). (skillId `numberComparison`.)
 

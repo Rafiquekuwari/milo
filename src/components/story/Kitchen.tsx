@@ -19,7 +19,7 @@
  * so it's fully playable with no new art. Mirrors story/RiverCrossing.tsx; does NOT
  * use ForestWalk. Wrapped by game/NumberComparisonChapter.tsx.
  */
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { speak, useIsSpeaking, stopSpeech } from '@/lib/useMiloSpeaker'
 import { SkillBeat, type Beat } from './StoryWorld'
@@ -103,17 +103,72 @@ function Numeral({ val, color }: { val: number; color: string }) {
 function ItemCluster({ children }: { children: React.ReactNode }) {
   return <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, justifyContent: 'center', alignItems: 'center', maxWidth: '94%', maxHeight: '100%' }}>{children}</div>
 }
-// A painted item sprite (apple/cookie); falls back to a simple coloured circle if the
-// PNG is missing. Wrapped so it pops in (mk_appear) as it's revealed during counting.
-function ItemImg({ src, size, fallbackBg }: { src: string; size: number; fallbackBg: string }) {
+// apple.png / candy.png carry a lot of transparent padding (the apple body is only ~32%
+// of its image width), so drawing them in a plain box leaves them tiny and marble-like.
+// CropSprite renders each PNG cropped to its alpha bounding box (measured once) so the
+// fruit/candy actually FILLS its slot. `size` = the visible HEIGHT in design px; the box
+// width follows the sprite's true aspect. Keeps the pop-in animation + a colour fallback.
+const SPRITE_BBOX: Record<string, { W: number; H: number; x: number; y: number; w: number; h: number }> = {
+  '/assets/objects/apple.png': { W: 1536, H: 1024, x: 526, y: 205, w: 498, h: 573 },
+  '/assets/objects/candy.png': { W: 1024, H: 1024, x: 181, y: 203, w: 661, h: 603 },
+  '/assets/objects/cookie.png': { W: 1024, H: 1024, x: 105, y: 113, w: 814, h: 807 },
+}
+// Baking-tray alpha bbox — the PNG has huge empty margins (tray is only the middle ~32%
+// of the image), which is why a plain <img> renders it tiny and the cookies float above
+// it. We crop to this bbox so the tray fills its slot.
+const TRAY_BBOX = { W: 1024, H: 1024, x: 90, y: 347, w: 844, h: 331 }
+function CropSprite({ src, size, fallbackBg }: { src: string; size: number; fallbackBg: string }) {
   const [missing, setMissing] = useState(false)
+  const b = SPRITE_BBOX[src]
+  const s = size / b.h                          // image px → design px
+  const boxW = b.w * s
+  if (missing) return <span style={{ display: 'block', width: boxW, height: size, borderRadius: '46%', background: fallbackBg, border: '2px solid rgba(0,0,0,.18)', animation: 'mk_appear .35s ease both' }} />
   return (
-    <span style={{ display: 'inline-block', animation: 'mk_appear .35s ease both' }}>
-      {missing
-        ? <span style={{ display: 'block', width: size, height: size, borderRadius: '50%', background: fallbackBg, border: '2px solid rgba(0,0,0,.18)' }} />
-        : <img src={src} alt="" draggable={false} onError={() => setMissing(true)} style={{ display: 'block', width: size, height: size, objectFit: 'contain' }} />}
+    <span style={{ display: 'block', position: 'relative', width: boxW, height: size, overflow: 'hidden', animation: 'mk_appear .35s ease both' }}>
+      <img src={src} alt="" draggable={false} onError={() => setMissing(true)}
+        style={{ position: 'absolute', left: -b.x * s, top: -b.y * s, width: b.W * s, height: b.H * s, maxWidth: 'none' }} />
     </span>
   )
+}
+
+// ─── Natural pile layout (shared by the fruit bowl + candy jar) ────────────────────
+// Real fruit/candy doesn't sit in a tidy grid — it HEAPS: a wide base mounding up and
+// in, items nestled and lightly overlapping, like the bowls painted in the kitchen
+// background. `buildPile` is a PURE function of (val, opts): item i ALWAYS lands in
+// slot i (no RNG), so the mound is byte-identical in every question and every practice,
+// and revealing items 1..val one-by-one (Milo's counting) just pops each into its final
+// slot without the pile re-flowing. Rows fill bottom→top; front/bottom rows get the
+// highest z so overlaps read depth-correct (nearer item on top). Coords are the item's
+// CENTRE in design-box px — anchor each sprite with translate(-50%,-50%).
+interface PileItem { x: number; y: number; rot: number; z: number; size: number }
+function buildPile(val: number, opts: {
+  cx: number; baseY: number; size: number; colFactor: number; rowFactor: number
+  rows: number[]; rotSpread?: number; flatBottomRow?: boolean
+}): PileItem[] {
+  const { cx, baseY, size, colFactor, rowFactor, rows, rotSpread = 12, flatBottomRow = false } = opts
+  const colStep = size * colFactor, rowStep = size * rowFactor
+  const out: PileItem[] = []
+  let i = 0
+  for (let r = 0; r < rows.length && i < val; r++) {
+    const cnt = Math.min(rows[r], val - i)            // last (top) row may be partial → centre it
+    const y = baseY - r * rowStep                     // higher rows step UP (smaller y)
+    for (let c = 0; c < cnt; c++) {
+      const x = cx + (c - (cnt - 1) / 2) * colStep    // centre each row on cx
+      const rot = (flatBottomRow && r === 0) ? 0 : ((i * 53) % (2 * rotSpread + 1)) - rotSpread
+      const z = (rows.length - r) * 10 + c            // bottom/front rows paint on top
+      out.push({ x, y, rot, z, size }); i++
+    }
+  }
+  return out
+}
+// Row recipes per count: a wide base narrowing upward = a rounded heap.
+const FRUIT_ROWS: Record<number, number[]> = {
+  1: [1], 2: [2], 3: [3], 4: [3, 1], 5: [3, 2],
+  6: [3, 2, 1], 7: [3, 3, 1], 8: [3, 3, 2], 9: [3, 3, 2, 1],
+}
+const CANDY_ROWS: Record<number, number[]> = {
+  1: [1], 2: [2], 3: [3], 4: [3, 1], 5: [3, 2], 6: [3, 3],
+  7: [3, 3, 1], 8: [3, 3, 2], 9: [3, 3, 3],
 }
 
 // Each art takes `shown` — how many items to reveal (defaults to all). The counted
@@ -121,25 +176,45 @@ function ItemImg({ src, size, fallbackBg }: { src: string; size: number; fallbac
 // Painted-vessel first (fruitbowl.png + apple.png); falls back to the code-drawn bowl.
 function FruitBowlArt({ val, shown, symbolic }: { val: number; shown?: number; symbolic: boolean }) {
   const [imgOk, setImgOk] = useState(true)
-  const k = Math.min(val, shown ?? val)
+  const visible = Math.min(val, shown ?? val)
   if (!imgOk) return <FruitBowlDrawn val={val} shown={shown} symbolic={symbolic} />
-  // Keep apples BIG regardless of count (only shrink a little when there are lots so
-  // they still fit), and pile them ON TOP of the bowl rim — fully visible, not tucked
-  // inside the bowl.
-  // Apples always sit in ONE row across the bowl's opening: big for the usual small
-  // counts (capped at 66), shrinking only enough to keep the whole row inside the bowl
-  // so they never spill into a tall floating second row.
-  const sz = Math.min(66, Math.floor(168 / k))
+  // The SAME bowl PNG is painted TWICE: once behind the fruit, once in front (clipped to
+  // its front belly) so the lowest apples tuck DOWN INSIDE the bowl — fruit heaped in the
+  // bowl, like the painted background. Both copies share one style so the front lip
+  // registers pixel-perfect over the back.
+  const bowlImg: React.CSSProperties = { position: 'absolute', left: 0, bottom: 0, width: '100%', height: '94%', objectFit: 'contain', objectPosition: 'bottom' }
+  // Layout is computed from the FINAL count (val) and only `visible` apples are drawn, so
+  // during Milo's count items pop into their final slots one-by-one without re-flowing.
+  // Apples stay big and MOUND up out of the mouth (heaping, not shrinking, reads as a
+  // full bowl); the floor just keeps 9 inside the opening.
+  // sz is the apple's VISIBLE height (CropSprite fills its box). Apples stay big and
+  // mound up; the floor keeps a 9-heap inside the opening.
+  const sz = val <= 1 ? 58 : val <= 2 ? 54 : val <= 3 ? 52 : val <= 4 ? 50 : val <= 6 ? 46 : 42
+  const pile = buildPile(val, { cx: DES_W / 2, baseY: 112, size: sz, colFactor: 0.62, rowFactor: 0.56, rows: FRUIT_ROWS[val] ?? FRUIT_ROWS[9], rotSpread: 13 })
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-      <img src="/assets/objects/fruitbowl.png" alt="bowl" draggable={false} onError={() => setImgOk(false)}
-        style={{ position: 'absolute', left: 0, bottom: 0, width: '100%', height: '94%', objectFit: 'contain', objectPosition: 'bottom' }} />
-      {/* apples (or numeral) in one centred row in the bowl's opening — fully visible,
-          sitting in the bowl (drawn on top of it) */}
-      <div style={{ position: 'absolute', left: '3%', right: '3%', top: '26%', height: '34%', display: 'flex', flexWrap: 'nowrap', gap: 2, alignContent: 'center', alignItems: 'center', justifyContent: 'center' }}>
-        {symbolic ? <Numeral val={val} color="#b3402e" />
-          : Array.from({ length: k }).map((_, i) => <ItemImg key={i} src="/assets/objects/apple.png" size={sz} fallbackBg="var(--apple-red)" />)}
-      </div>
+      {/* 1 · bowl behind the fruit */}
+      <img src="/assets/objects/fruitbowl.png" alt="bowl" draggable={false} onError={() => setImgOk(false)} style={{ ...bowlImg, zIndex: 1 }} />
+      {/* 2 · the heap (or a single numeral at the symbolic tier) */}
+      {symbolic
+        ? <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}>
+            <div style={{ marginTop: -18 }}><Numeral val={val} color="#b3402e" /></div>
+          </div>
+        : pile.slice(0, visible).map((p, i) => (
+            // OUTER div owns the slot anchor (translate+rotate); CropSprite's pop animation
+            // stays on its own inner span so the two transforms never fight.
+            <div key={i} style={{ position: 'absolute', left: p.x, top: p.y, transform: `translate(-50%,-50%) rotate(${p.rot}deg)`, zIndex: 10 + p.z }}>
+              <CropSprite src="/assets/objects/apple.png" size={p.size} fallbackBg="var(--apple-red)" />
+            </div>
+          ))}
+      {/* 3 · front wall redrawn OVER every apple (zIndex above the whole pile, which can
+            reach ~50) so the lowest apples tuck behind the bowl's front rim — "inside the
+            bowl", not spilling out the front. inset(53% 0 0 0) starts the overlay at the
+            front rim line (design-y ≈ 122); raise toward 56% to expose more, lower toward
+            50% to tuck deeper. */}
+      {!symbolic && (
+        <img src="/assets/objects/fruitbowl.png" alt="" aria-hidden draggable={false} style={{ ...bowlImg, zIndex: 200, clipPath: 'inset(53% 0 0 0)', pointerEvents: 'none' }} />
+      )}
     </div>
   )
 }
@@ -164,21 +239,36 @@ function FruitBowlDrawn({ val, shown, symbolic }: { val: number; shown?: number;
   )
 }
 
-// Painted tray (bakingTray.png + cookie.png); falls back to the code-drawn tray.
+// Cookie rows on the tray, FRONT row first (lower & in front), back row receding up.
+const COOKIE_TRAY_ROWS: Record<number, number[]> = {
+  1: [1], 2: [2], 3: [3], 4: [4], 5: [5], 6: [3, 3], 7: [4, 3], 8: [4, 4], 9: [5, 4],
+}
+// Painted tray (bakingTray.png + cookie.png); falls back to the code-drawn tray. The tray
+// PNG is mostly empty margin, so we crop it to its bbox → a BIG tray that fills the slot,
+// then sit the cookies ON its surface (1–2 receding rows) instead of floating above it.
 function CookieTrayArt({ val, shown, symbolic }: { val: number; shown?: number; symbolic: boolean }) {
   const [imgOk, setImgOk] = useState(true)
-  const k = Math.min(val, shown ?? val)
+  const visible = Math.min(val, shown ?? val)
   if (!imgOk) return <CookieTrayDrawn val={val} shown={shown} symbolic={symbolic} />
-  const sz = k <= 3 ? 30 : k <= 6 ? 25 : 21
+  const trayW = DES_W * 0.98, sc = trayW / TRAY_BBOX.w, trayH = TRAY_BBOX.h * sc
+  const trayTop = DES_H - trayH - 12, trayLeft = (DES_W - trayW) / 2
+  const csz = val <= 4 ? 28 : val <= 6 ? 25 : 22
+  const pile = buildPile(val, { cx: DES_W / 2, baseY: trayTop + trayH * 0.46, size: csz, colFactor: 0.92, rowFactor: 0.72, rows: COOKIE_TRAY_ROWS[val] ?? COOKIE_TRAY_ROWS[9], rotSpread: 6 })
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-      <img src="/assets/objects/bakingTray.png" alt="tray" draggable={false} onError={() => setImgOk(false)}
-        style={{ position: 'absolute', left: 0, bottom: '4%', width: '100%', height: '74%', objectFit: 'contain' }} />
-      {/* cookies on the tray surface */}
-      <div style={{ position: 'absolute', left: '13%', right: '13%', top: '32%', height: '34%', display: 'flex', flexWrap: 'wrap', gap: 3, alignContent: 'center', justifyContent: 'center' }}>
-        {symbolic ? <Numeral val={val} color="#7a4a1c" />
-          : Array.from({ length: k }).map((_, i) => <ItemImg key={i} src="/assets/objects/cookie.png" size={sz} fallbackBg="#b5772f" />)}
+      {/* tray, cropped to its bbox so it's big and sits low on the counter */}
+      <div style={{ position: 'absolute', left: trayLeft, top: trayTop, width: trayW, height: trayH, overflow: 'hidden', zIndex: 1 }}>
+        <img src="/assets/objects/bakingTray.png" alt="tray" draggable={false} onError={() => setImgOk(false)}
+          style={{ position: 'absolute', left: -TRAY_BBOX.x * sc, top: -TRAY_BBOX.y * sc, width: TRAY_BBOX.W * sc, height: TRAY_BBOX.H * sc, maxWidth: 'none' }} />
       </div>
+      {/* cookies resting on the surface (or a single numeral at the symbolic tier) */}
+      {symbolic
+        ? <div style={{ position: 'absolute', left: 0, right: 0, top: trayTop - 4, display: 'flex', justifyContent: 'center', zIndex: 5 }}><Numeral val={val} color="#7a4a1c" /></div>
+        : pile.slice(0, visible).map((p, i) => (
+            <div key={i} style={{ position: 'absolute', left: p.x, top: p.y, transform: `translate(-50%,-50%) rotate(${p.rot}deg)`, zIndex: 5 + p.z }}>
+              <CropSprite src="/assets/objects/cookie.png" size={p.size} fallbackBg="#b5772f" />
+            </div>
+          ))}
     </div>
   )
 }
@@ -245,8 +335,14 @@ function CakeDrawn({ val, shown }: { val: number; shown?: number }) {
 // (We DRAW the jar instead of using objects/emptyjar.png — that PNG has a baked-in
 // transparency checkerboard, no real alpha. Re-export it transparent to switch back.)
 function JarArt({ val, shown }: { val: number; shown?: number }) {
-  const k = Math.min(val, shown ?? val)
-  const pct = k > 0 ? Math.round((k / 9) * 80) + 14 : 0
+  const visible = Math.min(val, shown ?? val)
+  // Candies SETTLE into a deterministic heap (laid out from the final count so revealing
+  // them one-by-one doesn't re-flow). The glass body's overflow:hidden is the jar's
+  // natural occlusion — a taller heap = more = a fuller jar, read at a glance. Coords are
+  // in the glass-body content box (≈129 × 163 design px after its 5px border + top:8).
+  const csz = val <= 2 ? 34 : val <= 4 ? 30 : val <= 6 ? 26 : 22
+  const Wg = DES_W * 0.74 - 10, Hg = DES_H * 0.86 - 8 - 10
+  const pile = buildPile(val, { cx: Wg / 2, baseY: Hg - 12, size: csz, colFactor: 0.72, rowFactor: 0.6, rows: CANDY_ROWS[val] ?? CANDY_ROWS[9], rotSpread: 8, flatBottomRow: true })
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ position: 'relative', width: '74%', height: '86%' }}>
@@ -255,14 +351,14 @@ function JarArt({ val, shown }: { val: number; shown?: number }) {
         <div style={{ position: 'absolute', top: -10, left: '15%', right: '15%', height: 18, background: 'linear-gradient(#dcbcf0,#c19be0)', borderRadius: 7, border: '2px solid #a878c9', zIndex: 3 }} />
         {/* glass body */}
         <div style={{ position: 'absolute', inset: 0, top: 8, borderRadius: '14% 14% 28% 28%', border: '5px solid rgba(255,255,255,.8)', background: 'linear-gradient(105deg, rgba(255,255,255,.32) 0%, rgba(255,255,255,.12) 42%, rgba(255,255,255,.30) 100%)', overflow: 'hidden', boxShadow: 'inset 0 0 18px rgba(255,255,255,.5)' }}>
-          {/* candies fill from the bottom */}
-          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: `${pct}%`, display: 'flex', flexWrap: 'wrap', gap: 2, alignContent: 'flex-end', justifyContent: 'center', padding: 5, transition: 'height .4s ease' }}>
-            {Array.from({ length: k }).map((_, i) => (
-              <ItemImg key={i} src="/assets/objects/candy.png" size={22} fallbackBg={CANDY_COLORS[i % CANDY_COLORS.length]} />
-            ))}
-          </div>
-          {/* glass shine */}
-          <div style={{ position: 'absolute', top: '6%', left: '11%', width: '13%', height: '64%', borderRadius: '50%', background: 'rgba(255,255,255,.5)', filter: 'blur(2px)', pointerEvents: 'none' }} />
+          {/* candies heap from the floor up (outer div owns the slot anchor; CropSprite pops) */}
+          {pile.slice(0, visible).map((p, i) => (
+            <div key={i} style={{ position: 'absolute', left: p.x, top: p.y, transform: `translate(-50%,-50%) rotate(${p.rot}deg)`, zIndex: 1 + p.z }}>
+              <CropSprite src="/assets/objects/candy.png" size={p.size} fallbackBg={CANDY_COLORS[i % CANDY_COLORS.length]} />
+            </div>
+          ))}
+          {/* glass shine — over the candies */}
+          <div style={{ position: 'absolute', top: '6%', left: '11%', width: '13%', height: '64%', borderRadius: '50%', background: 'rgba(255,255,255,.5)', filter: 'blur(2px)', pointerEvents: 'none', zIndex: 40 }} />
         </div>
       </div>
     </div>
