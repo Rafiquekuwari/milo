@@ -6,6 +6,7 @@
  *   /story?ch=order   → Number Order (river crossing)
  *   /story?ch=kitchen → Comparison   (kitchen)
  *   /story?ch=doors   → Recognition  (number doors)
+ *   /story?ch=grocery → Matching qty (little grocery)
  */
 import { useEffect, useState } from 'react'
 import ForestWalk from '@/components/story/ForestWalk'
@@ -13,6 +14,7 @@ import { countingChapter } from '@/components/story/chapters'
 import RiverCrossing from '@/components/story/RiverCrossing'
 import Kitchen from '@/components/story/Kitchen'
 import NumberDoors from '@/components/story/NumberDoors'
+import Grocery from '@/components/story/Grocery'
 
 export default function StoryPage() {
   const [ch, setCh] = useState('counting')
@@ -21,5 +23,6 @@ export default function StoryPage() {
   if (ch === 'order') return <RiverCrossing />
   if (ch === 'kitchen') return <Kitchen />
   if (ch === 'doors') return <NumberDoors />
+  if (ch === 'grocery') return <Grocery />
   return <ForestWalk chapter={countingChapter} />
 }

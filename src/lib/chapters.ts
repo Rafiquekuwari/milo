@@ -46,7 +46,7 @@ export const CHAPTERS: ChapterMeta[] = [
   { id: 'counting',           name: 'Counting',           parentLabel: 'Counting',          emoji: '🌟', asset: '/assets/objects/firefly.png',        hint: 'Tap each one to count!',     ageGroups: ['3-5'] },
   { id: 'numberOrdering',     name: 'Number Order',       parentLabel: 'Number Order',      emoji: '🔢', asset: '/assets/objects/star.png',           hint: 'Put numbers in order!',      ageGroups: ['3-5'] },
   { id: 'numberRecognition',  name: 'Number Doors',       parentLabel: 'Number Doors',      emoji: '🚪', asset: '/assets/objects/star.png',           hint: 'Open the right number.',     ageGroups: ['3-5'] },
-  { id: 'matchingQuantities', name: 'Apple Basket',       parentLabel: 'Apple Basket',      emoji: '🍎', asset: '/assets/objects/basket.png',         hint: 'Put N apples in the basket.', ageGroups: ['3-5'] },
+  { id: 'matchingQuantities', name: 'Little Grocery',     parentLabel: 'Little Grocery',    emoji: '🛒', asset: '/assets/objects/basket.png',         hint: 'Fill each order — exactly N.', ageGroups: ['3-5'] },
   { id: 'numberComparison',   name: 'Bigger or Smaller',  parentLabel: 'Bigger or Smaller', emoji: '⚖️', asset: '/assets/objects/star-alt.png',       hint: 'Which is bigger?',           ageGroups: ['3-5'] },
   { id: 'shapes',             name: 'Shape House',        parentLabel: 'Shape House',       emoji: '🏠', asset: '/assets/shapes/house-complete.png',  hint: "Build Milo's house.",        ageGroups: ['3-5'] },
   { id: 'colors',             name: 'Color Garden',       parentLabel: 'Color Garden',      emoji: '🌈', asset: '/assets/objects/flower-red.png',     hint: 'Paint the flowers!',         ageGroups: ['3-5'] },
