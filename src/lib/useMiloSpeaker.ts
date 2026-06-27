@@ -278,6 +278,42 @@ export function speakSeq(
   return cancel
 }
 
+/**
+ * speakSeq + a "did speech actually start?" fallback — the right way to narrate a multi-line
+ * demo/explanation.
+ *
+ * `lines` play strictly one-after-another (speakSeq, so they can NEVER overlap or clip each
+ * other — a fixed-timer speak() clips a slow/long line). `onStep(i)` reveals the visual for
+ * line i: driven by the real speech `onstart` when audio works (so visuals stay in sync), OR
+ * by fixed timers if speech never starts within ~1.9s (blocked autoplay / no voices) so the
+ * demo still plays its visuals silently. `onDone` fires exactly once, after the last line (or
+ * the silent fallback) finishes. Returns a cancel fn (call it from the effect cleanup).
+ */
+export function speakSteps(
+  lines: string[],
+  opts: { onStep?: (i: number) => void; onDone?: () => void; fallbackStepMs?: number; rate?: number; pitch?: number } = {},
+): () => void {
+  const { onStep, onDone, fallbackStepMs = 900, rate, pitch } = opts
+  let started = false, doneOnce = false
+  const timers: Array<ReturnType<typeof setTimeout>> = []
+  const finish = () => { if (doneOnce) return; doneOnce = true; onDone?.() }
+  const cancelSeq = speakSeq(lines, {
+    onWord: (i) => { started = true; try { onStep?.(i) } catch {} },
+    onDone: finish,
+    rate, pitch,
+  })
+  // If no line has started speaking ~1.9s in, drive the visuals + finish on fixed timers so a
+  // silent (blocked-audio) demo still reveals everything and advances. Reveals are expected to
+  // be idempotent, so a late-arriving onstart re-applying them is harmless.
+  const fb = setTimeout(() => {
+    if (started) return
+    let t = 0
+    lines.forEach((_, i) => { timers.push(setTimeout(() => { try { onStep?.(i) } catch {} }, t)); t += fallbackStepMs })
+    timers.push(setTimeout(finish, t + 500))
+  }, 1900)
+  return () => { cancelSeq(); clearTimeout(fb); timers.forEach(clearTimeout) }
+}
+
 export function useIsSpeaking(): boolean {
   return useSyncExternalStore(
     (cb) => { _subs.add(cb); return () => _subs.delete(cb) },

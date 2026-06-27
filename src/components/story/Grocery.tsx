@@ -21,7 +21,7 @@
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { speak, stopSpeech } from '@/lib/useMiloSpeaker'
+import { speak, speakSteps, stopSpeech } from '@/lib/useMiloSpeaker'
 import { SkillBeat, type Beat } from './StoryWorld'
 import { matchTarget } from '@/lib/adaptive'
 
@@ -240,13 +240,20 @@ const GroceryExplain: React.FC<{ data: OrderRound; onDone: () => void }> = ({ da
   const ran = useRef(false)
   useEffect(() => {
     if (ran.current) return; ran.current = true
-    const ids: number[] = []
-    ids.push(window.setTimeout(() => speak(`This shopper wants ${qty(target, cfg)}. Let's count them into the ${cfg.container}.`), 450))
-    let t = 2900
-    for (let k = 1; k <= target; k++) { const c = k; ids.push(window.setTimeout(() => { setFilled(c); speak(String(c)) }, t)); t += 760 }
-    ids.push(window.setTimeout(() => { setGlow(true); speak(`${target}! Just right — stop. Ring it up, sold!`) }, t + 150))
-    ids.push(window.setTimeout(onDone, t + 2500))
-    return () => ids.forEach(clearTimeout)
+    // speakSeq plays each line only when the previous one's `end` fires, so the intro line,
+    // the counted numbers, and the closing line can never overlap or clip (fixed timers
+    // clipped the long intro line). Each line's visual fires from onWord when that line
+    // actually starts; speakSeq's watchdog means it can't hang.
+    const script: string[] = [`This shopper wants ${qty(target, cfg)}. Let's count them into the ${cfg.container}.`]
+    const actions: Array<() => void> = [() => {}]
+    for (let k = 1; k <= target; k++) { const c = k; script.push(String(c)); actions.push(() => setFilled(c)) }
+    script.push(`${target}! Just right — stop. Ring it up, sold!`)
+    actions.push(() => setGlow(true))
+    const cancel = speakSteps(script, {
+      onStep: (i) => actions[i]?.(),
+      onDone: () => window.setTimeout(onDone, 1200),
+    })
+    return cancel
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   return <Stage cfg={cfg} target={target} shelf={shelf} picked={filled} glow={glow} shake={false} />
@@ -338,7 +345,7 @@ export default function Grocery({ onFinish, onExit }: {
           <div style={{ maxWidth: '76%', background: '#fff', border: '3px solid var(--outline)', borderRadius: 18, padding: '14px 20px', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 19, color: 'var(--ink)', textAlign: 'center', boxShadow: '0 4px 0 rgba(61,37,22,.1)' }}>
             Milo&apos;s shop is open! Each customer wants <b>exactly</b> some things — tap them into the bag and ring the bell. First, watch Milo!
           </div>
-          <button onClick={() => { speak('Let\'s help Milo at the shop! Fill each order, then ring the bell.'); setPhase('demo') }}
+          <button onClick={() => setPhase('demo')}
             style={{ padding: '14px 38px', borderRadius: 50, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg,var(--milo-orange),var(--milo-orange-deep))', color: '#fff', fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 22, boxShadow: '0 6px 16px rgba(242,107,44,.4)' }}>Open the shop! ▶</button>
         </div>
       )}

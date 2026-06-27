@@ -19,7 +19,7 @@
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { speak, useIsSpeaking, stopSpeech } from '@/lib/useMiloSpeaker'
+import { speak, speakSteps, useIsSpeaking, stopSpeech } from '@/lib/useMiloSpeaker'
 import { SkillBeat, type Beat } from './StoryWorld'
 
 // After a correct/declaring tap, ignore further taps briefly — `useIsSpeaking()` only
@@ -290,12 +290,19 @@ const DoorsExplain: React.FC<{ data: DoorRound; onDone: () => void }> = ({ data,
   const ran = useRef(false)
   useEffect(() => {
     if (ran.current) return; ran.current = true
-    const ids: number[] = []
-    ids.push(window.setTimeout(() => speak(`Milo has a parcel for number ${target}.`), 450))
-    ids.push(window.setTimeout(() => speak(`${target}! Find the door that says ${target}.`), 2700))
-    ids.push(window.setTimeout(() => { setGlow(true); speak(`There it is! Number ${target}.`) }, 4900))
-    ids.push(window.setTimeout(onDone, 7000))
-    return () => ids.forEach(clearTimeout)
+    // speakSeq chains each line on the previous one's `end`, so they can never overlap or
+    // clip each other (fixed timers clipped slow/long lines). The glow syncs to the start of
+    // the reveal line via onWord; speakSeq's watchdog means it can't hang.
+    const lines = [
+      `Milo has a parcel for number ${target}.`,
+      `${target}! Find the door that says ${target}.`,
+      `There it is! Number ${target}.`,
+    ]
+    const cancel = speakSteps(lines, {
+      onStep: (i) => { if (i === 2) setGlow(true) },
+      onDone: () => window.setTimeout(onDone, 700),
+    })
+    return cancel
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   return (
@@ -400,7 +407,7 @@ export default function NumberDoors({ onFinish, onExit }: {
           <div style={{ maxWidth: '74%', background: '#fff', border: '3px solid var(--outline)', borderRadius: 18, padding: '14px 20px', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 19, color: 'var(--ink)', textAlign: 'center', boxShadow: '0 4px 0 rgba(61,37,22,.1)' }}>
             Milo is delivering parcels! <b>Listen</b> for the number, then tap that door. First, watch Milo!
           </div>
-          <button onClick={() => { speak('Let\'s help Milo deliver! Listen for the number, then tap that door.'); setPhase('demo') }}
+          <button onClick={() => setPhase('demo')}
             style={{ padding: '14px 38px', borderRadius: 50, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg,var(--milo-orange),var(--milo-orange-deep))', color: '#fff', fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 22, boxShadow: '0 6px 16px rgba(242,107,44,.4)' }}>Let&apos;s deliver! ▶</button>
         </div>
       )}

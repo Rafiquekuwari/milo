@@ -21,7 +21,7 @@
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { speak, useIsSpeaking, stopSpeech } from '@/lib/useMiloSpeaker'
+import { speak, speakSteps, useIsSpeaking, stopSpeech } from '@/lib/useMiloSpeaker'
 import { SkillBeat, type Beat } from './StoryWorld'
 
 // After a correct/declaring tap, ignore further taps briefly. `useIsSpeaking()` only
@@ -522,29 +522,30 @@ const CompareExplain: React.FC<{ data: CompareData; onDone: () => void }> = ({ d
   const ran = useRef(false)
   useEffect(() => {
     if (ran.current) return; ran.current = true
-    const ids: number[] = []
-    const step = 700
-    let t = 450
-    speak("Let's count!")
+    // speakSeq plays each line only when the previous one's `end` fires, so "Let's count!",
+    // the per-item numbers, and the closing comparison can never overlap or clip each other
+    // (fixed timers clipped "Let's count!" and the closing sentence). Each line's visual
+    // reveal fires from onWord when that line actually starts; the watchdog prevents hangs.
+    const target = vals[answerIdx]
+    const word = mode === 'more' ? 'more' : 'fewer'
+    const big = mode === 'more' ? 'bigger' : 'smaller'
+    const script: string[] = ["Let's count!"]
+    const actions: Array<() => void> = [() => {}]
     // Count each vessel in turn: reveal one item per number, speaking 1…v.
     vals.forEach((v, vi) => {
       for (let kk = 1; kk <= v; kk++) {
         const c = kk
-        ids.push(window.setTimeout(() => {
-          setShown(s => { const ns = s.slice(); ns[vi] = c; return ns })
-          speak(String(c))
-        }, t))
-        t += step
+        script.push(String(c))
+        actions.push(() => setShown(s => { const ns = s.slice(); ns[vi] = c; return ns }))
       }
-      t += 300   // a beat before moving to the next vessel
     })
-    const target = vals[answerIdx]
-    const word = mode === 'more' ? 'more' : 'fewer'
-    const big = mode === 'more' ? 'bigger' : 'smaller'
-    ids.push(window.setTimeout(() => { setReveal(true); speak(`${target} is ${word}. This one is ${big}!`) }, t))
-    t += 1900
-    ids.push(window.setTimeout(onDone, t))
-    return () => ids.forEach(clearTimeout)
+    script.push(`${target} is ${word}. This one is ${big}!`)
+    actions.push(() => setReveal(true))
+    const cancel = speakSteps(script, {
+      onStep: (i) => actions[i]?.(),
+      onDone: () => window.setTimeout(onDone, 1200),
+    })
+    return cancel
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   return (
@@ -669,7 +670,7 @@ export default function Kitchen({ onFinish, onExit }: {
           <div style={{ maxWidth: '74%', background: '#fff', border: '3px solid var(--outline)', borderRadius: 18, padding: '14px 20px', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 19, color: 'var(--ink)', textAlign: 'center', boxShadow: '0 4px 0 rgba(61,37,22,.1)' }}>
             🍳 Milo is cooking a yummy feast! Help him pick the one with <b>more</b>. First, watch Milo count!
           </div>
-          <button onClick={() => { speak('Let\'s help Milo cook! Watch me count to find which has more.'); setPhase('demo') }}
+          <button onClick={() => setPhase('demo')}
             style={{ padding: '14px 38px', borderRadius: 50, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg,var(--milo-orange),var(--milo-orange-deep))', color: '#fff', fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 22, boxShadow: '0 6px 16px rgba(242,107,44,.4)' }}>Let&apos;s cook! ▶</button>
         </div>
       )}
