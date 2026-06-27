@@ -15,10 +15,8 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { extendedFingerTips } from './fingerCount'
-
-const VERSION = '0.10.35' // keep in sync with @mediapipe/tasks-vision
-const WASM_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${VERSION}/wasm`
-const MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'
+import { createHandLandmarker, openCamera } from './handLandmarker'
+import { disposeLandmarker } from './dispose'
 
 const STABLE_FRAMES = 3 // a changed count must hold this many frames before we report it
 
@@ -41,16 +39,13 @@ export function useFingerCounter(
 
   const stop = useCallback(() => {
     cancelAnimationFrame(rafRef.current)
-    const v = videoRef.current
-    ;(v?.srcObject as MediaStream | null)?.getTracks().forEach(t => t.stop())
-    if (v) v.srcObject = null
+    disposeLandmarker(videoRef, landmarkerRef)
     setStatus('idle')
   }, [videoRef])
 
   useEffect(() => () => {
     cancelAnimationFrame(rafRef.current)
-    const v = videoRef.current
-    ;(v?.srcObject as MediaStream | null)?.getTracks().forEach(t => t.stop())
+    disposeLandmarker(videoRef, landmarkerRef)
   }, [videoRef])
 
   const loop = useCallback(() => {
@@ -103,18 +98,13 @@ export function useFingerCounter(
     try {
       setStatus('loading'); setError('')
       stableRef.current = { count: 0, cand: -1, streak: 0 }
-      const { FilesetResolver, HandLandmarker } = await import('@mediapipe/tasks-vision')
-      const fileset = await FilesetResolver.forVisionTasks(WASM_URL)
-      landmarkerRef.current = await HandLandmarker.createFromOptions(fileset, {
-        baseOptions: { modelAssetPath: MODEL_URL, delegate: 'GPU' },
-        runningMode: 'VIDEO', numHands: 2,
+      // Counting needs both hands; keep MediaPipe's default 0.5 presence/tracking
+      // (the other AR surfaces loosen these to 0.3) — pass them explicitly so the
+      // shared helper reproduces this site's exact prior behaviour.
+      landmarkerRef.current = await createHandLandmarker({
+        numHands: 2, minHandPresenceConfidence: 0.5, minTrackingConfidence: 0.5,
       })
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }, audio: false,
-      })
-      const video = videoRef.current!
-      video.srcObject = stream
-      await video.play()
+      await openCamera(videoRef.current!)
       setStatus('running')
       loop()
     } catch (e) {

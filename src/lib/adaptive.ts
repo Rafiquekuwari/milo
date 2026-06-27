@@ -91,68 +91,79 @@ function calcDifficulty(
 
 // ─── Hook ────────────────────────────────────────────────────
 
+interface AdaptiveSnapshot {
+  difficulty:    Difficulty
+  streak:        number
+  wrongStreak:   number
+  correct:       number
+  wrong:         number
+  isOnFire:      boolean
+  shouldHint:    boolean
+  praise:        string
+  encouragement: string
+}
+
 export function useAdaptive(chapter: ChapterType): AdaptiveState {
-  const [difficulty,  setDifficulty]  = useState<Difficulty>(1)
-  const [streak,      setStreak]      = useState(0)
-  const [wrongStreak, setWrongStreak] = useState(0)
-  const [correct,     setCorrect]     = useState(0)
-  const [wrong,       setWrong]       = useState(0)
-  const [praise,      setPraise]      = useState(pick(PRAISE[0]))
-  const [encourage,   setEncourage]   = useState(pick(ENCOURAGEMENT[0]))
-  const [isOnFire,    setIsOnFire]    = useState(false)
-  const [shouldHint,  setShouldHint]  = useState(false)
+  // All mutable counters live in ONE snapshot object that is mirrored in a ref.
+  // The ref is the synchronous source of truth: when several record() calls land
+  // in the same render tick (rapid taps), each one reads the previous call's
+  // result from ref.current instead of a stale render closure. The old code read
+  // streak/wrongStreak/difficulty from the closure and wrote them with plain
+  // setters, so a fast second tap recomputed from stale values and could corrupt
+  // promote/demote. Driving everything off the ref removes that hazard.
+  const [snapshot, setSnapshot] = useState<AdaptiveSnapshot>(() => ({
+    difficulty:    1,
+    streak:        0,
+    wrongStreak:   0,
+    correct:       0,
+    wrong:         0,
+    isOnFire:      false,
+    shouldHint:    false,
+    praise:        pick(PRAISE[0]),
+    encouragement: pick(ENCOURAGEMENT[0]),
+  }))
+  const ref = useRef(snapshot)
 
   const record = useCallback((isCorrect: boolean) => {
-    setCorrect(c => {
-      const newCorrect = isCorrect ? c + 1 : c
-      const newWrong   = isCorrect ? wrong : wrong + 1
-      const newStreak  = isCorrect ? streak + 1 : 0
-      const newWS      = isCorrect ? 0 : wrongStreak + 1
-      const total      = newCorrect + newWrong
+    const s = ref.current
+    const newCorrect = isCorrect ? s.correct + 1 : s.correct
+    const newWrong   = isCorrect ? s.wrong       : s.wrong + 1
+    const newStreak  = isCorrect ? s.streak + 1  : 0
+    const newWS      = isCorrect ? 0             : s.wrongStreak + 1
+    const total      = newCorrect + newWrong
+    const newDiff    = calcDifficulty(s.difficulty, newStreak, newCorrect, total, newWS)
+    const fire       = newStreak >= 3
+    const lvl        = Math.min(newDiff - 1, 2)
 
-      // Difficulty
-      const newDiff = calcDifficulty(difficulty, newStreak, newCorrect, total, newWS)
-      setDifficulty(newDiff)
-
-      // Streak
-      setStreak(newStreak)
-      setWrongStreak(newWS)
-      if (!isCorrect) setWrong(w => w + 1)
-
-      // On fire
-      const fire = newStreak >= 3
-      setIsOnFire(fire)
-
-      // Hint
-      setShouldHint(newWS >= 2 || (newDiff === 1 && total >= 2 && newCorrect / total < 0.5))
-
-      // Praise / encouragement
-      const lvl = Math.min(newDiff - 1, 2)
-      if (isCorrect) {
-        setPraise(fire ? pick(ON_FIRE) : pick(PRAISE[lvl]))
-      } else {
-        setEncourage(pick(ENCOURAGEMENT[lvl]))
-      }
-
-      return newCorrect
-    })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [difficulty, streak, wrongStreak, wrong])
+    const next: AdaptiveSnapshot = {
+      difficulty:    newDiff,
+      streak:        newStreak,
+      wrongStreak:   newWS,
+      correct:       newCorrect,
+      wrong:         newWrong,
+      isOnFire:      fire,
+      shouldHint:    newWS >= 2 || (newDiff === 1 && total >= 2 && newCorrect / total < 0.5),
+      praise:        isCorrect ? (fire ? pick(ON_FIRE) : pick(PRAISE[lvl])) : s.praise,
+      encouragement: isCorrect ? s.encouragement : pick(ENCOURAGEMENT[lvl]),
+    }
+    ref.current = next   // synchronous — the next tap this tick reads the new values
+    setSnapshot(next)    // re-render with the new values
+  }, [])
 
   const difficultyLabel =
-    difficulty === 1 ? 'Starter ⭐' :
-    difficulty === 2 ? 'Getting there ⭐⭐' :
+    snapshot.difficulty === 1 ? 'Starter ⭐' :
+    snapshot.difficulty === 2 ? 'Getting there ⭐⭐' :
     'Champion ⭐⭐⭐'
 
   return {
-    difficulty,
-    streak,
-    sessionCorrect: correct,
-    sessionWrong:   wrong,
-    shouldHint,
-    isOnFire,
-    praise,
-    encouragement: encourage,
+    difficulty:     snapshot.difficulty,
+    streak:         snapshot.streak,
+    sessionCorrect: snapshot.correct,
+    sessionWrong:   snapshot.wrong,
+    shouldHint:     snapshot.shouldHint,
+    isOnFire:       snapshot.isOnFire,
+    praise:         snapshot.praise,
+    encouragement:  snapshot.encouragement,
     record,
     difficultyLabel,
   }

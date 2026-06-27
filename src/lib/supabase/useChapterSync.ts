@@ -20,15 +20,6 @@ function randomId(): string {
   })
 }
 
-function calcStars(correct: number, wrong: number): number {
-  const total = correct + wrong
-  if (total === 0) return 1
-  const pct = correct / total
-  return pct >= 0.85 ? 3 : pct >= 0.6 ? 2 : 1
-}
-function calcXP(stars: number, correct: number): number { return stars * 50 + correct * 10 }
-function calcCoins(stars: number): number { return stars * 5 }
-
 export function useChapterSync() {
   const finishChapter = useMiloStore(s => s.finishChapter)
 
@@ -38,16 +29,13 @@ export function useChapterSync() {
     wrong:   number,
     phase:   'lesson' | 'practice' = 'practice'
   ) => {
-    // 1. Update local store immediately — no delay for the child
-    finishChapter(chapter, correct, wrong)
+    // 1. Update local store immediately — no delay for the child.
+    //    Reuse the score it just computed instead of recomputing the formula.
+    const { stars, xp: xpEarned, coins: coinsEarned } = finishChapter(chapter, correct, wrong)
 
     // 2. Build payload
     const learner = getActiveLearner()
     if (!learner) return
-
-    const stars       = calcStars(correct, wrong)
-    const xpEarned    = calcXP(stars, correct)
-    const coinsEarned = calcCoins(stars)
 
     const payload = {
       learnerId:    learner.id,

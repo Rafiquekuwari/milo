@@ -1,45 +1,12 @@
 'use client'
 export const dynamic = 'force-static'
 import { useRouter } from 'next/navigation'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, Suspense } from 'react'
+import nextDynamic from 'next/dynamic'
 import { useMiloStore, type ChapterType } from '@/lib/store'
 
 import { getActiveLearner } from '@/lib/supabase/useLearnerSession'
 import { setLastPlayed } from '@/lib/lastPlayed'
-import CountingStoryChapter from '@/components/game/CountingStoryChapter'
-import NumberOrderingChapter from '@/components/game/NumberOrderingChapter'
-import NumberDoorsChapter from '@/components/game/NumberDoorsChapter'
-import MatchingQuantitiesChapter from '@/components/game/MatchingQuantitiesChapter'
-import NumberComparisonChapter from '@/components/game/NumberComparisonChapter'
-import ShapeHouseChapter from '@/components/game/ShapeHouseChapter'
-import ColorGardenChapter from '@/components/game/ColorGardenChapter'
-import PatternsChapter from '@/components/game/PatternsChapter'
-import AdditionChapter from '@/components/game/AdditionChapter'
-import SubtractionChapter from '@/components/game/SubtractionChapter'
-import MeasurementChapter from '@/components/game/MeasurementChapter'
-import Numbers100Chapter from '@/components/game/Numbers100Chapter'
-import PlaceValueChapter from '@/components/game/PlaceValueChapter'
-import SkipCountingChapter from '@/components/game/SkipCountingChapter'
-import StoryProblemsChapter from '@/components/game/StoryProblemsChapter'
-import MultiplicationChapter from '@/components/game/MultiplicationChapter'
-import FractionsChapter from '@/components/game/FractionsChapter'
-import MoneyChapter from '@/components/game/MoneyChapter'
-import TimeChapter from '@/components/game/TimeChapter'
-import CompareChapter from '@/components/game/CompareChapter'
-import { AdditionTo100Chapter, SubtractionTo100Chapter } from '@/components/game/ArithmeticChapter'
-import Shapes2D3DChapter from '@/components/game/Shapes2D3DChapter'
-import BigNumbersChapter from '@/components/game/BigNumbersChapter'
-import RoundingChapter from '@/components/game/RoundingChapter'
-import TimesTablesChapter from '@/components/game/TimesTablesChapter'
-import DivisionChapter from '@/components/game/DivisionChapter'
-import FactorsChapter from '@/components/game/FactorsChapter'
-import FractionsCompareChapter from '@/components/game/FractionsCompareChapter'
-import DecimalsChapter from '@/components/game/DecimalsChapter'
-import MeasureUnitsChapter from '@/components/game/MeasureUnitsChapter'
-import AreaPerimeterChapter from '@/components/game/AreaPerimeterChapter'
-import AnglesSymmetryChapter from '@/components/game/AnglesSymmetryChapter'
-import DataGraphsChapter from '@/components/game/DataGraphsChapter'
-import WordProblemsChapter from '@/components/game/WordProblemsChapter'
 import CelebrationModal from '@/components/ui/CelebrationModal'
 import MiloPointer from '@/components/ui/MiloPointer'
 import { useChapterSync } from '@/lib/supabase/useChapterSync'
@@ -49,43 +16,46 @@ import { track } from '@/lib/analytics'
 // registry (src/lib/chapters.ts); this map only wires ids → components, so a
 // new chapter needs one line here. TypeScript's Record enforces completeness.
 type ChapterProps = { onComplete: (correct: number, wrong: number) => void; childName: string }
+const lazyChapter = (loader: () => Promise<{ default: React.ComponentType<ChapterProps> }>) =>
+  nextDynamic(loader, { ssr: false })
+
 const CHAPTER_COMPONENTS: Record<ChapterType, React.ComponentType<ChapterProps>> = {
-  counting:           CountingStoryChapter,
-  numberOrdering:     NumberOrderingChapter,
-  numberRecognition:  NumberDoorsChapter,
-  matchingQuantities: MatchingQuantitiesChapter,
-  numberComparison:   NumberComparisonChapter,
-  shapes:             ShapeHouseChapter,
-  colors:             ColorGardenChapter,
-  patterns:           PatternsChapter,
-  addition:           AdditionChapter,
-  subtraction:        SubtractionChapter,
-  measurement:        MeasurementChapter,
-  numbersTo100:       Numbers100Chapter,
-  placeValue:         PlaceValueChapter,
-  skipCounting:       SkipCountingChapter,
-  storyProblems:      StoryProblemsChapter,
-  multiplication:     MultiplicationChapter,
-  fractions:          FractionsChapter,
-  money:              MoneyChapter,
-  time:               TimeChapter,
-  compareNumbers:     CompareChapter,
-  additionTo100:      AdditionTo100Chapter,
-  subtractionTo100:   SubtractionTo100Chapter,
-  shapes2d3d:         Shapes2D3DChapter,
+  counting:           lazyChapter(() => import('@/components/game/CountingStoryChapter')),
+  numberOrdering:     lazyChapter(() => import('@/components/game/NumberOrderingChapter')),
+  numberRecognition:  lazyChapter(() => import('@/components/game/NumberDoorsChapter')),
+  matchingQuantities: lazyChapter(() => import('@/components/game/MatchingQuantitiesChapter')),
+  numberComparison:   lazyChapter(() => import('@/components/game/NumberComparisonChapter')),
+  shapes:             lazyChapter(() => import('@/components/game/ShapeHouseChapter')),
+  colors:             lazyChapter(() => import('@/components/game/ColorGardenChapter')),
+  patterns:           lazyChapter(() => import('@/components/game/PatternsChapter')),
+  addition:           lazyChapter(() => import('@/components/game/AdditionChapter')),
+  subtraction:        lazyChapter(() => import('@/components/game/SubtractionChapter')),
+  measurement:        lazyChapter(() => import('@/components/game/MeasurementChapter')),
+  numbersTo100:       lazyChapter(() => import('@/components/game/Numbers100Chapter')),
+  placeValue:         lazyChapter(() => import('@/components/game/PlaceValueChapter')),
+  skipCounting:       lazyChapter(() => import('@/components/game/SkipCountingChapter')),
+  storyProblems:      lazyChapter(() => import('@/components/game/StoryProblemsChapter')),
+  multiplication:     lazyChapter(() => import('@/components/game/MultiplicationChapter')),
+  fractions:          lazyChapter(() => import('@/components/game/FractionsChapter')),
+  money:              lazyChapter(() => import('@/components/game/MoneyChapter')),
+  time:               lazyChapter(() => import('@/components/game/TimeChapter')),
+  compareNumbers:     lazyChapter(() => import('@/components/game/CompareChapter')),
+  additionTo100:      lazyChapter(() => import('@/components/game/ArithmeticChapter').then(m => ({ default: m.AdditionTo100Chapter }))),
+  subtractionTo100:   lazyChapter(() => import('@/components/game/ArithmeticChapter').then(m => ({ default: m.SubtractionTo100Chapter }))),
+  shapes2d3d:         lazyChapter(() => import('@/components/game/Shapes2D3DChapter')),
   // 9–11
-  bigNumbers:         BigNumbersChapter,
-  rounding:           RoundingChapter,
-  timesTables:        TimesTablesChapter,
-  division:           DivisionChapter,
-  factorsMultiples:   FactorsChapter,
-  fractionsCompare:   FractionsCompareChapter,
-  decimals:           DecimalsChapter,
-  measurementUnits:   MeasureUnitsChapter,
-  areaPerimeter:      AreaPerimeterChapter,
-  anglesSymmetry:     AnglesSymmetryChapter,
-  dataGraphs:         DataGraphsChapter,
-  wordProblems:       WordProblemsChapter,
+  bigNumbers:         lazyChapter(() => import('@/components/game/BigNumbersChapter')),
+  rounding:           lazyChapter(() => import('@/components/game/RoundingChapter')),
+  timesTables:        lazyChapter(() => import('@/components/game/TimesTablesChapter')),
+  division:           lazyChapter(() => import('@/components/game/DivisionChapter')),
+  factorsMultiples:   lazyChapter(() => import('@/components/game/FactorsChapter')),
+  fractionsCompare:   lazyChapter(() => import('@/components/game/FractionsCompareChapter')),
+  decimals:           lazyChapter(() => import('@/components/game/DecimalsChapter')),
+  measurementUnits:   lazyChapter(() => import('@/components/game/MeasureUnitsChapter')),
+  areaPerimeter:      lazyChapter(() => import('@/components/game/AreaPerimeterChapter')),
+  anglesSymmetry:     lazyChapter(() => import('@/components/game/AnglesSymmetryChapter')),
+  dataGraphs:         lazyChapter(() => import('@/components/game/DataGraphsChapter')),
+  wordProblems:       lazyChapter(() => import('@/components/game/WordProblemsChapter')),
 }
 
 export default function GamePage() {
@@ -202,7 +172,11 @@ export default function GamePage() {
         {/* GameTopbar is rendered inside each chapter component */}
         {!chapterDone && playingChapter && (() => {
           const Chapter = CHAPTER_COMPONENTS[playingChapter]
-          return Chapter ? <Chapter {...props} /> : null
+          return Chapter ? (
+            <Suspense fallback={null}>
+              <Chapter {...props} />
+            </Suspense>
+          ) : null
         })()}
       </div>
     </div>

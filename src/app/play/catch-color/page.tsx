@@ -15,6 +15,7 @@ import CelebrationModal from '@/components/ui/CelebrationModal'
 import CameraError from '@/components/ui/CameraError'
 import HowToPlay from '@/components/ui/HowToPlay'
 import { kv } from '@/lib/kv'
+import { disposeLandmarker } from '@/lib/ar/dispose'
 
 const VERSION = '0.10.35'
 const WASM_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${VERSION}/wasm`
@@ -78,7 +79,7 @@ export default function CatchColorActivity() {
 
   function stop() {
     cancelAnimationFrame(rafRef.current)
-    ;(videoRef.current?.srcObject as MediaStream | null)?.getTracks().forEach(t => t.stop())
+    disposeLandmarker(videoRef, landmarkerRef)
   }
   useEffect(() => stop, [])
 

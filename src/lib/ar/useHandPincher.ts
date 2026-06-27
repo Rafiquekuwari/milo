@@ -11,6 +11,7 @@
  * Reusable across Match the Number / Number Order / Pattern Builder. On-device.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { disposeLandmarker } from './dispose'
 
 const VERSION = '0.10.35'
 const WASM_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${VERSION}/wasm`
@@ -43,14 +44,13 @@ export function useHandPincher(
 
   const stop = useCallback(() => {
     cancelAnimationFrame(rafRef.current)
-    ;(videoRef.current?.srcObject as MediaStream | null)?.getTracks().forEach(t => t.stop())
-    if (videoRef.current) videoRef.current.srcObject = null
+    disposeLandmarker(videoRef, landmarkerRef)
     setStatus('idle')
   }, [videoRef])
 
   useEffect(() => () => {
     cancelAnimationFrame(rafRef.current)
-    ;(videoRef.current?.srcObject as MediaStream | null)?.getTracks().forEach(t => t.stop())
+    disposeLandmarker(videoRef, landmarkerRef)
   }, [videoRef])
 
   const loop = useCallback(() => {

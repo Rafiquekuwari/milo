@@ -4,6 +4,7 @@ import { kv } from './kv'
 import { getActiveLearner } from './supabase/useLearnerSession'
 import type { LearnerStats, LearnerProgress, LearnerState } from './supabase/types'
 import { CHAPTER_IDS, type ChapterType } from './chapters'
+import { scoreChapter, type ChapterScore } from './scoring'
 
 // Chapter metadata now lives in the single registry (src/lib/chapters.ts).
 // Re-exported here so existing `@/lib/store` imports keep working.
@@ -73,23 +74,6 @@ export function getLevelProgress(xp: number, level: number): number {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  Scoring
-// ─────────────────────────────────────────────────────────────
-
-function calcStars(correct: number, wrong: number): number {
-  const total = correct + wrong
-  if (total === 0) return 1
-  const pct = correct / total
-  return pct >= 0.85 ? 3 : pct >= 0.6 ? 2 : 1
-}
-function calcXP(stars: number, correct: number): number {
-  return stars * 50 + correct * 10
-}
-function calcCoins(stars: number): number {
-  return stars * 5
-}
-
-// ─────────────────────────────────────────────────────────────
 //  Default profile
 // ─────────────────────────────────────────────────────────────
 
@@ -131,7 +115,7 @@ interface MiloStore {
   celebration:    CelebrationData | null
 
   completeSetup:      (name: string, avatarIndex: AvatarIndex) => void
-  finishChapter:      (chapter: ChapterType, correct: number, wrong: number) => void
+  finishChapter:      (chapter: ChapterType, correct: number, wrong: number) => ChapterScore
   dismissCelebration: () => void
   purchaseItem:       (itemId: string, cost: number) => boolean
   equipItem:          (slot: string, itemId: string) => void
@@ -261,9 +245,7 @@ export const useMiloStore = create<MiloStore>()(
         })),
 
       finishChapter: (chapter, correct, wrong) => {
-        const stars       = calcStars(correct, wrong)
-        const xpGained    = calcXP(stars, correct)
-        const coinsGained = calcCoins(stars)
+        const { stars, xp: xpGained, coins: coinsGained } = scoreChapter(correct, wrong)
         set(s => {
           const newXP     = s.profile.totalXP + xpGained
           const newCoins  = s.profile.totalCoins + coinsGained
@@ -301,6 +283,9 @@ export const useMiloStore = create<MiloStore>()(
             },
           }
         })
+        // Return what we scored so callers (e.g. finishAndSync) can build the
+        // sync payload without recomputing the same formula.
+        return { stars, xp: xpGained, coins: coinsGained }
       },
 
       dismissCelebration: () => set({ celebration: null }),

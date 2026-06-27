@@ -16,6 +16,7 @@ import { useChapterSync } from '@/lib/supabase/useChapterSync'
 import { useAdaptive } from '@/lib/adaptive'
 import { DifficultyBadge } from '@/components/ui/DifficultyBadge'
 import { kv } from '@/lib/kv'
+import { disposeLandmarker } from '@/lib/ar/dispose'
 
 const VERSION = '0.10.35'
 const WASM_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${VERSION}/wasm`
@@ -75,7 +76,7 @@ export default function CatchItActivity() {
 
   function stop() {
     cancelAnimationFrame(rafRef.current)
-    ;(videoRef.current?.srcObject as MediaStream | null)?.getTracks().forEach(t => t.stop())
+    disposeLandmarker(videoRef, landmarkerRef)
   }
   useEffect(() => stop, [])
 
