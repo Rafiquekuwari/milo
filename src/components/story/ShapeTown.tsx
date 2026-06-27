@@ -19,7 +19,7 @@
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { speak, speakSteps, useIsSpeaking, stopSpeech } from '@/lib/useMiloSpeaker'
+import { speak, speakSteps, useIsSpeaking, stopSpeech, unlockSpeech } from '@/lib/useMiloSpeaker'
 import { SkillBeat, type Beat } from './StoryWorld'
 import { ShapeSVG, SHAPES, SHAPE_ORDER, type ShapeName } from '../lessons/ShapesLesson'
 
@@ -296,6 +296,58 @@ const ShapesExplain: React.FC<{ data: ShapeRound; onDone: () => void }> = ({ dat
   )
 }
 
+// ─── The "meet every shape" showcase (opens the explanation) ────────────────────────
+// Shows ALL six shapes at once and Milo names each in turn (it lights up). SELF-PACED on a
+// deterministic timer — deliberately NOT driven by speech events. Tying the reveal to speakSeq's
+// onstart/onend made the single short words ("circle", "star") RACE: on a real device onend fires
+// in ~300ms, so the sequence blasted through all six and advanced the phase early (the reported
+// "going fast without completing"). A fixed dwell per item (the documented "counting" pattern — the
+// one case where fixed-timer speak() is safe, because the words are short with generous gaps) keeps
+// each shape shown + named for a full beat no matter how fast — or whether — speech fires. If audio
+// is blocked the visuals still pace deliberately and complete.
+const SHOWCASE_DWELL = 1500   // each item stays lit + named for this long
+const ShapeShowcase: React.FC<{ onDone: () => void }> = ({ onDone }) => {
+  const [lit, setLit] = useState(-1)
+  const [px, setPx] = useState(104)
+  const ran = useRef(false)
+  useEffect(() => {
+    const calc = () => setPx(Math.max(58, Math.min(window.innerWidth * 0.14, 120)))
+    calc(); window.addEventListener('resize', calc)
+    return () => window.removeEventListener('resize', calc)
+  }, [])
+  useEffect(() => {
+    if (ran.current) return; ran.current = true
+    const timers: Array<ReturnType<typeof setTimeout>> = []
+    let cancelled = false
+    speak('These are the shapes!')
+    let t = 2000   // let the intro line finish before the first shape
+    SHAPE_ORDER.forEach((s, i) => {
+      timers.push(setTimeout(() => { if (cancelled) return; setLit(i); speak(SHAPES[s].label) }, t))
+      t += SHOWCASE_DWELL
+    })
+    timers.push(setTimeout(() => { if (!cancelled) onDone() }, t + 600))
+    return () => { cancelled = true; timers.forEach(clearTimeout) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  return (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '11% 4% 26%' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, auto)', columnGap: 'clamp(16px,4vw,56px)', rowGap: 'clamp(8px,2vw,24px)', justifyItems: 'center', alignItems: 'end' }}>
+        {SHAPE_ORDER.map((s, i) => {
+          const on = lit === i
+          return (
+            <div key={s} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, transform: on ? 'scale(1.14)' : 'scale(1)', transition: 'transform .3s cubic-bezier(.34,1.56,.64,1)' }}>
+              <div style={{ filter: on ? 'drop-shadow(0 0 14px var(--garden-green)) drop-shadow(0 0 9px var(--garden-green))' : 'drop-shadow(0 5px 7px rgba(0,0,0,.22))' }}>
+                <ShapeSVG name={s} size={px} />
+              </div>
+              <span style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 'clamp(13px,2.2vw,20px)', color: 'var(--ink)', textTransform: 'capitalize', opacity: on ? 1 : 0.8 }}>{SHAPES[s].label}</span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 // ─── Value generation ──────────────────────────────────────────────────────────────
 // Target cycles through all six shapes by round (full coverage, never the same two in a
 // row). Difficulty grows the field (3 → 4 choices) and, at the top tier, GUARANTEES the
@@ -348,7 +400,7 @@ const ST_CSS = `
 @keyframes k_bounceIn { 0%{transform:scale(0) translateY(30px);opacity:0} 60%{transform:scale(1.25) translateY(-6px);opacity:1} 100%{transform:scale(1) translateY(0);opacity:1} }
 `
 
-type Phase = 'intro' | 'demo' | 'guided' | 'practice'
+type Phase = 'intro' | 'showcase' | 'demo' | 'guided' | 'practice'
 export default function ShapeTown({ onFinish, onExit }: {
   onFinish?: (correct: number, wrong: number) => void
   onExit?: () => void
@@ -393,12 +445,15 @@ export default function ShapeTown({ onFinish, onExit }: {
       {phase === 'intro' && (
         <div style={{ position: 'absolute', inset: 0, zIndex: 45, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20 }}>
           <div style={{ maxWidth: '74%', background: '#fff', border: '3px solid var(--outline)', borderRadius: 18, padding: '14px 20px', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 19, color: 'var(--ink)', textAlign: 'center', boxShadow: '0 4px 0 rgba(61,37,22,.1)' }}>
-            Milo is exploring <b>Shape Town</b>! Everything is made of shapes. <b>Listen</b> for the shape, then tap it. First, watch Milo!
+            Milo is exploring <b>Shape Town</b>! Everything is made of shapes. <b>Listen</b> for the shape, then tap it. First, let&apos;s meet the shapes!
           </div>
-          <button onClick={() => setPhase('demo')}
+          <button onClick={() => { unlockSpeech(); setPhase('showcase') }}
             style={{ padding: '14px 38px', borderRadius: 50, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg,var(--milo-orange),var(--milo-orange-deep))', color: '#fff', fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 22, boxShadow: '0 6px 16px rgba(242,107,44,.4)' }}>Let&apos;s explore! ▶</button>
         </div>
       )}
+
+      {phase === 'showcase' && (<>{Banner('Meet the shapes!')}
+        <ShapeShowcase onDone={() => setPhase('demo')} /></>)}
 
       {phase === 'demo' && (<>{Banner(`Find the shape Milo names  (${demoIdx + 1}/${DEMO_ROUNDS.length})`)}
         <ShapesExplain key={`demo${demoIdx}`} data={DEMO_ROUNDS[demoIdx]}

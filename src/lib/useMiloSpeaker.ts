@@ -199,6 +199,23 @@ export function replayLast() {
   }
 }
 
+/**
+ * Unlock the speech engine from inside a user gesture (a tap/click handler). Mobile browsers
+ * (iOS Safari especially) only allow speechSynthesis after the FIRST speak() that runs
+ * synchronously within a gesture — a later speak() fired from an effect is silently blocked, which
+ * makes a demo fall back to its silent fast-stepping path. Speaking a near-silent token here, in
+ * the gesture, unlocks the engine so the demo that mounts next actually narrates aloud. Call it
+ * from the intro button's onClick. Cheap and idempotent.
+ */
+export function unlockSpeech() {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return
+  try {
+    const u = new SpeechSynthesisUtterance(' ')
+    u.volume = 0
+    window.speechSynthesis.speak(u)
+  } catch {}
+}
+
 export function stopSpeech() {
   if (_speakTimer) { clearTimeout(_speakTimer); _speakTimer = null }
   _onEndCbs = []
@@ -293,7 +310,7 @@ export function speakSteps(
   lines: string[],
   opts: { onStep?: (i: number) => void; onDone?: () => void; fallbackStepMs?: number; rate?: number; pitch?: number } = {},
 ): () => void {
-  const { onStep, onDone, fallbackStepMs = 900, rate, pitch } = opts
+  const { onStep, onDone, fallbackStepMs = 1400, rate, pitch } = opts
   let started = false, doneOnce = false
   const timers: Array<ReturnType<typeof setTimeout>> = []
   const finish = () => { if (doneOnce) return; doneOnce = true; onDone?.() }
@@ -302,15 +319,23 @@ export function speakSteps(
     onDone: finish,
     rate, pitch,
   })
-  // If no line has started speaking ~1.9s in, drive the visuals + finish on fixed timers so a
-  // silent (blocked-audio) demo still reveals everything and advances. Reveals are expected to
-  // be idempotent, so a late-arriving onstart re-applying them is harmless.
+  // The fallback exists ONLY for the silent case (blocked autoplay / no voices). It must not
+  // pre-empt a real voice that's just slow to start, so:
+  //  - the grace window is generous (a real first utterance can take >2s to start right after
+  //    the tap that unlocks audio), and
+  //  - EVERY fallback step (and the early finish) bails the instant real speech starts, so a
+  //    late-arriving voice takes over cleanly instead of the two racing each other.
+  // It also steps slowly so a genuinely silent demo is watchable, not a flash. `started` flips
+  // on the FIRST utterance's onstart, so a single redundant onStep(0) is the worst overlap.
   const fb = setTimeout(() => {
     if (started) return
     let t = 0
-    lines.forEach((_, i) => { timers.push(setTimeout(() => { try { onStep?.(i) } catch {} }, t)); t += fallbackStepMs })
-    timers.push(setTimeout(finish, t + 500))
-  }, 1900)
+    lines.forEach((_, i) => {
+      timers.push(setTimeout(() => { if (started) return; try { onStep?.(i) } catch {} }, t))
+      t += fallbackStepMs
+    })
+    timers.push(setTimeout(() => { if (started) return; finish() }, t + 600))
+  }, 2800)
   return () => { cancelSeq(); clearTimeout(fb); timers.forEach(clearTimeout) }
 }
 
