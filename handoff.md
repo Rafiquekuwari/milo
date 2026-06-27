@@ -2,11 +2,11 @@
 
 _Last updated: 2026-06-27_
 
-**Current state (2026-06-27):** SIX 3–5 skills are now story chapters — Ch.1 Counting (`ForestWalk`) · Ch.2 Number Order (`RiverCrossing`) · Ch.3 Number Comparison (`Kitchen`) · Ch.4 Number Recognition (`NumberDoors`) · Ch.5 Matching Quantities (`Grocery`) · **Ch.6 Shapes (`ShapeTown`)**. Ch.1–5 are committed + deployed at `379c695`; **Ch.6 is built + verified but NOT yet committed** (working tree). Newest-first session logs follow. (The TL;DR below is the original Ch.3-session snapshot, kept for history.)
+**Current state (2026-06-27):** SIX 3–5 skills are now story chapters — Ch.1 Counting (`ForestWalk`) · Ch.2 Number Order (`RiverCrossing`) · Ch.3 Number Comparison (`Kitchen`) · Ch.4 Number Recognition (`NumberDoors`) · Ch.5 Matching Quantities (`Grocery`) · **Ch.6 Shapes (`ShapeTown`)**. ALL committed + deployed to production (**www.mi2utor.com** / **milo-story-mode.vercel.app**) — latest: `d2c8598` (Ch.6 Shape Town + art) on top of `abfce36` (explanation voice-overlap fix, Ch.3–6). Newest-first session logs follow. (The TL;DR below is the original Ch.3-session snapshot, kept for history.)
 
 ---
 
-## Session 2026-06-27 (later) — Ch.6 Shape Town (shapes) ✅ built + painted + reviewed, NOT committed
+## Session 2026-06-27 (later) — Ch.6 Shape Town (shapes) ✅ built + painted + reviewed + deployed (`d2c8598`)
 
 Built **Chapter 6 — "Milo's Shape Town Walk"**, the SHAPE-recognition story (skill `shapes`, the old "Shape House" drill reborn as story mode — the 6th 3–5 chapter, first of a future "Shape Town" world). Milo the explorer strolls Shape Town where everyday things are made of shapes; each round he names a shape ("Can you find the triangle?") and the child taps the matching one. Decisions locked with the user: skill = **Shapes**; frame = **"Shape Town Walk"** (spot shapes in the scenery — the lightest of the 3 options, closest to the Number Doors rotating-scenes pattern).
 
@@ -19,7 +19,7 @@ Built **Chapter 6 — "Milo's Shape Town Walk"**, the SHAPE-recognition story (s
 - **Code review (adversarial, 4-lens + verify, 2026-06-27):** voice-safety / conventions / generation-logic all clean; 2 real fixes applied — the Milo-collision scale clamp above, and `finish` timing 600→650ms to match NumberDoors' settle window. The reviewer's other suggestion (raise TOP 50→56) was rejected — raising TOP moves shapes DOWN toward Milo, worsening the collision.
 - **Verified** in preview: `tsc` clean, `next build` exit 0, eslint clean (only the standard `<img>` warning). Played the full intro→2 demos→guided→**10 practice rounds**→finish (twice); all 3 painted scenes render + cross-fade; the painted `milo_explorer.png` + 3 backdrops load; targets cycle all 6 shapes with no repeats; difficulty ramps 3→4 and caps at 4; geometry checked via `getBoundingClientRect` at 1440 / 1024×768 (shapes clear Milo) / 375 mobile (shapes shrink, no overlap); no React error boundary across the whole run. (A burst of `…reading 'left'` console errors during development were all HMR hot-swap artifacts from editing the layout while a stale 6-option round was mounted — gone on fresh load, now structurally impossible.)
 
-⚠️ **NOT committed** — per `feedback-no-auto-push`, awaiting the user's go-ahead to commit/deploy. **5 chapters remain** as old drills (a future "World 2/3/4"): colors (Color Garden) · patterns · addition · subtraction · measurement. See `docs/story-mode-3-5.md`.
+✅ **Committed + deployed** (`d2c8598`, on top of the voice fix `abfce36`) — pushed to `main`, Vercel production deploy READY (www.mi2utor.com). **5 chapters remain** as old drills (a future "World 2/3/4"): colors (Color Garden) · patterns · addition · subtraction · measurement. See `docs/story-mode-3-5.md`.
 
 ---
 
@@ -29,7 +29,7 @@ User report: "Milo's voice in all chapters except Counting overlaps and gets cut
 
 - **New helper `speakSteps(lines, { onStep, onDone })` in `useMiloSpeaker.ts`** — the project's blessed pattern made reusable: `speakSeq` plays the lines strictly one-after-another (each waits for the previous `end`, so they can NEVER overlap/clip), `onStep(i)` reveals the visual for line i (driven by real speech `onstart`), AND a **~1.9s "did it start?" fallback** drives the same visuals + advance on fixed timers if speech never starts (blocked autoplay / no voices / headless) so the demo still plays silently. Fires `onDone` exactly once.
 - **Converted all four explanations** (`ShapesExplain`, `DoorsExplain`, `GroceryExplain`, `CompareExplain`) from fixed-timer `speak()` to `speakSteps` — glow chapters reveal on the last line; counting chapters build a parallel `script`/`actions` array (one entry per spoken number → reveal that item). **Removed the intro-button `speak()`** in those four (it was the same line the demo immediately cancelled; the on-screen card keeps the instruction, the click still unblocks audio).
-- **Verified** in preview (`tsc` + `next build` clean): instrumented `speechSynthesis` shows lines now fire **strictly sequentially, no overlap**; ShapeTown demo glow appears (via the fallback, since headless never fires `onstart`) and advances to guided; Kitchen demo reveals items one-by-one (0→6) with the big count numbers + the bigger-side reveal, all 4 examples → guided. On a real device `onstart` fires, so `onStep` syncs visuals to the actual speech. **NOT committed.**
+- **Verified** in preview (`tsc` + `next build` clean): instrumented `speechSynthesis` shows lines now fire **strictly sequentially, no overlap**; ShapeTown demo glow appears (via the fallback, since headless never fires `onstart`) and advances to guided; Kitchen demo reveals items one-by-one (0→6) with the big count numbers + the bigger-side reveal, all 4 examples → guided. On a real device `onstart` fires, so `onStep` syncs visuals to the actual speech. **Committed `abfce36` + deployed.**
 
 ⚠️ **Rule for any NEW demo/explanation:** never narrate multiple lines on fixed `setTimeout`+`speak()` (they cut each other). Use `speakSteps` (or `speakSeq`) so lines chain on `end`, and drive visuals from `onStep`/`onWord` with the timer fallback. Single short words with generous gaps (counting) are the only safe exception.
 
