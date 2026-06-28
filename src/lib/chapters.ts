@@ -15,7 +15,7 @@
  * from any page.
  */
 
-export type AgeGroup = '3-5' | '6-8' | '9-11'
+export type AgeGroup = '3-5' | '6-8' | '9-11' | '12-14' | '15-16' | '17-18'
 
 export type ChapterType =
   // 3–5
@@ -27,6 +27,12 @@ export type ChapterType =
   | 'compareNumbers' | 'additionTo100' | 'subtractionTo100' | 'shapes2d3d'
   // 9–11
   | 'bigNumbers' | 'rounding' | 'timesTables' | 'division' | 'factorsMultiples' | 'fractionsCompare' | 'decimals' | 'measurementUnits' | 'areaPerimeter' | 'anglesSymmetry' | 'dataGraphs' | 'wordProblems'
+  // 12–14 (teen "Field Lab")
+  | 'integers' | 'signedRationalOps' | 'rationalOps' | 'ratioProportion' | 'percentages' | 'exponentsRoots'
+  | 'orderOfOperations' | 'algebraicExpressions' | 'equationsInequalities' | 'coordinatePlane' | 'linearRelationships' | 'geometryMeasurement'
+  // 15–16 (Algebra I + Geometry)
+  | 'signedNumberFluency' | 'expressionsVariables' | 'linearEquationsInequalities' | 'slopeLinearGraphs' | 'functionsFamilies' | 'systemsOfEquations'
+  | 'exponentsPolynomials' | 'radicalsPythagorean' | 'factoringPolynomials' | 'quadraticsParabolas' | 'geometryTransformations' | 'geometryProofTrig'
 
 export interface ChapterMeta {
   id:          ChapterType
@@ -50,7 +56,7 @@ export const CHAPTERS: ChapterMeta[] = [
   { id: 'numberComparison',   name: 'Bigger or Smaller',  parentLabel: 'Bigger or Smaller', emoji: '⚖️', asset: '/assets/objects/star-alt.png',       hint: 'Which is bigger?',           ageGroups: ['3-5'] },
   { id: 'shapes',             name: 'Shape House',        parentLabel: 'Shape House',       emoji: '🏠', asset: '/assets/shapes/house-complete.png',  hint: "Build Milo's house.",        ageGroups: ['3-5'] },
   { id: 'colors',             name: 'Rainbow Town',       parentLabel: 'Rainbow Town',      emoji: '🌈', asset: '/assets/objects/flower-red.png',     hint: 'Tap the colour Milo names!', ageGroups: ['3-5'] },
-  { id: 'patterns',           name: 'Patterns',           parentLabel: 'Patterns',          emoji: '🔷', asset: '/assets/objects/star.png',           hint: 'Find what comes next!',      ageGroups: ['3-5'] },
+  { id: 'patterns',           name: 'Bead Shop',          parentLabel: 'Bead Shop',         emoji: '📿', asset: '/assets/objects/star.png',           hint: 'Tap the bead that comes next!', ageGroups: ['3-5'] },
   { id: 'addition',           name: 'Simple Addition',    parentLabel: 'Addition',          emoji: '➕', asset: '/assets/objects/apple.png',          hint: 'Add apples together!',       ageGroups: ['3-5'] },
   { id: 'subtraction',        name: 'Simple Subtraction', parentLabel: 'Subtraction',       emoji: '➖', asset: '/assets/objects/firefly.png',        hint: 'How many are left?',         ageGroups: ['3-5'] },
   { id: 'measurement',        name: 'Measurement',        parentLabel: 'Measurement',       emoji: '📏', asset: '/assets/objects/star.png',           hint: 'Tall, short, heavy, light!', ageGroups: ['3-5'] },
@@ -82,6 +88,34 @@ export const CHAPTERS: ChapterMeta[] = [
   { id: 'anglesSymmetry',     name: 'Angles & Symmetry',  parentLabel: 'Angles & Symmetry', emoji: '📐', asset: '/assets/objects/star.png',           hint: 'Acute, right, obtuse & lines of symmetry!', ageGroups: ['9-11'] },
   { id: 'dataGraphs',         name: 'Data & Graphs',      parentLabel: 'Data & Graphs',     emoji: '📊', asset: '/assets/objects/star.png',           hint: 'Read bar charts and pictographs!', ageGroups: ['9-11'] },
   { id: 'wordProblems',       name: 'Word Problems',      parentLabel: 'Word Problems',     emoji: '🧩', asset: '/assets/objects/star.png',           hint: 'Read, then solve it step by step!', ageGroups: ['9-11'] },
+
+  // ── 12–14 (teen "Field Lab") ──
+  { id: 'integers',             name: 'Integers & the Number Line',  parentLabel: 'Integers',        emoji: '➖', asset: '/assets/objects/star.png', hint: 'Place, compare & measure integers.', ageGroups: ['12-14'] },
+  { id: 'signedRationalOps',    name: 'Signed Number Operations',    parentLabel: 'Signed Numbers',  emoji: '🌡️', asset: '/assets/objects/star.png', hint: 'Add, subtract, multiply & divide with negatives.', ageGroups: ['12-14'] },
+  { id: 'rationalOps',          name: 'Fraction & Decimal Ops',      parentLabel: 'Fraction Ops',    emoji: '🍰', asset: '/assets/objects/apple.png', hint: 'Multiply & divide fractions and decimals.', ageGroups: ['12-14'] },
+  { id: 'ratioProportion',      name: 'Ratios & Proportions',        parentLabel: 'Ratios',          emoji: '⚖️', asset: '/assets/objects/star.png', hint: 'Unit rates and solving proportions.', ageGroups: ['12-14'] },
+  { id: 'percentages',          name: 'Percentages',                 parentLabel: 'Percentages',     emoji: '％', asset: '/assets/objects/star.png', hint: 'Percent of a quantity, up and down.', ageGroups: ['12-14'] },
+  { id: 'exponentsRoots',       name: 'Exponents & Roots',           parentLabel: 'Exponents',       emoji: '⬆️', asset: '/assets/objects/star.png', hint: 'Powers, square roots & scientific notation.', ageGroups: ['12-14'] },
+  { id: 'orderOfOperations',    name: 'Order of Operations',         parentLabel: 'Order of Ops',    emoji: '🔣', asset: '/assets/objects/star.png', hint: 'Brackets, exponents, then the rest.', ageGroups: ['12-14'] },
+  { id: 'algebraicExpressions', name: 'Algebraic Expressions',       parentLabel: 'Expressions',     emoji: '🔤', asset: '/assets/objects/star.png', hint: 'Write, evaluate & simplify expressions.', ageGroups: ['12-14'] },
+  { id: 'equationsInequalities',name: 'Equations & Inequalities',    parentLabel: 'Equations',       emoji: '🟰', asset: '/assets/objects/star.png', hint: 'Solve for x — equations and inequalities.', ageGroups: ['12-14'] },
+  { id: 'coordinatePlane',      name: 'The Coordinate Plane',        parentLabel: 'Coordinates',     emoji: '📍', asset: '/assets/objects/star.png', hint: 'Plot and read points in four quadrants.', ageGroups: ['12-14'] },
+  { id: 'linearRelationships',  name: 'Linear Relationships',        parentLabel: 'Linear Graphs',   emoji: '📈', asset: '/assets/objects/star.png', hint: 'Tables, slope & lines.', ageGroups: ['12-14'] },
+  { id: 'geometryMeasurement',  name: 'Area, Volume & Pythagoras',   parentLabel: 'Geometry',        emoji: '📐', asset: '/assets/objects/star.png', hint: 'Area, volume & the Pythagorean theorem.', ageGroups: ['12-14'] },
+
+  // ── 15–16 (Algebra I + Geometry) ──
+  { id: 'signedNumberFluency',       name: 'Signed & Real Numbers',     parentLabel: 'Real Numbers',    emoji: '🌡️', asset: '/assets/objects/star.png', hint: 'Fluent with signed rationals & real numbers.', ageGroups: ['15-16'] },
+  { id: 'expressionsVariables',      name: 'Expressions & Variables',   parentLabel: 'Expressions',     emoji: '🔤', asset: '/assets/objects/star.png', hint: 'Write, evaluate & simplify expressions.', ageGroups: ['15-16'] },
+  { id: 'linearEquationsInequalities', name: 'Linear Equations',        parentLabel: 'Linear Equations', emoji: '🟰', asset: '/assets/objects/star.png', hint: 'Solve equations & inequalities, step by step.', ageGroups: ['15-16'] },
+  { id: 'slopeLinearGraphs',         name: 'Slope & Linear Graphs',     parentLabel: 'Slope & Graphs',  emoji: '📈', asset: '/assets/objects/star.png', hint: 'Slope, intercepts & graphing lines.', ageGroups: ['15-16'] },
+  { id: 'functionsFamilies',         name: 'Functions',                 parentLabel: 'Functions',       emoji: '🔢', asset: '/assets/objects/star.png', hint: 'f(x), domain/range, linear vs exponential.', ageGroups: ['15-16'] },
+  { id: 'systemsOfEquations',        name: 'Systems of Equations',      parentLabel: 'Systems',         emoji: '✖️', asset: '/assets/objects/star.png', hint: 'Solve two equations together.', ageGroups: ['15-16'] },
+  { id: 'exponentsPolynomials',      name: 'Exponents & Polynomials',   parentLabel: 'Polynomials',     emoji: '⬆️', asset: '/assets/objects/star.png', hint: 'Exponent rules & polynomial operations.', ageGroups: ['15-16'] },
+  { id: 'radicalsPythagorean',       name: 'Radicals & Pythagoras',     parentLabel: 'Radicals',        emoji: '√', asset: '/assets/objects/star.png', hint: 'Square roots & the Pythagorean theorem.', ageGroups: ['15-16'] },
+  { id: 'factoringPolynomials',      name: 'Factoring',                 parentLabel: 'Factoring',       emoji: '🧩', asset: '/assets/objects/star.png', hint: 'Factor with GCF, trinomials & differences.', ageGroups: ['15-16'] },
+  { id: 'quadraticsParabolas',       name: 'Quadratics & Parabolas',    parentLabel: 'Quadratics',      emoji: '📉', asset: '/assets/objects/star.png', hint: 'Solve quadratics & graph parabolas.', ageGroups: ['15-16'] },
+  { id: 'geometryTransformations',   name: 'Geometry & Transformations', parentLabel: 'Transformations', emoji: '🔷', asset: '/assets/objects/star.png', hint: 'Circles, solids & transformations.', ageGroups: ['15-16'] },
+  { id: 'geometryProofTrig',         name: 'Proof & Right-Triangle Trig', parentLabel: 'Proof & Trig',   emoji: '📐', asset: '/assets/objects/star.png', hint: 'Angles, proofs & SOH-CAH-TOA.', ageGroups: ['15-16'] },
 ]
 
 // ── Lookups ──────────────────────────────────────────────────────────────

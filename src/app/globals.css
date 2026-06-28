@@ -8,6 +8,8 @@
 
 /* ── Fonts ─────────────────────────────────────────────────────── */
 @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@600;700;800;900&display=swap');
+/* Teen "Field Lab" fonts (ages 12–18) — IBM Plex Sans (UI) + IBM Plex Mono (all math). */
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
 
 /* ── Reset ──────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; }
@@ -118,6 +120,75 @@
   --dur-fast:     160ms;
   --dur-med:      300ms;
   --dur-slow:     450ms;
+}
+
+/* =================================================================
+   TEEN "FIELD LAB" THEME  (ages 12–18)
+   Scoped token remaps — ONLY active when data-band is a teen band, so
+   the 3–11 kids' theme (:root) is untouched. Set data-band on <html>
+   from the active learner's age_group (client-side, after hydration).
+   Shared: IBM Plex fonts, mono for math, teal accent, amber "note"
+   (never red), kept --garden-green for the quiet correct-reveal.
+   ================================================================= */
+[data-band="12-14"], [data-band="15-16"], [data-band="17-18"] {
+  --font-display: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-body:    'IBM Plex Sans', system-ui, sans-serif;
+  --font-numeric: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  /* Teen-specific tokens used by the Field Lab kit */
+  --note-amber:        #E8A33D;   /* warm "note" for gentle wrong-answer reframe (never red) */
+  --accent:            var(--milo-orange);       /* teal, set per band below */
+  --accent-deep:       var(--milo-orange-deep);
+  --accent-soft:       var(--milo-orange-soft);
+  /* Neutralise red so any stray --danger/--warning reads as amber, not alarm */
+  --apple-red:         var(--note-amber);
+  --danger:            var(--note-amber);
+  --warning:           var(--note-amber);
+  /* --garden-green kept from :root as the quiet correct-reveal (per lock) */
+  --r-blob:            18px;       /* retire the organic blob radius for teen */
+  --ease-bounce:       var(--ease-smooth);  /* no bounce in teen scope */
+}
+
+/* 12–14 — field journal / maker-lab: light graph-paper, ink-teal accent */
+[data-band="12-14"] {
+  --bg-page: #F4F6F8;  --bg-1: #FFFFFF;  --bg-2: #EEF1F4;
+  --paper:   #FFFFFF;  --paper-soft: #F9FAFB;  --cream: #EEF1F4;
+  --ink: #1B2530;  --ink-soft: #46566A;  --ink-muted: #7E8A99;  --outline: #C9D2DC;
+  --fg-on-color: #FFFFFF;
+  --milo-orange: #2E7D8C;  --milo-orange-deep: #245F6B;  --milo-orange-soft: #CDE6EA;
+  --sh-soft:  0 1px 2px rgba(20,30,45,.06);
+  --sh-card:  0 2px 10px rgba(20,30,45,.08);
+  --sh-press: 0 1px 2px rgba(20,30,45,.10);
+  --sh-pop:   0 4px 14px rgba(46,125,140,.28);
+  --sh-stack: 0 3px 0 var(--milo-orange-deep);
+}
+
+/* 15–16 — design studio / CAD: dark blueprint, drafting cyan */
+[data-band="15-16"] {
+  --bg-page: #10141A;  --bg-1: #161B22;  --bg-2: #1C232C;
+  --paper:   #161B22;  --paper-soft: #1C232C;  --cream: #1C232C;
+  --ink: #E6EAF0;  --ink-soft: #AEB9C6;  --ink-muted: #7C8896;  --outline: #2A323C;
+  --fg-on-color: #0E1116;
+  --milo-orange: #3DD6C4;  --milo-orange-deep: #2BB3A4;  --milo-orange-soft: #14342F;
+  --sh-soft:  0 1px 2px rgba(0,0,0,.40);
+  --sh-card:  0 2px 10px rgba(0,0,0,.45);
+  --sh-press: 0 1px 2px rgba(0,0,0,.50);
+  --sh-pop:   0 4px 16px rgba(61,214,196,.22);
+  --sh-stack: 0 3px 0 var(--milo-orange-deep);
+}
+
+/* 17–18 — analyst console: near-black, signal cyan */
+[data-band="17-18"] {
+  --bg-page: #0E1116;  --bg-1: #161A21;  --bg-2: #1B212A;
+  --paper:   #161A21;  --paper-soft: #1B212A;  --cream: #1B212A;
+  --ink: #E6E9EF;  --ink-soft: #AAB4C0;  --ink-muted: #76828F;  --outline: #262D37;
+  --fg-on-color: #0E1116;
+  --milo-orange: #3DD6C4;  --milo-orange-deep: #2BB3A4;  --milo-orange-soft: #11302C;
+  --note-amber: #E8B04B;
+  --sh-soft:  0 1px 2px rgba(0,0,0,.45);
+  --sh-card:  0 2px 12px rgba(0,0,0,.50);
+  --sh-press: 0 1px 2px rgba(0,0,0,.55);
+  --sh-pop:   0 4px 16px rgba(61,214,196,.20);
+  --sh-stack: 0 3px 0 var(--milo-orange-deep);
 }
 
 /* ── Base type ─────────────────────────────────────────────────── */

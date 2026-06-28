@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState, Suspense } from 'react'
 import nextDynamic from 'next/dynamic'
 import { useMiloStore, type ChapterType } from '@/lib/store'
+import { getChapter, type AgeGroup } from '@/lib/chapters'
 
 import { getActiveLearner } from '@/lib/supabase/useLearnerSession'
 import { setLastPlayed } from '@/lib/lastPlayed'
@@ -56,7 +57,39 @@ const CHAPTER_COMPONENTS: Record<ChapterType, React.ComponentType<ChapterProps>>
   anglesSymmetry:     lazyChapter(() => import('@/components/game/AnglesSymmetryChapter')),
   dataGraphs:         lazyChapter(() => import('@/components/game/DataGraphsChapter')),
   wordProblems:       lazyChapter(() => import('@/components/game/WordProblemsChapter')),
+  // 12–14 (teen "Field Lab")
+  integers:             lazyChapter(() => import('@/components/game/IntegersChapter')),
+  signedRationalOps:    lazyChapter(() => import('@/components/game/SignedRationalOpsChapter')),
+  rationalOps:          lazyChapter(() => import('@/components/game/RationalOpsChapter')),
+  ratioProportion:      lazyChapter(() => import('@/components/game/RatioProportionChapter')),
+  percentages:          lazyChapter(() => import('@/components/game/PercentagesChapter')),
+  exponentsRoots:       lazyChapter(() => import('@/components/game/ExponentsRootsChapter')),
+  orderOfOperations:    lazyChapter(() => import('@/components/game/OrderOfOperationsChapter')),
+  algebraicExpressions: lazyChapter(() => import('@/components/game/AlgebraicExpressionsChapter')),
+  equationsInequalities:lazyChapter(() => import('@/components/game/EquationsInequalitiesChapter')),
+  coordinatePlane:      lazyChapter(() => import('@/components/game/CoordinatePlaneChapter')),
+  linearRelationships:  lazyChapter(() => import('@/components/game/LinearRelationshipsChapter')),
+  geometryMeasurement:  lazyChapter(() => import('@/components/game/GeometryMeasurementChapter')),
+  // 15–16 (Algebra I + Geometry)
+  signedNumberFluency:        lazyChapter(() => import('@/components/game/SignedNumberFluencyChapter')),
+  expressionsVariables:       lazyChapter(() => import('@/components/game/ExpressionsVariablesChapter')),
+  linearEquationsInequalities: lazyChapter(() => import('@/components/game/LinearEquationsInequalitiesChapter')),
+  slopeLinearGraphs:          lazyChapter(() => import('@/components/game/SlopeLinearGraphsChapter')),
+  functionsFamilies:          lazyChapter(() => import('@/components/game/FunctionsFamiliesChapter')),
+  systemsOfEquations:         lazyChapter(() => import('@/components/game/SystemsOfEquationsChapter')),
+  exponentsPolynomials:       lazyChapter(() => import('@/components/game/ExponentsPolynomialsChapter')),
+  radicalsPythagorean:        lazyChapter(() => import('@/components/game/RadicalsPythagoreanChapter')),
+  factoringPolynomials:       lazyChapter(() => import('@/components/game/FactoringPolynomialsChapter')),
+  quadraticsParabolas:        lazyChapter(() => import('@/components/game/QuadraticsParabolasChapter')),
+  geometryTransformations:    lazyChapter(() => import('@/components/game/GeometryTransformationsChapter')),
+  geometryProofTrig:          lazyChapter(() => import('@/components/game/GeometryProofTrigChapter')),
 }
+
+// Teen chapters render their own full-screen portal + MasteryState completion, so
+// the kids' CelebrationModal (which also auto-speaks) must NOT mount for them.
+const TEEN_AGE_GROUPS: AgeGroup[] = ['12-14', '15-16', '17-18']
+const isTeenChapter = (id: ChapterType | null) =>
+  !!id && (getChapter(id)?.ageGroups ?? []).some(g => TEEN_AGE_GROUPS.includes(g))
 
 export default function GamePage() {
   const router         = useRouter()
@@ -183,7 +216,7 @@ export default function GamePage() {
     {/* Modal + pointer live OUTSIDE the zoom wrapper so they stay full-screen and
         their fixed coords aren't double-scaled. The counting story renders its own
         celebration over the forest, so we skip the global one there. */}
-    {playingChapter !== 'counting' && <CelebrationModal />}
+    {playingChapter !== 'counting' && !isTeenChapter(playingChapter) && <CelebrationModal />}
     <MiloPointer />
     </>
   )

@@ -9,6 +9,7 @@
  *   /story?ch=grocery → Matching qty (little grocery)
  *   /story?ch=shapes  → Shapes       (shape town walk)
  *   /story?ch=rainbow → Colours      (rainbow town walk)
+ *   /story?ch=beads   → Patterns     (bead shop)
  */
 import { useEffect, useState } from 'react'
 import ForestWalk from '@/components/story/ForestWalk'
@@ -19,6 +20,7 @@ import NumberDoors from '@/components/story/NumberDoors'
 import Grocery from '@/components/story/Grocery'
 import ShapeTown from '@/components/story/ShapeTown'
 import RainbowTown from '@/components/story/RainbowTown'
+import BeadShop from '@/components/story/BeadShop'
 
 export default function StoryPage() {
   const [ch, setCh] = useState('counting')
@@ -30,5 +32,6 @@ export default function StoryPage() {
   if (ch === 'grocery') return <Grocery />
   if (ch === 'shapes') return <ShapeTown />
   if (ch === 'rainbow') return <RainbowTown />
+  if (ch === 'beads') return <BeadShop />
   return <ForestWalk chapter={countingChapter} />
 }

@@ -22,12 +22,18 @@ const numChoices = (ans: number, spread = 3): string[] => {
 }
 const factorsOf = (n: number) => { const f: number[] = []; for (let i = 1; i <= n; i++) if (n % i === 0) f.push(i); return f }
 const roundTo = (n: number, m: number) => Math.floor(n / m + 0.5) * m
+// Signed-integer helpers (teen review): real minus sign, spoken form, signed choices.
+const fmtI = (n: number) => (n < 0 ? `−${Math.abs(n)}` : String(n))
+const spkI = (n: number) => (n < 0 ? `negative ${Math.abs(n)}` : `${n}`)
+const intChoices = (ans: number): string[] => { const set = new Set<string>([fmtI(ans)]); let d = 1; while (set.size < 3) { set.add(fmtI(ans + d)); if (set.size < 3) set.add(fmtI(ans - d)); d++ } return shuffle([...set]) }
 
 export interface DailyQuestion { skill: string; prompt: string; say: string; choices: string[]; answer: string }
 type Gen = () => DailyQuestion
 
 // ─── Skill banks per age group (compact review questions) ────
-const SKILLS: Record<AgeGroup, { key: string; gen: Gen }[]> = {
+// Partial: new age bands get a review bank as their chapters land; generateDaily
+// falls back to the nearest built band until then.
+const SKILLS: Partial<Record<AgeGroup, { key: string; gen: Gen }[]>> = {
   '3-5': [
     { key: 'count', gen: () => { const n = rint(1, 9); const e = pick(['🍎', '⭐', '🐸', '🎈', '🐱', '🍪']); return { skill: 'count', prompt: e.repeat(n), say: 'How many do you see?', choices: numChoices(n, 2), answer: String(n) } } },
     { key: 'compare', gen: () => { let a = rint(1, 9), b = rint(1, 9); while (b === a) b = rint(1, 9); return { skill: 'compare', prompt: `${a}   or   ${b}`, say: `Which is bigger, ${a} or ${b}?`, choices: shuffle([String(a), String(b)]), answer: String(Math.max(a, b)) } } },
@@ -51,6 +57,12 @@ const SKILLS: Record<AgeGroup, { key: string; gen: Gen }[]> = {
     { key: 'fraction', gen: () => { const den = pick([4, 5, 6]); let na = rint(1, den - 1), nb = rint(1, den - 1); while (nb === na) nb = rint(1, den - 1); return { skill: 'fraction', prompt: `${na}/${den}   or   ${nb}/${den}`, say: `Which is bigger?`, choices: shuffle([`${na}/${den}`, `${nb}/${den}`]), answer: `${Math.max(na, nb)}/${den}` } } },
     { key: 'decimal', gen: () => { let a = rint(1, 9), b = rint(1, 9); while (b === a) b = rint(1, 9); return { skill: 'decimal', prompt: `${(a / 10).toFixed(1)}   or   ${(b / 10).toFixed(1)}`, say: 'Which is bigger?', choices: shuffle([(a / 10).toFixed(1), (b / 10).toFixed(1)]), answer: (Math.max(a, b) / 10).toFixed(1) } } },
   ],
+  '12-14': [
+    { key: 'compareInt', gen: () => { let a = rint(-9, 9), b = rint(-9, 9); while (b === a) b = rint(-9, 9); return { skill: 'compareInt', prompt: `${fmtI(a)}   or   ${fmtI(b)}`, say: `Which is greater, ${spkI(a)} or ${spkI(b)}?`, choices: shuffle([fmtI(a), fmtI(b)]), answer: fmtI(Math.max(a, b)) } } },
+    { key: 'abs', gen: () => { const n = rint(-9, -1); return { skill: 'abs', prompt: `|${fmtI(n)}|`, say: `What is the absolute value of ${spkI(n)}?`, choices: numChoices(Math.abs(n), 2), answer: String(Math.abs(n)) } } },
+    { key: 'addInt', gen: () => { const a = rint(-9, 9), b = rint(-9, 9); const s = a + b; return { skill: 'addInt', prompt: `${fmtI(a)} + ${fmtI(b)}`, say: `What is ${spkI(a)} plus ${spkI(b)}?`, choices: intChoices(s), answer: fmtI(s) } } },
+    { key: 'lessInt', gen: () => { const m = rint(-4, 4), k = rint(2, 7); const ans = m - k; return { skill: 'lessInt', prompt: `${k} less than ${fmtI(m)}`, say: `What is ${k} less than ${spkI(m)}?`, choices: intChoices(ans), answer: fmtI(ans) } } },
+  ],
 }
 
 // ─── Spaced repetition: pick the skills most in need of review ──
@@ -68,7 +80,7 @@ export function recordSkillResult(learnerId: string, skill: string, correct: boo
 
 /** Build today's review: prioritise never-seen, then wrong-heavy, then oldest. */
 export function generateDaily(ageGroup: AgeGroup, learnerId: string, n = 5): DailyQuestion[] {
-  const bank = SKILLS[ageGroup] ?? SKILLS['3-5']
+  const bank = SKILLS[ageGroup] ?? SKILLS['12-14'] ?? SKILLS['3-5']!
   const stats = readSkillStats(learnerId)
   const ranked = [...bank].sort((a, b) => {
     const sa = stats[a.key], sb = stats[b.key]

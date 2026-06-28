@@ -316,7 +316,13 @@ export function speakSteps(
   const finish = () => { if (doneOnce) return; doneOnce = true; onDone?.() }
   const cancelSeq = speakSeq(lines, {
     onWord: (i) => { started = true; try { onStep?.(i) } catch {} },
-    onDone: finish,
+    // CRITICAL: only finish via speakSeq if speech ACTUALLY started. When audio is blocked, each
+    // utterance fires onerror (not onstart); speakSeq advances on onerror, so it races through every
+    // line in milliseconds and its onDone fires almost instantly — flashing the explanation past with
+    // no voice. Gating on `started` makes that blocked/raced case fall through to the deliberate
+    // timer-fallback below instead (which paces the reveals + finishes), so a silent demo plays at a
+    // watchable speed rather than vanishing. A truly spoken run sets `started` and finishes normally.
+    onDone: () => { if (started) finish() },
     rate, pitch,
   })
   // The fallback exists ONLY for the silent case (blocked autoplay / no voices). It must not
