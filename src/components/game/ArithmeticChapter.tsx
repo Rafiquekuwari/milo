@@ -8,6 +8,7 @@ import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useMiloSpeaker, afterSpeech, speakAfterCurrent, speakAt } from '@/lib/useMiloSpeaker'
 import { useAdaptive } from '@/lib/adaptive'
+import { makeDistinct } from '@/lib/questionVariety'
 import { DifficultyBadge } from '../ui/DifficultyBadge'
 import { useChapterPhase } from '@/lib/useChapterPhase'
 import SpeakingLock from '@/components/ui/SpeakingLock'
@@ -16,7 +17,7 @@ import { numberToWords, CSS as KIT_CSS } from '../lessons/_kit'
 import ArithmeticLesson, { BlockMath, EquationWatch, EquationAsk, buildArithChoices, applyOp, type Op } from '../lessons/ArithmeticLesson'
 import type { ChapterType } from '@/lib/store'
 
-interface Props { onComplete: (c: number, w: number) => void; childName: string }
+interface Props { onComplete: (c: number, w: number, mastered?: boolean) => void; childName: string }
 interface GenProps extends Props { op: Op; chapterId: ChapterType; title: string }
 
 const TOTAL_ROUNDS = 10
@@ -45,8 +46,9 @@ function ArithmeticChapter({ op, chapterId, title, onComplete, childName }: GenP
   const { phase, startPractice } = useChapterPhase()
   const { speak } = useMiloSpeaker()
   const ada = useAdaptive(chapterId)
+  const seen = useRef<Set<string>>(new Set())   // question signatures asked this session
   const [roundIdx, setRoundIdx] = useState(0)
-  const [round, setRound] = useState<Round>(() => makeRound(op, 1))
+  const [round, setRound] = useState<Round>(() => makeDistinct(() => makeRound(op, 1), seen.current, r => `${r.a},${r.b}`))
   const [selected, setSelected] = useState<number | null>(null)
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null)
   const [correct, setCorrect] = useState(0)
@@ -58,7 +60,7 @@ function ArithmeticChapter({ op, chapterId, title, onComplete, childName }: GenP
   const sayRound = (r: Round) => `${numberToWords(r.a)} ${op === '+' ? 'plus' : 'minus'} ${numberToWords(r.b)}. What is the answer?`
 
   function loadRound(idx: number) {
-    const r = makeRound(op, ada.difficulty)
+    const r = makeDistinct(() => makeRound(op, ada.difficulty), seen.current, r => `${r.a},${r.b}`)
     setRound(r); setSelected(null); setFeedback(null)
     speakAfterCurrent(idx === 0 ? `Hi ${childName}! ${sayRound(r)}` : sayRound(r))
   }
@@ -69,7 +71,7 @@ function ArithmeticChapter({ op, chapterId, title, onComplete, childName }: GenP
     if (selected !== null) return
     const ok = choice === round.answer
     setSelected(choice); setFeedback(ok ? 'correct' : 'wrong')
-    ada.record(ok)
+    const res = ada.record(ok)
     const newRun = ok ? 0 : wrongRun + 1
     setWrongRun(newRun)
     if (ok) { setCorrect(c => c + 1); speakAt(`Yes! ${numberToWords(round.answer)}! ${ada.praise}`, answerRef.current) }
@@ -77,6 +79,8 @@ function ArithmeticChapter({ op, chapterId, title, onComplete, childName }: GenP
     afterSpeech(() => {
       setFeedback(null)
       if (!ok && newRun >= 3) { setReMed({ phase: 'reteach', round }); return }
+      // Demonstrated mastery → finish early with full stars, skip the repetitive tail.
+      if (res.mastered) { onComplete(ok ? correct + 1 : correct, ok ? wrong : wrong + 1, true); return }
       const next = roundIdx + 1
       if (next >= TOTAL_ROUNDS) onComplete(ok ? correct + 1 : correct, ok ? wrong : wrong + 1)
       else window.setTimeout(() => setRoundIdx(next), 300)

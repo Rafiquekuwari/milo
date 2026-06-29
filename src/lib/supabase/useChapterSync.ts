@@ -27,11 +27,13 @@ export function useChapterSync() {
     chapter: ChapterType,
     correct: number,
     wrong:   number,
-    phase:   'lesson' | 'practice' = 'practice'
+    phase:   'lesson' | 'practice' = 'practice',
+    mastered = false,
   ) => {
     // 1. Update local store immediately — no delay for the child.
     //    Reuse the score it just computed instead of recomputing the formula.
-    const { stars, xp: xpEarned, coins: coinsEarned } = finishChapter(chapter, correct, wrong)
+    //    `mastered` (early finish at the top tier) forces the full 3 stars.
+    const { stars, xp: xpEarned, coins: coinsEarned } = finishChapter(chapter, correct, wrong, mastered)
 
     // 2. Build payload
     const learner = getActiveLearner()

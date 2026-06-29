@@ -16,6 +16,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useChapterSync } from '@/lib/supabase/useChapterSync'
 import { useAdaptive } from '@/lib/adaptive'
+import { makeDistinct } from '@/lib/questionVariety'
 import { speak, speakAfterCurrent, unlockSpeech, stopSpeech } from '@/lib/useMiloSpeaker'
 import type { AgeBand } from '@/components/teen/types'
 import CaseCard from '@/components/teen/CaseCard'
@@ -41,7 +42,7 @@ type Props = { onComplete: (correct: number, wrong: number) => void; childName: 
 function RationalOpsWorld({
   childName, onFinish, onExit, onReplay,
 }: {
-  childName: string; onFinish: (c: number, w: number) => void; onExit: () => void; onReplay: () => void
+  childName: string; onFinish: (c: number, w: number, mastered?: boolean) => void; onExit: () => void; onReplay: () => void
 }) {
   const [phase, setPhase] = useState<'intro' | 'explore' | 'lesson' | 'practice' | 'done'>('intro')
 
@@ -102,7 +103,7 @@ function RationalOpsWorld({
     <RationalOpsPractice
       childName={childName}
       onExit={onExit}
-      onDone={(c, w) => { onFinish(c, w); setPhase('done') }}
+      onDone={(c, w, mastered) => { onFinish(c, w, mastered); setPhase('done') }}
     />
   )
 }
@@ -110,11 +111,12 @@ function RationalOpsWorld({
 function RationalOpsPractice({
   childName, onDone, onExit,
 }: {
-  childName: string; onDone: (c: number, w: number) => void; onExit: () => void
+  childName: string; onDone: (c: number, w: number, mastered?: boolean) => void; onExit: () => void
 }) {
   const ada = useAdaptive('rationalOps')
+  const seen = useRef<Set<string>>(new Set())   // question signatures asked this session
   const [roundIdx, setRoundIdx] = useState(0)
-  const [round, setRound] = useState<Round>(() => makeRound(1))
+  const [round, setRound] = useState<Round>(() => makeDistinct(() => makeRound(1), seen.current))
   // entry state
   const [entryStatus, setEntryStatus] = useState<'idle' | 'correct' | 'wrong'>('idle')
   // mcq state
@@ -130,7 +132,7 @@ function RationalOpsPractice({
 
   // Load a fresh round whenever the index (or difficulty) changes.
   useEffect(() => {
-    const r = makeRound(ada.difficulty)
+    const r = makeDistinct(() => makeRound(ada.difficulty), seen.current)
     setRound(r)
     setSelected(null); setEntryStatus('idle'); setMcqStatus('idle'); setLocked(false)
     const lead = greeted.current ? '' : `Hi ${childName}. `
@@ -138,22 +140,26 @@ function RationalOpsPractice({
     speakAfterCurrent(`${lead}${r.say}`)
   }, [roundIdx, ada.difficulty]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  function advance(ok: boolean, run: number, r: Round) {
+  function advance(ok: boolean, run: number, r: Round, mastered: boolean) {
     if (!ok && run >= 3) { setReteach(r); return }
+    const c = ok ? correct + 1 : correct
+    const w = ok ? wrong : wrong + 1
+    // Demonstrated mastery → finish early with full stars, skip the repetitive tail.
+    if (mastered) { onDone(c, w, true); return }
     const next = roundIdx + 1
-    if (next >= TOTAL_ROUNDS) onDone(ok ? correct + 1 : correct, ok ? wrong : wrong + 1)
+    if (next >= TOTAL_ROUNDS) onDone(c, w)
     else setRoundIdx(next)
   }
 
   // shared grading aftermath for both kinds
   function grade(ok: boolean) {
     setLocked(true)
-    ada.record(ok)
+    const res = ada.record(ok)
     const run = ok ? 0 : wrongRun + 1
     setWrongRun(run)
     if (ok) { setCorrect((c) => c + 1); speak(`Correct. ${ada.praise}`) }
     else { setWrong((w) => w + 1); speak(`It’s ${round.answerLabel}. ${ada.encouragement}`) }
-    window.setTimeout(() => advance(ok, run, round), FEEDBACK_MS)
+    window.setTimeout(() => advance(ok, run, round, res.mastered), FEEDBACK_MS)
   }
 
   function submitEntry(v: FractionValue) {
@@ -268,10 +274,10 @@ export default function RationalOpsChapter(_props: Props) {
   const doneRef = useRef(false)
   useEffect(() => { setBody(document.body); return () => stopSpeech() }, [])
 
-  const finish = useCallback((c: number, w: number) => {
+  const finish = useCallback((c: number, w: number, mastered?: boolean) => {
     if (doneRef.current) return
     doneRef.current = true
-    finishAndSync('rationalOps', c, w, 'practice')
+    finishAndSync('rationalOps', c, w, 'practice', mastered)
   }, [finishAndSync])
 
   const replay = useCallback(() => { doneRef.current = false; setRunKey((k) => k + 1) }, [])

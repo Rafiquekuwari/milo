@@ -30,8 +30,14 @@ export interface ChapterScore {
   coins:  number
 }
 
-/** Score one run from its raw (correct, wrong) tally. */
-export function scoreChapter(correct: number, wrong: number): ChapterScore {
-  const stars = calcStars(correct, wrong)
+/**
+ * Score one run from its raw (correct, wrong) tally.
+ *
+ * `mastered` = the child ended the session early by demonstrating mastery
+ * (top tier + a long correct streak). That always earns the full 3 stars —
+ * skipping the repetitive tail must never cost them a star.
+ */
+export function scoreChapter(correct: number, wrong: number, mastered = false): ChapterScore {
+  const stars = mastered ? 3 : calcStars(correct, wrong)
   return { stars, xp: calcXP(stars, correct), coins: calcCoins(stars) }
 }

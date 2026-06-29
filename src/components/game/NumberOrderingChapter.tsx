@@ -21,10 +21,10 @@ export default function NumberOrderingChapter(_props: { onComplete: (correct: nu
   const doneRef = useRef(false)
   useEffect(() => { setBody(document.body) }, [])
 
-  const finish = useCallback((correct: number, wrong: number) => {
+  const finish = useCallback((correct: number, wrong: number, mastered?: boolean) => {
     if (doneRef.current) return
     doneRef.current = true
-    finishAndSync('numberOrdering', correct, wrong, 'practice')   // XP/coins/stars + store.celebration
+    finishAndSync('numberOrdering', correct, wrong, 'practice', mastered)   // XP/coins/stars + store.celebration
   }, [finishAndSync])
 
   const restart = useCallback(() => { doneRef.current = false; setRunKey(k => k + 1) }, [])

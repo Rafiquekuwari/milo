@@ -6,10 +6,11 @@ import { afterSpeech, speakAfterCurrent, speakAt } from '@/lib/useMiloSpeaker'
 import{useState,useEffect,useRef}from'react'
 import{useMiloSpeaker}from'@/lib/useMiloSpeaker'
 import{useAdaptive,subPair,Difficulty}from'@/lib/adaptive'
+import { makeDistinct } from '@/lib/questionVariety'
 import { DifficultyBadge } from '../ui/DifficultyBadge'
 import SubtractionLesson, { WatchSub, ChooseDiff, CSS as SUB_CSS } from '../lessons/SubtractionLesson'
 
-interface Props{onComplete:(c:number,w:number)=>void;childName:string}
+interface Props{onComplete:(c:number,w:number,mastered?:boolean)=>void;childName:string}
 
 const THEMES=[
   {emoji:'✨',subject:'fireflies',lineB:(k:number)=>`${k} fly away into the night.`},
@@ -44,12 +45,14 @@ export default function SubtractionChapter({onComplete,childName}:Props){
   const[wrongRun,setWrongRun]=useState(0)
   const[reMed,setReMed]=useState<{phase:'reteach'|'check';total:number;take:number;emoji:string}|null>(null)
   const answerRef=useRef<HTMLElement|null>(null)   // the correct answer choice (for the pointer)
+  const seen=useRef<Set<string>>(new Set())        // (total−take) pairs already asked this session
   const timers=useRef<number[]>([])
   const clearT=()=>{timers.current.forEach(id => window.clearTimeout(id));timers.current=[]}
 
   function loadRound(idx:number){
     clearT()
-    const[nt,nk]=subPair(ada.difficulty)
+    // Don't ask the same take-away twice in a session — re-roll to keep it fresh.
+    const[nt,nk]=makeDistinct(()=>subPair(ada.difficulty),seen.current,p=>p.join('-'))
     const th=THEMES[idx%THEMES.length]
     setTotal(nt);setTake(nk);setTheme(th)
     setChoices(buildChoices(nt-nk));setSelected(null);setFeedback(null);setStage('showAll')
@@ -70,7 +73,7 @@ export default function SubtractionChapter({onComplete,childName}:Props){
     clearT()
     const ans=total-take;const ok=choice===ans
     setSelected(choice);setStage('answered');setFeedback(ok?'correct':'wrong')
-    ada.record(ok)
+    const res=ada.record(ok)
     const newRun=ok?0:wrongRun+1
     setWrongRun(newRun)
     if(ok){setCorrect(c=>c+1);speakAt(`Yes! ${total} minus ${take} is ${ans}! ${ada.praise}`, answerRef.current)}
@@ -79,6 +82,8 @@ export default function SubtractionChapter({onComplete,childName}:Props){
       setFeedback(null)
       // 3 wrong in a row → re-teach this take-away, then check
       if(!ok && newRun>=3){ setReMed({phase:'reteach',total,take,emoji:theme.emoji}); return }
+      // Demonstrated mastery → finish early with full stars, skip the repetitive tail.
+      if(res.mastered){ onComplete(ok?correct+1:correct, ok?wrong:wrong+1, true); return }
       const next=roundIdx+1
       if(next>=TOTAL_ROUNDS)onComplete(ok?correct+1:correct,ok?wrong:wrong+1)
      else window.setTimeout(() => setRoundIdx(next), 300)})

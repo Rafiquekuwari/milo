@@ -21,10 +21,10 @@ export default function NumberComparisonChapter(_props: { onComplete: (correct: 
   const doneRef = useRef(false)
   useEffect(() => { setBody(document.body) }, [])
 
-  const finish = useCallback((correct: number, wrong: number) => {
+  const finish = useCallback((correct: number, wrong: number, mastered?: boolean) => {
     if (doneRef.current) return
     doneRef.current = true
-    finishAndSync('numberComparison', correct, wrong, 'practice')   // XP/coins/stars + store.celebration
+    finishAndSync('numberComparison', correct, wrong, 'practice', mastered)   // XP/coins/stars + store.celebration
   }, [finishAndSync])
 
   const restart = useCallback(() => { doneRef.current = false; setRunKey(k => k + 1) }, [])

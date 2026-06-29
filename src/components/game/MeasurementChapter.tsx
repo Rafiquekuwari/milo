@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useAdaptive, Difficulty } from '@/lib/adaptive'
+import { makeDistinct } from '@/lib/questionVariety'
 import MeasurementLesson, { WatchCompare, ChooseCompare, CSS as MEAS_CSS, type Category, type Ask, type Item } from '../lessons/MeasurementLesson'
 import { useChapterPhase } from '@/lib/useChapterPhase'
 import SpeakingLock from '@/components/ui/SpeakingLock'
@@ -10,7 +11,7 @@ import { afterSpeech, speakAfterCurrent, speakAt, useMiloSpeaker } from '@/lib/u
 import { DifficultyBadge } from '../ui/DifficultyBadge'
 
 interface Props {
-  onComplete: (correct: number, wrong: number) => void
+  onComplete: (correct: number, wrong: number, mastered?: boolean) => void
   childName: string
 }
 
@@ -110,6 +111,11 @@ function wordFor(category: Category, ask: Ask): string {
   if (category === 'height') return ask === 'more' ? 'taller' : 'shorter'
   if (category === 'weight') return ask === 'more' ? 'heavier' : 'lighter'
   return ask === 'more' ? 'longer' : 'shorter'
+}
+
+// Signature for de-duping: the items shown + which is asked + their magnitudes.
+function roundSig(r: Round): string {
+  return `${r.category}|${r.ask}|${r.a.label}:${r.a.value}|${r.b.label}:${r.b.value}`
 }
 
 const TOTAL_ROUNDS = 10
@@ -229,7 +235,8 @@ export default function MeasurementChapter({ onComplete, childName }: Props) {
   const ada = useAdaptive('measurement')
 
   const [roundIdx,  setRoundIdx]  = useState(0)
-  const [round,     setRound]     = useState<Round>(() => buildRound(0, 1))
+  const seen = useRef<Set<string>>(new Set())   // question signatures asked this session
+  const [round,     setRound]     = useState<Round>(() => makeDistinct(() => buildRound(0, 1), seen.current, roundSig))
   const [selected,  setSelected]  = useState<'a'|'b'|null>(null)
   const [correct,   setCorrect]   = useState(0)
   const [wrong,     setWrong]     = useState(0)
@@ -246,7 +253,7 @@ export default function MeasurementChapter({ onComplete, childName }: Props) {
   useEffect(() => {
     if (phase !== 'practice') return   // don't build/speak a round over the lesson
     clearT()
-    const r = buildRound(roundIdx, ada.difficulty)
+    const r = makeDistinct(() => buildRound(roundIdx, ada.difficulty), seen.current, roundSig)
     setRound(r); setSelected(null); setFeedback(null); setScaleReveal(false)
     speakAfterCurrent(roundIdx === 0
       ? `Hi ${childName}! Let's compare sizes! ${r.question}`
@@ -261,7 +268,7 @@ export default function MeasurementChapter({ onComplete, childName }: Props) {
     const ok = key === round.answer
     setSelected(key)
     setFeedback(ok ? 'correct' : 'wrong')
-    ada.record(ok)
+    const res = ada.record(ok)
     const newRun = ok ? 0 : wrongRun + 1
     setWrongRun(newRun)
 
@@ -284,6 +291,8 @@ export default function MeasurementChapter({ onComplete, childName }: Props) {
       setFeedback(null)
       // 3 wrong in a row → re-teach with an obvious gap, then check
       if (!ok && newRun >= 3) { setReMed({ phase:'reteach', round }); return }
+      // Demonstrated mastery → finish early with full stars, skip the repetitive tail.
+      if (res.mastered) { onComplete(ok?correct+1:correct, ok?wrong:wrong+1, true); return }
       const next = roundIdx + 1
       if (next >= TOTAL_ROUNDS) onComplete(ok?correct+1:correct, ok?wrong:wrong+1)
       else window.setTimeout(() => setRoundIdx(next), 300)

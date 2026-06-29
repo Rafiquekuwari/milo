@@ -10,6 +10,7 @@ import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useMiloSpeaker, afterSpeech, speakAfterCurrent, speakAt } from '@/lib/useMiloSpeaker'
 import { useAdaptive } from '@/lib/adaptive'
+import { makeDistinct } from '@/lib/questionVariety'
 import { DifficultyBadge } from '../ui/DifficultyBadge'
 import { useChapterPhase } from '@/lib/useChapterPhase'
 import SpeakingLock from '@/components/ui/SpeakingLock'
@@ -18,7 +19,7 @@ import { CSS as KIT_CSS } from '../lessons/_kit'
 import { FractionBar } from '../lessons/FractionsCompareLesson'
 import DecimalsLesson, { HundredGrid, TenthsWatch, HundredthsWatch, CompareDecWatch, DecPick } from '../lessons/DecimalsLesson'
 
-interface Props { onComplete: (c: number, w: number) => void; childName: string }
+interface Props { onComplete: (c: number, w: number, mastered?: boolean) => void; childName: string }
 
 const TOTAL_ROUNDS = 10
 const rint = (lo: number, hi: number) => lo + Math.floor(Math.random() * (hi - lo + 1))
@@ -58,8 +59,9 @@ export default function DecimalsChapter({ onComplete, childName }: Props) {
   const { phase, startPractice } = useChapterPhase()
   const { speak } = useMiloSpeaker()
   const ada = useAdaptive('decimals')
+  const seen = useRef<Set<string>>(new Set())
   const [roundIdx, setRoundIdx] = useState(0)
-  const [round, setRound] = useState<Round>(() => makeRound(1))
+  const [round, setRound] = useState<Round>(() => makeDistinct(() => makeRound(1), seen.current, x => `${x.type}:${x.t ?? ''}:${x.n ?? ''}:${x.a ?? ''}:${x.b ?? ''}`))
   const [selected, setSelected] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null)
   const [correct, setCorrect] = useState(0)
@@ -70,7 +72,7 @@ export default function DecimalsChapter({ onComplete, childName }: Props) {
 
   useEffect(() => {
     if (phase !== 'practice') return
-    const r = makeRound(ada.difficulty)
+    const r = makeDistinct(() => makeRound(ada.difficulty), seen.current, x => `${x.type}:${x.t ?? ''}:${x.n ?? ''}:${x.a ?? ''}:${x.b ?? ''}`)
     setRound(r); setSelected(null); setFeedback(null)
     speakAfterCurrent(roundIdx === 0 ? `Hi ${childName}! ${r.say}` : r.say)
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -82,7 +84,7 @@ export default function DecimalsChapter({ onComplete, childName }: Props) {
     if (selected !== null) return
     const ok = choice === round.answer
     setSelected(choice); setFeedback(ok ? 'correct' : 'wrong')
-    ada.record(ok)
+    const res = ada.record(ok)
     const newRun = ok ? 0 : wrongRun + 1
     setWrongRun(newRun)
     if (ok) { setCorrect(c => c + 1); speakAt(`Yes! ${ada.praise}`, answerRef.current) }
@@ -90,6 +92,8 @@ export default function DecimalsChapter({ onComplete, childName }: Props) {
     afterSpeech(() => {
       setFeedback(null)
       if (!ok && newRun >= 3) { setReMed({ phase: 'reteach', round }); return }
+      // Demonstrated mastery → finish early with full stars, skip the repetitive tail.
+      if (res.mastered) { onComplete(ok ? correct + 1 : correct, ok ? wrong : wrong + 1, true); return }
       const next = roundIdx + 1
       if (next >= TOTAL_ROUNDS) onComplete(ok ? correct + 1 : correct, ok ? wrong : wrong + 1)
       else window.setTimeout(() => setRoundIdx(next), 300)

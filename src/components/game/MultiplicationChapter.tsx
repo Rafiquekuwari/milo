@@ -9,6 +9,7 @@ import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useMiloSpeaker, afterSpeech, speakAfterCurrent, speakAt } from '@/lib/useMiloSpeaker'
 import { useAdaptive } from '@/lib/adaptive'
+import { makeDistinct } from '@/lib/questionVariety'
 import { DifficultyBadge } from '../ui/DifficultyBadge'
 import { useChapterPhase } from '@/lib/useChapterPhase'
 import SpeakingLock from '@/components/ui/SpeakingLock'
@@ -18,7 +19,7 @@ import MultiplicationLesson, {
   GroupsScene, ArrayScene, GroupsWatch, MultAsk, buildMultChoices, type MultMode,
 } from '../lessons/MultiplicationLesson'
 
-interface Props { onComplete: (c: number, w: number) => void; childName: string }
+interface Props { onComplete: (c: number, w: number, mastered?: boolean) => void; childName: string }
 
 const TOTAL_ROUNDS = 10
 const rint = (lo: number, hi: number) => lo + Math.floor(Math.random() * (hi - lo + 1))
@@ -45,8 +46,9 @@ export default function MultiplicationChapter({ onComplete, childName }: Props) 
   const { phase, startPractice } = useChapterPhase()
   const { speak } = useMiloSpeaker()
   const ada = useAdaptive('multiplication')
+  const seen = useRef<Set<string>>(new Set())   // question signatures asked this session
   const [roundIdx, setRoundIdx] = useState(0)
-  const [round, setRound] = useState<Round>(() => makeRound(1))
+  const [round, setRound] = useState<Round>(() => makeDistinct(() => makeRound(1), seen.current, r => `${r.mode}:${r.g}x${r.per}`))
   const [selected, setSelected] = useState<number | null>(null)
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null)
   const [correct, setCorrect] = useState(0)
@@ -56,7 +58,7 @@ export default function MultiplicationChapter({ onComplete, childName }: Props) 
   const answerRef = useRef<HTMLElement | null>(null)
 
   function loadRound(idx: number) {
-    const r = makeRound(ada.difficulty)
+    const r = makeDistinct(() => makeRound(ada.difficulty), seen.current, r => `${r.mode}:${r.g}x${r.per}`)
     setRound(r); setSelected(null); setFeedback(null)
     speakAfterCurrent(idx === 0 ? `Hi ${childName}! ${r.say}` : r.say)
   }
@@ -67,7 +69,7 @@ export default function MultiplicationChapter({ onComplete, childName }: Props) 
     if (selected !== null) return
     const ok = choice === round.answer
     setSelected(choice); setFeedback(ok ? 'correct' : 'wrong')
-    ada.record(ok)
+    const res = ada.record(ok)
     const newRun = ok ? 0 : wrongRun + 1
     setWrongRun(newRun)
     if (ok) { setCorrect(c => c + 1); speakAt(`Yes! ${round.g} times ${round.per} is ${round.answer}! ${ada.praise}`, answerRef.current) }
@@ -75,6 +77,8 @@ export default function MultiplicationChapter({ onComplete, childName }: Props) 
     afterSpeech(() => {
       setFeedback(null)
       if (!ok && newRun >= 3) { setReMed({ phase: 'reteach', round }); return }
+      // Demonstrated mastery → finish early with full stars, skip the repetitive tail.
+      if (res.mastered) { onComplete(ok ? correct + 1 : correct, ok ? wrong : wrong + 1, true); return }
       const next = roundIdx + 1
       if (next >= TOTAL_ROUNDS) onComplete(ok ? correct + 1 : correct, ok ? wrong : wrong + 1)
       else window.setTimeout(() => setRoundIdx(next), 300)

@@ -110,7 +110,7 @@ const seed = (i: number, s: number) => frac(Math.sin((i + 1) * s) * 43758.5453)
 //   • tilt it a little → it reads as resting on a branch, not floating upright
 // The window (X0..X1, Y0..Y1) is the tree-canopy band: left clears Milo, bottom
 // stays above the trunks/grass so objects read as "in the leaves".
-type Spot = { left: number; top: number; size: number; dur: number; rot: number; delay: number }
+type Spot = { left: number; top: number; size: number; dur: number; rot: number; delay: number; depth: number }
 // `band` is the per-biome spawn window (water low, sky high, leaves mid). Defaults
 // to the forest canopy so non-biome callers keep working.
 function scatter(n: number, band: Band = BIOMES.forest.band, demo = false): Spot[] {
@@ -127,13 +127,22 @@ function scatter(n: number, band: Band = BIOMES.forest.band, demo = false): Spot
     const stagger = (r % 2 ? 0.14 : -0.14) * cw          // small odd/even shift so columns don't line up dead-straight
     const jx = (seed(i, 12.9898) - 0.5) * cw * 0.26 + stagger   // gentle jitter — stays well inside the cell
     const jy = (seed(i, 78.233) - 0.5) * ch * 0.45       // gentle vertical jitter (no cross-row bleed)
+    const top = Math.max(Y0, Math.min(Y1, Y0 + ch * (r + 0.5) + jy))   // %
+    // DEPTH (0 = near/front/low, 1 = far/back/high) read from where the object sits in
+    // its band: the lower it is in the frame the NEARER it reads, so it's a touch bigger,
+    // sits in front, and casts a darker contact shadow — same grounding cue RainbowTown
+    // hand-tunes per object, here derived from each creature's own scattered height. (A
+    // 1-row band collapses to a constant 0.5, leaving size/shadow unchanged.)
+    const depth = Y1 > Y0 ? Math.max(0, Math.min(1, (Y1 - top) / (Y1 - Y0))) : 0.5
     return {
       left: Math.max(X0, Math.min(X1, X0 + cw * (c + 0.5) + jx)),   // %
-      top: Math.max(Y0, Math.min(Y1, Y0 + ch * (r + 0.5) + jy)),    // %
-      size: base + Math.round(seed(i, 3.17) * rng),
+      top,
+      // farther/higher objects are a touch smaller (depth falloff) — adds aerial depth
+      size: (base + Math.round(seed(i, 3.17) * rng)) * (1 - depth * 0.22),
       dur: 3.4 + seed(i, 5.71) * 2.4,                    // s — gentle flutter
       rot: Math.round((seed(i, 5.11) - 0.5) * 24),       // ±12° perched tilt
       delay: +(seed(i, 9.73) * 2).toFixed(2),            // s — desync the flutter
+      depth,
     }
   })
 }
@@ -152,10 +161,24 @@ const PerchedItem: React.FC<{ p: Spot; obj: CountKind; on: boolean; idx: number;
   const scale = useScale()
   const size = Math.round(p.size * (SIZE_BOOST[obj] ?? 1) * scale)
   const badge = Math.round(34 * scale)   // keep the count number proportional to the creature
+  // GROUNDING CUE: a soft contact shadow cast on the ground/canopy directly BELOW each
+  // creature — the "it belongs in the world, not pasted on" anchor RainbowTown adds. Unlike
+  // RainbowTown's single shared ground LINE, these creatures live at many heights and most
+  // fly/swim, so the shadow falls a short, depth-scaled distance under EACH one (a cast
+  // shadow per object) rather than on one floor — that keeps the deliberate scattered
+  // hover/perch/swim composition intact. Nearer (low, depth→0) → bigger + darker + closer;
+  // farther (high, depth→1) → smaller + fainter + dropped further below.
+  const shW = size * (0.62 - p.depth * 0.16)
+  const shOp = Math.max(0.05, (0.24 - p.depth * 0.12) * (on ? 0.5 : 1))
+  const shGap = size * (0.46 + p.depth * 0.5)   // how far below the object the shadow falls
   return (
     <span style={{ display: 'block', position: 'relative',
       animation: on ? 'fw_tap .45s cubic-bezier(.36,.07,.19,.97) both' : 'fw_blink .9s ease-in-out infinite' }}>
-      <span style={{ display: 'block', transform: `rotate(${p.rot}deg)` }}>
+      {/* Soft contact shadow beneath this creature (drawn first so it sits under the art). */}
+      <span aria-hidden style={{ position: 'absolute', top: `calc(50% + ${shGap}px)`, left: '50%', transform: 'translate(-50%,-50%)',
+        width: shW, height: shW * 0.34, zIndex: 0, pointerEvents: 'none',
+        background: `radial-gradient(ellipse at center, rgba(38,28,18,${shOp}) 0%, rgba(38,28,18,0) 72%)` }} />
+      <span style={{ display: 'block', position: 'relative', zIndex: 1, transform: `rotate(${p.rot}deg)` }}>
         <CountItem kind={obj} on={on} size={size} variant={idx} blend />
       </span>
       {on && num != null && (
@@ -195,8 +218,9 @@ export const FlyingCountPlay: React.FC<{ data: CountData; onSubmit: (c: boolean)
   return (
     <>
       {spots.map((p, i) => (
+        // nearer (low/depth→0) creatures sit in FRONT of farther ones (depth-aware z-order)
         <button key={i} onClick={() => tap(i)} aria-label={data.obj} disabled={speaking}
-          style={{ ...bare, position: 'fixed', left: `${p.left}%`, top: `${p.top}%`, zIndex: 30 }}>
+          style={{ ...bare, position: 'fixed', left: `${p.left}%`, top: `${p.top}%`, zIndex: 30 + Math.round((1 - p.depth) * 6) }}>
           <PerchedItem p={p} obj={data.obj} on={lit[i]} idx={i} />
         </button>
       ))}
@@ -249,7 +273,7 @@ export const FlyingCountDemo: React.FC<{ to: number; obj: CountKind; band?: Band
   return (
     <>
       {spots.map((p, i) => i < shown && (
-        <span key={i} style={{ position: 'fixed', left: `${p.left}%`, top: `${p.top}%`, zIndex: 30 }}>
+        <span key={i} style={{ position: 'fixed', left: `${p.left}%`, top: `${p.top}%`, zIndex: 30 + Math.round((1 - p.depth) * 6) }}>
           <PerchedItem p={p} obj={obj} on idx={i} num={i + 1} />
         </span>
       ))}
@@ -289,7 +313,7 @@ const HowManyPlay: React.FC<{ data: HowManyData; onSubmit: (c: boolean) => void 
     <>
       {spots.map((p, i) => (
         <button key={i} onClick={() => tap(i)} aria-label={data.obj} disabled={picked != null || speaking}
-          style={{ ...bare, position: 'fixed', left: `${p.left}%`, top: `${p.top}%`, zIndex: 30 }}>
+          style={{ ...bare, position: 'fixed', left: `${p.left}%`, top: `${p.top}%`, zIndex: 30 + Math.round((1 - p.depth) * 6) }}>
           <PerchedItem p={p} obj={data.obj} on={tapped[i]} idx={i} />
         </button>
       ))}

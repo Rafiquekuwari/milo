@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useMiloSpeaker, afterSpeech, speakAfterCurrent, speakAt } from '@/lib/useMiloSpeaker'
 import { useAdaptive, addPair } from '@/lib/adaptive'
+import { makeDistinct } from '@/lib/questionVariety'
 import { nounFor } from '@/lib/grammar'
 import { DifficultyBadge } from '../ui/DifficultyBadge'
 import { useChapterPhase } from '@/lib/useChapterPhase'
@@ -10,7 +11,7 @@ import GameTopbar from '../ui/GameTopbar'
 import AdditionLesson, { WatchAdd, ChooseSum, CSS as ADD_CSS } from '../lessons/AdditionLesson'
 
 
-interface Props{onComplete:(c:number,w:number)=>void;childName:string}
+interface Props{onComplete:(c:number,w:number,mastered?:boolean)=>void;childName:string}
 
 const STORIES=[
   {emoji:'🍎',subject:'apples'},  {emoji:'⭐',subject:'stars'},
@@ -49,12 +50,14 @@ export default function AdditionChapter({onComplete,childName}:Props){
   const[wrongRun,setWrongRun]=useState(0)
   const[reMed,setReMed]=useState<{phase:'reteach'|'check';a:number;b:number;emoji:string}|null>(null)
   const answerRef=useRef<HTMLElement|null>(null)   // the correct sum choice (for the pointer)
+  const seen=useRef<Set<string>>(new Set())        // (a+b) sums already asked this session
   const timers=useRef<number[]>([])
   const clearT=()=>{timers.current.forEach(id=>window.clearTimeout(id));timers.current=[]}
 
   function loadRound(idx:number){
     clearT()
-    const[na,nb]=addPair(ada.difficulty)
+    // Don't ask the same sum twice in a session — re-roll to keep it fresh.
+    const[na,nb]=makeDistinct(()=>addPair(ada.difficulty),seen.current,p=>p.join('+'))
     const st=STORIES[idx%STORIES.length]
     setA(na);setB(nb);setStory(st)
     setChoices(buildChoices(na+nb))
@@ -76,7 +79,7 @@ export default function AdditionChapter({onComplete,childName}:Props){
     clearT()
     const ans=a+b;const ok=choice===ans
     setSelected(choice);setStage('answered');setFeedback(ok?'correct':'wrong')
-    ada.record(ok)
+    const res=ada.record(ok)
     const newRun=ok?0:wrongRun+1
     setWrongRun(newRun)
     if(ok){setCorrect(c=>c+1);speakAt(`Yes! ${a} plus ${b} is ${ans}! ${ada.praise}`, answerRef.current)}
@@ -85,6 +88,8 @@ export default function AdditionChapter({onComplete,childName}:Props){
       setFeedback(null)
       // 3 wrong in a row → re-teach this sum by counting it, then check
       if(!ok && newRun>=3){ setReMed({phase:'reteach',a,b,emoji:story.emoji}); return }
+      // Demonstrated mastery → finish early with full stars, skip the repetitive tail.
+      if(res.mastered){ onComplete(ok?correct+1:correct, ok?wrong:wrong+1, true); return }
       const next=roundIdx+1
       if(next>=TOTAL_ROUNDS){
         onComplete(

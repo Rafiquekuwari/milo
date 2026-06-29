@@ -15,6 +15,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { speak, stopSpeech } from '@/lib/useMiloSpeaker'
 import { useAdaptive, type Difficulty } from '@/lib/adaptive'
+import { makeDistinct } from '@/lib/questionVariety'
 import { type ChapterType } from '@/lib/store'
 import { CSS as KIT_CSS } from '../lessons/_kit'
 import { Backdrop, type BackdropKind } from './art'
@@ -60,7 +61,7 @@ export interface World { id: string; title: string; scenes: Scene[] }
 // ─── SkillBeat: the unbreakable pedagogy core ──────────────────
 // Runs `rounds` adaptive rounds. Warm wrong-answers (no red X). On a 2-wrong
 // streak, Milo re-explains in-story, then the child retries.
-export function SkillBeat({ beat, onComplete, onInterlude, onRound }: { beat: Beat<any>; onComplete: (correct: number, wrong: number) => void; onInterlude?: () => Promise<void>; onRound?: (data: any, round: number) => void }) { // eslint-disable-line @typescript-eslint/no-explicit-any
+export function SkillBeat({ beat, onComplete, onInterlude, onRound }: { beat: Beat<any>; onComplete: (correct: number, wrong: number, mastered?: boolean) => void; onInterlude?: () => Promise<void>; onRound?: (data: any, round: number) => void }) { // eslint-disable-line @typescript-eslint/no-explicit-any
   const ada = useAdaptive(beat.skillId)
   const adaRef = useRef(ada); adaRef.current = ada
   const [roundIdx, setRoundIdx] = useState(0)
@@ -68,12 +69,14 @@ export function SkillBeat({ beat, onComplete, onInterlude, onRound }: { beat: Be
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null)
   const [wrongRun, setWrongRun] = useState(0)
   const tally = useRef({ correct: 0, wrong: 0 })   // reported to onComplete → drives XP
+  const seen = useRef<Set<string>>(new Set())      // question signatures already asked this session
 
   // ONE data object per round. Must be stable across re-renders (it holds the
   // random target), or the Play UI and the answer-check would disagree and the
   // round could never complete. Difficulty is read at round start; `roundIdx` lets
   // the beat rotate the scene (biome) while staying one continuous practice.
-  const data = useMemo(() => beat.make(adaRef.current.difficulty, roundIdx), [roundIdx, beat])
+  // makeDistinct re-rolls to avoid repeating a question already asked this session.
+  const data = useMemo(() => makeDistinct(() => beat.make(adaRef.current.difficulty, roundIdx), seen.current), [roundIdx, beat])
 
   // Announce each new round, and let the host react to it (e.g. follow the biome).
   useEffect(() => {
@@ -84,7 +87,7 @@ export function SkillBeat({ beat, onComplete, onInterlude, onRound }: { beat: Be
 
   const onSubmit = useCallback((correct: boolean) => {
     if (phase !== 'play') return
-    ada.record(correct)
+    const res = ada.record(correct)
     if (correct) tally.current.correct++; else tally.current.wrong++
     setFeedback(correct ? 'correct' : 'wrong')
     setPhase('feedback')
@@ -94,6 +97,9 @@ export function SkillBeat({ beat, onComplete, onInterlude, onRound }: { beat: Be
     window.setTimeout(() => {
       setFeedback(null)
       if (!correct && newRun >= (beat.reteachAfter ?? 2)) { setPhase('reteach'); return }
+      // Demonstrated mastery (top tier + a long correct streak) → finish early
+      // with full stars, skipping the repetitive tail.
+      if (res.mastered) { onComplete(tally.current.correct, tally.current.wrong, true); return }
       const next = roundIdx + 1
       if (next >= beat.rounds) { onComplete(tally.current.correct, tally.current.wrong); return }
       // Storyline interlude: Milo walks a few steps before certain rounds (a scene/

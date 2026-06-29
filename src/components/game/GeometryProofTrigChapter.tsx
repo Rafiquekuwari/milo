@@ -23,6 +23,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useChapterSync } from '@/lib/supabase/useChapterSync'
 import { useAdaptive } from '@/lib/adaptive'
+import { makeDistinct } from '@/lib/questionVariety'
 import { speak, speakAfterCurrent, unlockSpeech, stopSpeech } from '@/lib/useMiloSpeaker'
 import type { AgeBand } from '@/components/teen/types'
 import CaseCard from '@/components/teen/CaseCard'
@@ -50,7 +51,7 @@ type Props = { onComplete: (correct: number, wrong: number) => void; childName: 
 function ProofTrigWorld({
   childName, onFinish, onExit, onReplay,
 }: {
-  childName: string; onFinish: (c: number, w: number) => void; onExit: () => void; onReplay: () => void
+  childName: string; onFinish: (c: number, w: number, mastered?: boolean) => void; onExit: () => void; onReplay: () => void
 }) {
   const [phase, setPhase] = useState<'intro' | 'explore' | 'lesson' | 'practice' | 'done'>('intro')
 
@@ -111,7 +112,7 @@ function ProofTrigWorld({
     <ProofTrigPractice
       childName={childName}
       onExit={onExit}
-      onDone={(c, w) => { onFinish(c, w); setPhase('done') }}
+      onDone={(c, w, mastered) => { onFinish(c, w, mastered); setPhase('done') }}
     />
   )
 }
@@ -119,11 +120,12 @@ function ProofTrigWorld({
 function ProofTrigPractice({
   childName, onDone, onExit,
 }: {
-  childName: string; onDone: (c: number, w: number) => void; onExit: () => void
+  childName: string; onDone: (c: number, w: number, mastered?: boolean) => void; onExit: () => void
 }) {
   const ada = useAdaptive('geometryProofTrig')
+  const seen = useRef<Set<string>>(new Set())   // question signatures asked this session
   const [roundIdx, setRoundIdx] = useState(0)
-  const [round, setRound] = useState<Round>(() => makeRound(1))
+  const [round, setRound] = useState<Round>(() => makeDistinct(() => makeRound(1), seen.current))
   // selected: for ChoiceGrid this is the choice value; for StepSelect it's the picked index.
   const [selected, setSelected] = useState<string | number | null>(null)
   const [status, setStatus] = useState<'idle' | 'correct' | 'wrong'>('idle')
@@ -135,15 +137,17 @@ function ProofTrigPractice({
 
   // Load a fresh round whenever the index (or difficulty) changes.
   useEffect(() => {
-    const r = makeRound(ada.difficulty)
+    const r = makeDistinct(() => makeRound(ada.difficulty), seen.current)
     setRound(r); setSelected(null); setStatus('idle')
     const lead = greeted.current ? '' : `Hi ${childName}. `
     greeted.current = true
     speakAfterCurrent(`${lead}${r.say}`)
   }, [roundIdx, ada.difficulty]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  function advance(ok: boolean, run: number, r: Round) {
+  function advance(ok: boolean, run: number, r: Round, mastered: boolean) {
     if (!ok && run >= 3) { setReteach(r); return }
+    // Demonstrated mastery → finish early with full stars, skip the repetitive tail.
+    if (mastered) { onDone(ok ? correct + 1 : correct, ok ? wrong : wrong + 1, true); return }
     const next = roundIdx + 1
     if (next >= TOTAL_ROUNDS) onDone(ok ? correct + 1 : correct, ok ? wrong : wrong + 1)
     else setRoundIdx(next)
@@ -153,12 +157,12 @@ function ProofTrigPractice({
   function grade(picked: string | number, ok: boolean) {
     if (status !== 'idle') return
     setSelected(picked); setStatus(ok ? 'correct' : 'wrong')
-    ada.record(ok)
+    const res = ada.record(ok)
     const run = ok ? 0 : wrongRun + 1
     setWrongRun(run)
     if (ok) { setCorrect((c) => c + 1); speak(`Correct. ${ada.praise}`) }
     else { setWrong((w) => w + 1); speak(`${round.answerSpeech} ${ada.encouragement}`) }
-    window.setTimeout(() => advance(ok, run, round), FEEDBACK_MS)
+    window.setTimeout(() => advance(ok, run, round, res.mastered), FEEDBACK_MS)
   }
 
   // NumericEntry: parent owns correctness via numericEqual.
@@ -297,11 +301,11 @@ export default function GeometryProofTrigChapter(_props: Props) {
   const doneRef = useRef(false)
   useEffect(() => { setBody(document.body); return () => stopSpeech() }, [])
 
-  const finish = useCallback((c: number, w: number) => {
+  const finish = useCallback((c: number, w: number, mastered?: boolean) => {
     if (doneRef.current) return
     doneRef.current = true
     // id is added to ChapterType during integration; ignore any type error on the literal.
-    finishAndSync('geometryProofTrig', c, w, 'practice')
+    finishAndSync('geometryProofTrig', c, w, 'practice', mastered)
   }, [finishAndSync])
 
   const replay = useCallback(() => { doneRef.current = false; setRunKey((k) => k + 1) }, [])

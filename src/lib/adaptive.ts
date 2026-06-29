@@ -25,6 +25,22 @@ import { type ChapterType } from './store'
 
 export type Difficulty = 1 | 2 | 3
 
+// Demonstrated mastery: a child sitting at the hardest tier with this many
+// correct in a row has clearly got it — the session can end early (with full
+// stars) instead of grinding the repetitive tail. Reaching tier 3 already takes
+// a strong streak, so this is "top tier AND a clean run on top of that".
+export const MASTERY_STREAK = 6
+
+// What `record()` hands back, read synchronously by the practice loop the same
+// tick (so an early-exit decision never races a stale render closure).
+export interface RecordResult {
+  difficulty: Difficulty
+  streak:     number
+  correct:    number
+  wrong:      number
+  mastered:   boolean
+}
+
 export interface AdaptiveState {
   difficulty:     Difficulty
   streak:         number      // consecutive correct answers
@@ -32,9 +48,10 @@ export interface AdaptiveState {
   sessionWrong:   number
   shouldHint:     boolean     // true when child is struggling
   isOnFire:       boolean     // 3+ correct in a row
+  mastered:       boolean     // top tier + MASTERY_STREAK in a row → can finish early
   praise:         string
   encouragement:  string
-  record:         (correct: boolean) => void
+  record:         (correct: boolean) => RecordResult
   difficultyLabel: string
 }
 
@@ -124,7 +141,7 @@ export function useAdaptive(chapter: ChapterType): AdaptiveState {
   }))
   const ref = useRef(snapshot)
 
-  const record = useCallback((isCorrect: boolean) => {
+  const record = useCallback((isCorrect: boolean): RecordResult => {
     const s = ref.current
     const newCorrect = isCorrect ? s.correct + 1 : s.correct
     const newWrong   = isCorrect ? s.wrong       : s.wrong + 1
@@ -148,6 +165,14 @@ export function useAdaptive(chapter: ChapterType): AdaptiveState {
     }
     ref.current = next   // synchronous — the next tap this tick reads the new values
     setSnapshot(next)    // re-render with the new values
+
+    return {
+      difficulty: newDiff,
+      streak:     newStreak,
+      correct:    newCorrect,
+      wrong:      newWrong,
+      mastered:   newDiff === 3 && newStreak >= MASTERY_STREAK,
+    }
   }, [])
 
   const difficultyLabel =
@@ -162,6 +187,7 @@ export function useAdaptive(chapter: ChapterType): AdaptiveState {
     sessionWrong:   snapshot.wrong,
     shouldHint:     snapshot.shouldHint,
     isOnFire:       snapshot.isOnFire,
+    mastered:       snapshot.difficulty === 3 && snapshot.streak >= MASTERY_STREAK,
     praise:         snapshot.praise,
     encouragement:  snapshot.encouragement,
     record,

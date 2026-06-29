@@ -16,7 +16,7 @@ import { track } from '@/lib/analytics'
 // Maps each chapter id to its component. The set of chapters lives in the
 // registry (src/lib/chapters.ts); this map only wires ids → components, so a
 // new chapter needs one line here. TypeScript's Record enforces completeness.
-type ChapterProps = { onComplete: (correct: number, wrong: number) => void; childName: string }
+type ChapterProps = { onComplete: (correct: number, wrong: number, mastered?: boolean) => void; childName: string }
 const lazyChapter = (loader: () => Promise<{ default: React.ComponentType<ChapterProps> }>) =>
   nextDynamic(loader, { ssr: false })
 
@@ -182,14 +182,15 @@ export default function GamePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentChapter])
 
-  async function handleComplete(correct: number, wrong: number) {
+  async function handleComplete(correct: number, wrong: number, mastered?: boolean) {
     if (!playingChapter) return
     if (completedRef.current) return   // ignore a double-fired completion
     completedRef.current = true
     setChapterDone(true)
     track('practice_complete', { chapter: playingChapter, correct, wrong })
-    // Works offline — queues locally (IndexedDB via kv) if no network
-    await finishAndSync(playingChapter, correct, wrong, 'practice')
+    // Works offline — queues locally (IndexedDB via kv) if no network.
+    // `mastered` (early finish at the top tier) forces the full 3 stars.
+    await finishAndSync(playingChapter, correct, wrong, 'practice', mastered)
   }
 
   if (!ready && !playingChapter) return null

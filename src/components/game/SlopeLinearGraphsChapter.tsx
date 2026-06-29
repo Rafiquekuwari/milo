@@ -16,6 +16,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useChapterSync } from '@/lib/supabase/useChapterSync'
 import { useAdaptive } from '@/lib/adaptive'
+import { makeDistinct } from '@/lib/questionVariety'
 import { speak, speakAfterCurrent, unlockSpeech, stopSpeech } from '@/lib/useMiloSpeaker'
 import type { AgeBand, Pt } from '@/components/teen/types'
 import CaseCard from '@/components/teen/CaseCard'
@@ -44,7 +45,7 @@ const ptKey = (p: Pt) => `${p.x},${p.y}`
 function SlopeWorld({
   childName, onFinish, onExit, onReplay,
 }: {
-  childName: string; onFinish: (c: number, w: number) => void; onExit: () => void; onReplay: () => void
+  childName: string; onFinish: (c: number, w: number, mastered?: boolean) => void; onExit: () => void; onReplay: () => void
 }) {
   const [phase, setPhase] = useState<'intro' | 'explore' | 'lesson' | 'practice' | 'done'>('intro')
 
@@ -105,7 +106,7 @@ function SlopeWorld({
     <SlopePractice
       childName={childName}
       onExit={onExit}
-      onDone={(c, w) => { onFinish(c, w); setPhase('done') }}
+      onDone={(c, w, mastered) => { onFinish(c, w, mastered); setPhase('done') }}
     />
   )
 }
@@ -113,11 +114,12 @@ function SlopeWorld({
 function SlopePractice({
   childName, onDone, onExit,
 }: {
-  childName: string; onDone: (c: number, w: number) => void; onExit: () => void
+  childName: string; onDone: (c: number, w: number, mastered?: boolean) => void; onExit: () => void
 }) {
   const ada = useAdaptive('slopeLinearGraphs')
+  const seen = useRef<Set<string>>(new Set())   // question signatures asked this session
   const [roundIdx, setRoundIdx] = useState(0)
-  const [round, setRound] = useState<Round>(() => makeRound(1))
+  const [round, setRound] = useState<Round>(() => makeDistinct(() => makeRound(1), seen.current))
   const [selected, setSelected] = useState<string | number | null>(null)
   const [plotted, setPlotted] = useState<Pt | null>(null)
   const [status, setStatus] = useState<'idle' | 'correct' | 'wrong'>('idle')
@@ -129,15 +131,17 @@ function SlopePractice({
 
   // Load a fresh round whenever the index (or difficulty) changes.
   useEffect(() => {
-    const r = makeRound(ada.difficulty)
+    const r = makeDistinct(() => makeRound(ada.difficulty), seen.current)
     setRound(r); setSelected(null); setPlotted(null); setStatus('idle')
     const lead = greeted.current ? '' : `Hi ${childName}. `
     greeted.current = true
     speakAfterCurrent(`${lead}${r.say}`)
   }, [roundIdx, ada.difficulty]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  function advance(ok: boolean, run: number, r: Round) {
+  function advance(ok: boolean, run: number, r: Round, mastered: boolean) {
     if (!ok && run >= 3) { setReteach(r); return }
+    // Demonstrated mastery → finish early with full stars, skip the repetitive tail.
+    if (mastered) { onDone(ok ? correct + 1 : correct, ok ? wrong : wrong + 1, true); return }
     const next = roundIdx + 1
     if (next >= TOTAL_ROUNDS) onDone(ok ? correct + 1 : correct, ok ? wrong : wrong + 1)
     else setRoundIdx(next)
@@ -147,12 +151,12 @@ function SlopePractice({
     if (status !== 'idle') return
     const ok = answerKey === r.answer
     setStatus(ok ? 'correct' : 'wrong')
-    ada.record(ok)
+    const res = ada.record(ok)
     const run = ok ? 0 : wrongRun + 1
     setWrongRun(run)
     if (ok) { setCorrect((c) => c + 1); speak(`Correct. ${ada.praise}`) }
     else { setWrong((w) => w + 1); speak(`${r.explain} ${ada.encouragement}`) }
-    window.setTimeout(() => advance(ok, run, r), FEEDBACK_MS)
+    window.setTimeout(() => advance(ok, run, r, res.mastered), FEEDBACK_MS)
   }
 
   function pickChoice(v: string | number) {
@@ -286,10 +290,10 @@ export default function SlopeLinearGraphsChapter(_props: Props) {
   const doneRef = useRef(false)
   useEffect(() => { setBody(document.body); return () => stopSpeech() }, [])
 
-  const finish = useCallback((c: number, w: number) => {
+  const finish = useCallback((c: number, w: number, mastered?: boolean) => {
     if (doneRef.current) return
     doneRef.current = true
-    finishAndSync('slopeLinearGraphs', c, w, 'practice')
+    finishAndSync('slopeLinearGraphs', c, w, 'practice', mastered)
   }, [finishAndSync])
 
   const replay = useCallback(() => { doneRef.current = false; setRunKey((k) => k + 1) }, [])

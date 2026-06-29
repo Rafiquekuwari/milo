@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react'
 
 import { useAdaptive, countTarget } from '@/lib/adaptive'
+import { makeDistinct } from '@/lib/questionVariety'
 import { nounFor, singular } from '@/lib/grammar'
 import { DifficultyBadge } from '@/components/ui/DifficultyBadge'
 
@@ -12,7 +13,7 @@ import GameTopbar from '@/components/ui/GameTopbar'
 import { afterSpeech, speakAfterCurrent, speak, speakAt, stopSpeech, useMiloSpeaker } from '@/lib/useMiloSpeaker'
 import CountingLesson from '../lessons/CountingLesson'
 
-interface Props { onComplete:(c:number,w:number)=>void; childName:string }
+interface Props { onComplete:(c:number,w:number,mastered?:boolean)=>void; childName:string }
 
 // What kind of difficulty the child is actually having — diagnosed from their
 // recent misses so the re-teach can address the real problem, not a generic one.
@@ -82,9 +83,11 @@ export default function CountingChapter({onComplete,childName}:Props){
   // Log of misses in the current wrong streak — used to diagnose the difficulty.
   const missLog=useRef<Miss[]>([])
   const answerRef=useRef<HTMLElement|null>(null)   // the correct number choice (for the pointer)
+  const seen=useRef<Set<string>>(new Set())        // count targets already asked this session
 
   function newRound(idx:number){
-    const t=countTarget(ada.difficulty)
+    // Don't ask the same count twice in a session — re-roll to keep it fresh.
+    const t=makeDistinct(()=>countTarget(ada.difficulty),seen.current,n=>String(n))
     const em=EMOJIS[idx%EMOJIS.length]
     setTarget(t);setEmojiSet(em)
     setChoices(buildChoices(t));setTapped([]);setAnswered(false)
@@ -107,7 +110,9 @@ export default function CountingChapter({onComplete,childName}:Props){
   }
 
   // Move to the next round, or finish the chapter.
-  function advance(ok:boolean){
+  function advance(ok:boolean,mastered?:boolean){
+    // Demonstrated mastery → finish early with full stars, skip the repetitive tail.
+    if (mastered) { onComplete(ok?correct+1:correct, ok?wrong:wrong+1, true); return }
     const next = roundIdx + 1
     if (next >= TOTAL_ROUNDS) onComplete(ok?correct+1:correct, ok?wrong:wrong+1)
     else window.setTimeout(() => setRoundIdx(next), 300)
@@ -117,7 +122,7 @@ export default function CountingChapter({onComplete,childName}:Props){
     if(answered)return
     setAnswered(true)
     const ok=choice===target
-    ada.record(ok)
+    const res=ada.record(ok)
     setFeedback(ok?'correct':'wrong')
     const newRun = ok ? 0 : wrongRun + 1
     setWrongRun(newRun)
@@ -134,7 +139,7 @@ export default function CountingChapter({onComplete,childName}:Props){
             setRemediation({ phase:'explain', target, emoji: emojiSet.emoji, label: emojiSet.label, kind, escalated:false })
             return
           }
-          advance(ok)
+          advance(ok, res.mastered)
         })
   }
 

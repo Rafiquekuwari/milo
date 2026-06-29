@@ -13,7 +13,7 @@ import BeadShop from '@/components/story/BeadShop'
 import { useChapterSync } from '@/lib/supabase/useChapterSync'
 import CelebrationModal from '@/components/ui/CelebrationModal'
 
-export default function PatternsChapter(_props: { onComplete: (correct: number, wrong: number) => void; childName: string }) {
+export default function PatternsChapter(_props: { onComplete: (correct: number, wrong: number, mastered?: boolean) => void; childName: string }) {
   const router = useRouter()
   const { finishAndSync } = useChapterSync()
   const [body, setBody] = useState<HTMLElement | null>(null)
@@ -21,10 +21,10 @@ export default function PatternsChapter(_props: { onComplete: (correct: number, 
   const doneRef = useRef(false)
   useEffect(() => { setBody(document.body) }, [])
 
-  const finish = useCallback((correct: number, wrong: number) => {
+  const finish = useCallback((correct: number, wrong: number, mastered?: boolean) => {
     if (doneRef.current) return
     doneRef.current = true
-    finishAndSync('patterns', correct, wrong, 'practice')   // XP/coins/stars + store.celebration
+    finishAndSync('patterns', correct, wrong, 'practice', mastered)   // XP/coins/stars + store.celebration
   }, [finishAndSync])
 
   const restart = useCallback(() => { doneRef.current = false; setRunKey(k => k + 1) }, [])

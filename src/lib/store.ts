@@ -115,7 +115,7 @@ interface MiloStore {
   celebration:    CelebrationData | null
 
   completeSetup:      (name: string, avatarIndex: AvatarIndex) => void
-  finishChapter:      (chapter: ChapterType, correct: number, wrong: number) => ChapterScore
+  finishChapter:      (chapter: ChapterType, correct: number, wrong: number, mastered?: boolean) => ChapterScore
   dismissCelebration: () => void
   purchaseItem:       (itemId: string, cost: number) => boolean
   equipItem:          (slot: string, itemId: string) => void
@@ -244,8 +244,8 @@ export const useMiloStore = create<MiloStore>()(
           profile: { ...s.profile, childName: name, avatarIndex, hasCompletedSetup: true },
         })),
 
-      finishChapter: (chapter, correct, wrong) => {
-        const { stars, xp: xpGained, coins: coinsGained } = scoreChapter(correct, wrong)
+      finishChapter: (chapter, correct, wrong, mastered = false) => {
+        const { stars, xp: xpGained, coins: coinsGained } = scoreChapter(correct, wrong, mastered)
         set(s => {
           const newXP     = s.profile.totalXP + xpGained
           const newCoins  = s.profile.totalCoins + coinsGained
