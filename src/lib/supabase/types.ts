@@ -30,12 +30,35 @@ export interface Database {
           avatar_index:  number
           date_of_birth: string | null
           age_group:     AgeGroup
+          grade_id:      string | null
           created_by:    string
           created_at:    string
           updated_at:    string
         }
-        Insert: Omit<Database['public']['Tables']['learners']['Row'], 'id' | 'created_at' | 'updated_at'>
+        Insert: Omit<Database['public']['Tables']['learners']['Row'], 'id' | 'grade_id' | 'created_at' | 'updated_at'>
+          & { grade_id?: string | null }
         Update: Partial<Database['public']['Tables']['learners']['Insert']>
+      }
+      grades: {
+        Row: {
+          id:         string
+          created_by: string
+          name:       string
+          age_group:  AgeGroup
+          created_at: string
+          updated_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['grades']['Row'], 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Database['public']['Tables']['grades']['Insert']>
+      }
+      grade_chapters: {
+        Row: {
+          grade_id:   string
+          chapter_id: ChapterType
+          sort_order: number
+        }
+        Insert: Database['public']['Tables']['grade_chapters']['Row']
+        Update: Partial<Database['public']['Tables']['grade_chapters']['Insert']>
       }
       chapters: {
         Row: {
@@ -137,6 +160,8 @@ export interface Database {
 // Convenience row types
 export type Profile        = Database['public']['Tables']['profiles']['Row']
 export type Learner        = Database['public']['Tables']['learners']['Row']
+export type Grade          = Database['public']['Tables']['grades']['Row']
+export type GradeChapter   = Database['public']['Tables']['grade_chapters']['Row']
 export type LearnerAccess  = Database['public']['Tables']['learner_access']['Row']
 export type LearnerInvite  = Database['public']['Tables']['learner_invites']['Row']
 export type Session        = Database['public']['Tables']['sessions']['Row']

@@ -10,7 +10,7 @@ import BackButton from '@/components/ui/BackButton'
 import ChapterPicker from '@/components/ui/ChapterPicker'
 import PWAInstallBanner from '@/components/ui/PWAInstallBanner'
 import { getActiveLearner, clearActiveLearner } from '@/lib/supabase/useLearnerSession'
-import { getLearnerBootstrap, saveLearnerState } from '@/lib/supabase/queries'
+import { getLearnerBootstrap, saveLearnerState, getGradeChapterIds } from '@/lib/supabase/queries'
 import type { LearnerState } from '@/lib/supabase/types'
 import { getLastPlayed, setLastPlayed, reconcileLastPlayed } from '@/lib/lastPlayed'
 import { track } from '@/lib/analytics'
@@ -48,6 +48,7 @@ export default function MainMenu() {
   const [ready,        setReady]        = useState(false)
   const [learnerId,    setLearnerId]    = useState<string | null>(null)
   const [ageGroup,     setAgeGroup]     = useState<AgeGroup>('3-5')
+  const [chapterIds,   setChapterIds]   = useState<ChapterType[]>([])
   const [lastPlayed,   setLastPlayedState] = useState<ChapterType | null>(null)
   const [daily,        setDaily]        = useState<{ available: boolean; streak: number; longest: number } | null>(null)
 
@@ -66,7 +67,18 @@ export default function MainMenu() {
       loadLearner(learner.id, learner.display_name, learner.avatar_index)
       setLearnerId(learner.id)
       // Fall back to 3–5 for learner records cached before age_group existed.
-      setAgeGroup(learner.age_group ?? '3-5')
+      const band = learner.age_group ?? '3-5'
+      setAgeGroup(band)
+      // Show the band's chapters immediately; if the learner is in a grade,
+      // refine to that grade's hand-picked subset once it loads.
+      setChapterIds(chaptersForAge(band).map(c => c.id))
+      if (learner.grade_id) {
+        getGradeChapterIds(learner.grade_id).then(ids => {
+          const fallback = chaptersForAge(band).map(c => c.id)
+          const valid = ids.filter(id => fallback.includes(id))
+          if (valid.length) setChapterIds(valid)
+        }).catch(() => { /* keep the band fallback */ })
+      }
       const lp = getLastPlayed(learner.id)?.chapter ?? null
       setLastPlayedState(lp)
       setReady(true)
@@ -138,9 +150,6 @@ export default function MainMenu() {
   const levelName   = LEVEL_NAMES[Math.min(profile.currentLevel - 1, LEVEL_NAMES.length - 1)]
   const avatarSrc = AVATAR_SRCS[profile.avatarIndex] ?? AVATAR_SRCS[0]
   const childName   = profile.childName
-
-  // Chapters this learner sees, scoped to their age group.
-  const chapterIds = chaptersForAge(ageGroup).map(c => c.id)
 
   // Next unplayed chapter
   const nextChapter = chapterIds.find(ch => (profile.chapterStars[ch] ?? 0) === 0)

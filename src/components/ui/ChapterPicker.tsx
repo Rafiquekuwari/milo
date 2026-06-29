@@ -1,9 +1,8 @@
 'use client'
-import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMiloStore, type ChapterType } from '@/lib/store'
-import { CHAPTER_NAMES, getChapter, chaptersForAge, type AgeGroup } from '@/lib/chapters'
-import { getActiveLearner } from '@/lib/supabase/useLearnerSession'
+import { CHAPTER_NAMES, getChapter } from '@/lib/chapters'
+import { useLearnerChapters } from '@/lib/useLearnerChapters'
 
 // Number Doors draws a little door instead of an emoji icon — purely a picker
 // rendering choice, so it stays local to this component.
@@ -39,10 +38,9 @@ export default function ChapterPicker({ onClose }: Props) {
   const router = useRouter()
   const { profile, startChapter } = useMiloStore()
 
-  // Show only the active learner's age-group chapters.
-  const [ageGroup, setAgeGroup] = useState<AgeGroup>('3-5')
-  useEffect(() => { setAgeGroup(getActiveLearner()?.age_group ?? '3-5') }, [])
-  const chapterIds = chaptersForAge(ageGroup).map(c => c.id)
+  // Show only the active learner's chapters: their grade's subset when assigned,
+  // else all chapters in their age band.
+  const { chapterIds } = useLearnerChapters()
 
   function pick(ch: ChapterType) {
     startChapter(ch)

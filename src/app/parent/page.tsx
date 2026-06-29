@@ -7,25 +7,17 @@ import {
   getRecentSessions, signOut, createLearner,
   getReceivedInvites, acceptInvite,
   getMyAccessRole, deleteLearnerPermanently, removeMyselfFromLearner,
+  getMyGrades, getGradeChapterIds, type GradeSummary,
 } from '@/lib/supabase/queries'
 import { setActiveLearner } from '@/lib/supabase/useLearnerSession'
 import { createClient } from '@/lib/supabase/client'
 import type { Learner, LearnerStats, LearnerProgress, Session, InviteWithLearner } from '@/lib/supabase/types'
-import { CHAPTER_IDS, CHAPTER_PARENT_LABELS, type AgeGroup } from '@/lib/chapters'
-
-const AGE_GROUP_OPTIONS: { value: AgeGroup; label: string; hint: string }[] = [
-  { value: '3-5', label: 'Ages 3–5', hint: 'Counting, shapes, first add & subtract' },
-  { value: '6-8', label: 'Ages 6–8', hint: 'Bigger numbers, place value, times & money' },
-  { value: '9-11', label: 'Ages 9–11', hint: 'Division, decimals, fractions, area & data' },
-  { value: '12-14', label: 'Ages 12–14', hint: 'Integers, ratios, %, algebra, coordinate plane' },
-  { value: '15-16', label: 'Ages 15–16', hint: 'Algebra I & Geometry (coming soon)' },
-  { value: '17-18', label: 'Ages 17–18', hint: 'Algebra II, Pre-Calc, Stats & Calculus (coming soon)' },
-]
+import { CHAPTER_PARENT_LABELS, chaptersForAge, type AgeGroup, type ChapterType } from '@/lib/chapters'
+import { AGE_GROUP_OPTIONS, AGE_GROUP_LABELS } from '@/lib/ageGroups'
 
 const AVATARS     = ['🦊', '🐰', '🐻', '🐱']
 const AVATAR_SRCS = ['/assets/objects/fox.png','/assets/objects/bunny.png','/assets/objects/bear.png','/assets/objects/cat.png']
 const CH_LABELS: Record<string, string> = { ...CHAPTER_PARENT_LABELS }
-const CHAPTERS    = CHAPTER_IDS
 const LEVEL_NAMES = ['Beginner','Counter','Explorer','Number Star','Math Wizard','Champion',"Milo's Champion",'Legend']
 
 interface LearnerData {
@@ -49,6 +41,7 @@ export default function ParentDashboard() {
   const [inviteMsg,    setInviteMsg]    = useState<string | null>(null)
   const [actionMsg,    setActionMsg]    = useState<string | null>(null)
   const [confirming,   setConfirming]   = useState<string | null>(null) // learnerId being confirmed
+  const [activeChapterIds, setActiveChapterIds] = useState<ChapterType[]>([])
 
   async function loadAll() {
     setLoading(true)
@@ -139,6 +132,21 @@ export default function ParentDashboard() {
 
   const active = learners.find(d => d.learner.id === selected)
 
+  // Scope the chapter-progress list to what THIS learner actually sees: their
+  // grade's chapters when assigned, else all chapters in their age band.
+  useEffect(() => {
+    if (!active) { setActiveChapterIds([]); return }
+    const band     = active.learner.age_group ?? '3-5'
+    const fallback = chaptersForAge(band).map(c => c.id)
+    const gradeId  = active.learner.grade_id
+    if (!gradeId) { setActiveChapterIds(fallback); return }
+    let cancelled = false
+    getGradeChapterIds(gradeId)
+      .then(ids => { if (!cancelled) { const valid = ids.filter(id => fallback.includes(id)); setActiveChapterIds(valid.length ? valid : fallback) } })
+      .catch(() => { if (!cancelled) setActiveChapterIds(fallback) })
+    return () => { cancelled = true }
+  }, [active?.learner.id, active?.learner.grade_id, active?.learner.age_group])
+
   if (loading) return (
     <div style={{ minHeight:'100dvh', display:'flex', alignItems:'center', justifyContent:'center', background:'#FCEAB6', fontSize:48 }}>🦊</div>
   )
@@ -165,6 +173,7 @@ export default function ParentDashboard() {
           </div>
         </div>
         <div style={{ display:'flex', gap:8 }}>
+          <button onClick={() => router.push('/parent/grades')} style={{ background:'none', border:'1.5px solid #e5e7eb', borderRadius:50, padding:'8px 14px', fontSize:13, fontWeight:600, color:'#888', cursor:'pointer' }}>🎓 Grades</button>
           <button onClick={() => router.push('/parent/invites')} style={{ background:'none', border:'1.5px solid #e5e7eb', borderRadius:50, padding:'8px 14px', fontSize:13, fontWeight:600, color:'#888', cursor:'pointer' }}>✉️ Share</button>
           <button onClick={signOut} style={{ background:'none', border:'1.5px solid #e5e7eb', borderRadius:50, padding:'8px 14px', fontSize:13, fontWeight:600, color:'#888', cursor:'pointer' }}>Sign out</button>
         </div>
@@ -318,7 +327,7 @@ export default function ParentDashboard() {
             <div style={{ background:'#fff', borderRadius:20, padding:'18px 16px', marginBottom:16, boxShadow:'0 2px 12px rgba(0,0,0,0.05)' }}>
               <h3 style={{ fontSize:15, fontWeight:800, margin:'0 0 14px', color:'#1a1a1a' }}>Chapter progress</h3>
               <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                {CHAPTERS.map(ch => {
+                {activeChapterIds.map(ch => {
                   const prog  = active.progress.find(p => p.chapter === ch)
                   const stars = prog?.best_stars ?? 0
                   return (
@@ -380,17 +389,29 @@ export default function ParentDashboard() {
 }
 
 function AddLearnerModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
+  const router = useRouter()
   const [name,        setName]        = useState('')
   const [avatarIndex, setAvatarIndex] = useState(0)
   const [ageGroup,    setAgeGroup]    = useState<AgeGroup>('3-5')
+  const [grades,      setGrades]      = useState<GradeSummary[]>([])
+  const [gradeId,     setGradeId]     = useState<string | null>(null) // null = no grade, pick a band directly
   const [loading,     setLoading]     = useState(false)
   const [error,       setError]       = useState<string | null>(null)
+
+  useEffect(() => { getMyGrades().then(setGrades) }, [])
+
+  // When a grade is chosen, the band comes from the grade (chapters are scoped
+  // to it). When cleared, the parent picks a band directly as before.
+  function pickGrade(g: GradeSummary | null) {
+    setGradeId(g?.id ?? null)
+    if (g) setAgeGroup(g.age_group)
+  }
 
   async function handleAdd() {
     const trimmed = name.trim()
     if (!trimmed || trimmed.length < 2) { setError('Please enter a name (at least 2 characters)'); return }
     setLoading(true)
-    const learner = await createLearner(trimmed, avatarIndex, ageGroup)
+    const learner = await createLearner(trimmed, avatarIndex, ageGroup, undefined, gradeId ?? undefined)
     if (!learner) { setError('Something went wrong. Please try again.'); setLoading(false); return }
     onAdded()
   }
@@ -407,19 +428,49 @@ function AddLearnerModal({ onClose, onAdded }: { onClose: () => void; onAdded: (
         <input type="text" placeholder="Child's name" value={name} onChange={e => { setName(e.target.value); setError(null) }} onKeyDown={e => e.key === 'Enter' && handleAdd()} maxLength={30} autoFocus style={{ width:'100%', padding:'14px 16px', fontSize:16, fontWeight:600, border:`2px solid ${error?'#FCA5A5':'#e5e7eb'}`, borderRadius:14, outline:'none', boxSizing:'border-box', marginBottom:6 }} />
         {error && <p style={{ fontSize:13, color:'#EF4444', margin:'0 0 12px' }}>{error}</p>}
 
-        {/* Age group — decides which chapters this child sees */}
-        <p style={{ fontSize:13, fontWeight:700, color:'#6b7280', margin:'10px 0 8px' }}>Age group</p>
-        <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:4 }}>
-          {AGE_GROUP_OPTIONS.map(opt => {
-            const selected = ageGroup === opt.value
-            return (
-              <button key={opt.value} onClick={() => setAgeGroup(opt.value)} style={{ flex:1, textAlign:'left', padding:'12px 14px', borderRadius:14, cursor:'pointer', background:selected?'#FFF4D6':'#f3f4f6', border:selected?'3px solid #F26B2C':'2px solid transparent', transition:'all 0.15s' }}>
-                <div style={{ fontSize:15, fontWeight:800, color:'#1a1a1a' }}>{opt.label}</div>
-                <div style={{ fontSize:11, color:'#6b7280', lineHeight:1.3, marginTop:2 }}>{opt.hint}</div>
+        {/* Grade (optional) — shown once this account has created grades. Choosing
+            one scopes the child to that grade's chapters and fixes the band. */}
+        {grades.length > 0 && (
+          <>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', margin:'10px 0 8px' }}>
+              <p style={{ fontSize:13, fontWeight:700, color:'#6b7280', margin:0 }}>Grade</p>
+              <button onClick={() => router.push('/parent/grades')} style={{ background:'none', border:'none', color:'#F26B2C', fontSize:12, fontWeight:700, cursor:'pointer' }}>Manage</button>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:14 }}>
+              <button onClick={() => pickGrade(null)} style={{ textAlign:'left', padding:'12px 14px', borderRadius:14, cursor:'pointer', background:!gradeId?'#FFF4D6':'#f3f4f6', border:!gradeId?'3px solid #F26B2C':'2px solid transparent' }}>
+                <div style={{ fontSize:15, fontWeight:800, color:'#1a1a1a' }}>No grade</div>
+                <div style={{ fontSize:11, color:'#6b7280', lineHeight:1.3, marginTop:2 }}>Pick an age band directly — all its chapters.</div>
               </button>
-            )
-          })}
-        </div>
+              {grades.map(g => {
+                const on = gradeId === g.id
+                return (
+                  <button key={g.id} onClick={() => pickGrade(g)} style={{ textAlign:'left', padding:'12px 14px', borderRadius:14, cursor:'pointer', background:on?'#FFF4D6':'#f3f4f6', border:on?'3px solid #F26B2C':'2px solid transparent' }}>
+                    <div style={{ fontSize:15, fontWeight:800, color:'#1a1a1a' }}>🎓 {g.name}</div>
+                    <div style={{ fontSize:11, color:'#6b7280', lineHeight:1.3, marginTop:2 }}>{AGE_GROUP_LABELS[g.age_group]} · {g.chapterCount} chapter{g.chapterCount === 1 ? '' : 's'}</div>
+                  </button>
+                )
+              })}
+            </div>
+          </>
+        )}
+
+        {/* Age band — only when no grade is chosen (a grade already fixes the band) */}
+        {!gradeId && (
+          <>
+            <p style={{ fontSize:13, fontWeight:700, color:'#6b7280', margin:'10px 0 8px' }}>Age group</p>
+            <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:4 }}>
+              {AGE_GROUP_OPTIONS.map(opt => {
+                const selected = ageGroup === opt.value
+                return (
+                  <button key={opt.value} onClick={() => setAgeGroup(opt.value)} style={{ flex:1, textAlign:'left', padding:'12px 14px', borderRadius:14, cursor:'pointer', background:selected?'#FFF4D6':'#f3f4f6', border:selected?'3px solid #F26B2C':'2px solid transparent', transition:'all 0.15s' }}>
+                    <div style={{ fontSize:15, fontWeight:800, color:'#1a1a1a' }}>{opt.label}</div>
+                    <div style={{ fontSize:11, color:'#6b7280', lineHeight:1.3, marginTop:2 }}>{opt.hint}</div>
+                  </button>
+                )
+              })}
+            </div>
+          </>
+        )}
 
         <button onClick={handleAdd} disabled={loading} style={{ width:'100%', padding:'16px', marginTop:12, background:loading?'#e5e7eb':'linear-gradient(135deg,#F26B2C 0%,#e05a1f 100%)', color:loading?'#9ca3af':'#fff', border:'none', borderRadius:50, fontSize:17, fontWeight:800, cursor:loading?'wait':'pointer' }}>
           {loading ? 'Adding...' : 'Add learner 🎉'}
