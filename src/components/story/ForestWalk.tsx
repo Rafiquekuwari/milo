@@ -126,7 +126,7 @@ export interface Chapter { id: string; title: string; beats: WalkBeat[] }
 
 export default function ForestWalk({ chapter, onFinish, onExit }: {
   chapter: Chapter
-  onFinish?: (correct: number, wrong: number) => void   // chapter completed → award XP
+  onFinish?: (correct: number, wrong: number, mastered?: boolean) => void   // chapter completed → award XP
   onExit?: () => void                                    // bailed out via the Menu button
 }) {
   const router = useRouter()
@@ -172,13 +172,13 @@ export default function ForestWalk({ chapter, onFinish, onExit }: {
   // during React's render.
   // XP/coins come from the scored practice only (the 'catch' SkillBeat reports its
   // correct/wrong tally); the demo + guided slides don't count.
-  const result = useRef({ correct: 0, wrong: 0 })
+  const result = useRef({ correct: 0, wrong: 0, mastered: false })
   const finished = useRef(false)
   useEffect(() => {
     if (idx < chapter.beats.length || finished.current) return
     finished.current = true
     stopSpeech()
-    if (onFinish) onFinish(result.current.correct, result.current.wrong)
+    if (onFinish) onFinish(result.current.correct, result.current.wrong, result.current.mastered)
     else exit()
   }, [idx, chapter.beats, onFinish, exit])
 
@@ -273,7 +273,7 @@ export default function ForestWalk({ chapter, onFinish, onExit }: {
         <div style={{ position: 'absolute', top: 48, left: 0, right: 0, zIndex: 20, display: 'flex', justifyContent: 'center', padding: '0 12px' }}>
           <SkillBeat beat={beat.beat} onInterlude={interlude}
             onRound={(data) => { if (data?.biomeId) setBiome(data.biomeId) }}
-            onComplete={(c, w) => { result.current.correct += c; result.current.wrong += w; advance() }} />
+            onComplete={(c, w, mastered) => { result.current.correct += c; result.current.wrong += w; if (mastered) result.current.mastered = true; advance() }} />
         </div>
       )}
 

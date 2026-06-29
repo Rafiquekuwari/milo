@@ -377,28 +377,39 @@ function VesselArt({ station, val, symbolic, shown }: { station: Station; val: n
 // running-count pill under the vessel during the counted explanation.
 // The vessel art is designed at 188×210; `scale` blows the whole thing up uniformly
 // (vessel + items + numbers) so everything grows together. Button = scaled size.
+// `depth` (0 = near/front, 1 = far/back) shrinks the vessel a touch and lifts it back; a
+// soft CONTACT SHADOW on the counter's ground line below it (and the depth scatter) anchor
+// the vessel ON the counter instead of floating as a flat sticker. (Mirrors RainbowTown.)
 const DES_W = 188, DES_H = 210
-function Vessel({ station, val, symbolic, shown, left, top, glow, wrong, onTap, aria, scale = 1.6 }: {
+function Vessel({ station, val, symbolic, shown, left, top, glow, wrong, onTap, aria, scale = 1.6, depth = 0.3, groundLine }: {
   station: Station; val: number; symbolic: boolean; shown?: number; left: number; top: number
-  glow: boolean; wrong: boolean; onTap?: () => void; aria: string; scale?: number
+  glow: boolean; wrong: boolean; onTap?: () => void; aria: string; scale?: number; depth?: number; groundLine: number
 }) {
-  const W = DES_W * scale, H = DES_H * scale
+  const s = scale * (1 - depth * 0.18)   // farther vessels are a touch smaller
+  const W = DES_W * s, H = DES_H * s
+  const shW = W * 0.7
+  const shOp = Math.max(0.07, (0.3 - depth * 0.13) * (glow ? 0.5 : 1))
   return (
-    <button onClick={onTap} disabled={!onTap} aria-label={aria}
-      style={{ position: 'fixed', left: `${left}%`, top: `${top}%`, transform: 'translate(-50%,-50%)', zIndex: 30, width: W, height: H, padding: 0, border: 'none', background: 'transparent', cursor: onTap ? 'pointer' : 'default' }}>
-      <div style={{ width: '100%', height: '100%', position: 'relative',
-        animation: wrong ? 'mk_shake .42s ease' : glow ? 'mk_pop .45s ease' : 'mk_float 3.6s ease-in-out infinite',
-        filter: glow ? 'drop-shadow(0 0 22px var(--garden-green))' : 'drop-shadow(0 10px 12px rgba(0,0,0,.32))',
-        transition: 'filter .3s' }}>
-        {/* design box scaled up so all the px-based art grows uniformly */}
-        <div style={{ position: 'absolute', left: '50%', top: '50%', width: DES_W, height: DES_H, transform: `translate(-50%,-50%) scale(${scale})`, transformOrigin: 'center' }}>
-          <VesselArt station={station} val={val} symbolic={symbolic} shown={shown} />
+    <>
+      {/* Soft contact shadow on the counter's ground line — the main "it sits here" cue. */}
+      <div aria-hidden style={{ position: 'fixed', left: `${left}%`, top: `${groundLine}%`, transform: 'translate(-50%,-50%)', zIndex: 28,
+        width: shW, height: shW * 0.3, background: `radial-gradient(ellipse at center, rgba(38,28,18,${shOp}) 0%, rgba(38,28,18,0) 72%)`, pointerEvents: 'none' }} />
+      <button onClick={onTap} disabled={!onTap} aria-label={aria}
+        style={{ position: 'fixed', left: `${left}%`, top: `${top}%`, transform: 'translate(-50%,-50%)', zIndex: 30 + Math.round((1 - depth) * 6), width: W, height: H, padding: 0, border: 'none', background: 'transparent', cursor: onTap ? 'pointer' : 'default' }}>
+        <div style={{ width: '100%', height: '100%', position: 'relative',
+          animation: wrong ? 'mk_shake .42s ease' : glow ? 'mk_pop .45s ease' : 'mk_float 3.6s ease-in-out infinite',
+          filter: glow ? 'drop-shadow(0 0 22px var(--garden-green))' : 'drop-shadow(0 10px 12px rgba(0,0,0,.32))',
+          transition: 'filter .3s' }}>
+          {/* design box scaled up so all the px-based art grows uniformly */}
+          <div style={{ position: 'absolute', left: '50%', top: '50%', width: DES_W, height: DES_H, transform: `translate(-50%,-50%) scale(${s})`, transformOrigin: 'center' }}>
+            <VesselArt station={station} val={val} symbolic={symbolic} shown={shown} />
+          </div>
         </div>
-      </div>
-      {glow && (
-        <span style={{ position: 'absolute', top: 6 * scale, right: 10 * scale, width: 30 * scale, height: 30 * scale, borderRadius: '50%', background: 'var(--garden-green)', border: '3px solid #fff', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 * scale, fontWeight: 900, boxShadow: '0 3px 6px rgba(0,0,0,.3)', animation: 'mk_pop .4s ease' }}>✓</span>
-      )}
-    </button>
+        {glow && (
+          <span style={{ position: 'absolute', top: 6 * s, right: 10 * s, width: 30 * s, height: 30 * s, borderRadius: '50%', background: 'var(--garden-green)', border: '3px solid #fff', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 * s, fontWeight: 900, boxShadow: '0 3px 6px rgba(0,0,0,.3)', animation: 'mk_pop .4s ease' }}>✓</span>
+        )}
+      </button>
+    </>
   )
 }
 
@@ -433,6 +444,32 @@ function useVesselScale(n: number): number {
   return scale
 }
 
+// ─── Grounded, depth-aware placement ────────────────────────────────────────────────
+// Vessels used to sit in a flat, evenly-spaced row at ONE height (TOP=56) and ONE size — so
+// they read as stickers pasted over the kitchen. Now each gets a small DEPTH (0 = near/front,
+// 1 = far/back): farther vessels are a touch smaller and sit a little higher, and EVERY vessel
+// casts a soft contact SHADOW on the counter's ground line below it. The shadow + the depth
+// scatter break the row and anchor the vessels ON the counter. Tap targets stay big, never
+// overlap, and stay right of Milo's bottom-left sprite. (Mirrors RainbowTown's placeFor.)
+interface Placed { left: number; top: number; depth: number }
+// baseTop = centre Y% of the NEAREST vessel; rise = how much higher the farthest sits;
+// groundLine = where contact shadows fall (the counter under the vessels). Vessels are tall
+// (210 design-px), so baseTop stays modest and the shadow sits below their visual base.
+const VESSEL_GROUND = { baseTop: 56, rise: 6, groundLine: 86 }
+// A gentle, balanced depth scatter per vessel count (centre nearest) — never a flat line.
+const VESSEL_DEPTHS: Record<number, number[]> = { 2: [0.12, 0.55], 3: [0.5, 0.05, 0.65] }
+// Small deterministic x nudges so the columns aren't mechanically even.
+const VESSEL_XJIT: Record<number, number[]> = { 2: [-1.5, 1.5], 3: [-1.5, 0, 1.5] }
+// Per-vessel placement (left%, top%, depth). 2 vessels spread wide, 3 spread wider; both stay
+// right of Milo's bottom-left column. Always returns at least `n` entries.
+function placeVessels(n: number): Placed[] {
+  const g = VESSEL_GROUND
+  const xs = n === 2 ? [30, 73] : [21, 51, 81]
+  const depths = VESSEL_DEPTHS[n] ?? xs.map((_, i) => (i % 2 ? 0.5 : 0.15))
+  const jit = VESSEL_XJIT[n] ?? xs.map(() => 0)
+  return xs.map((x, i) => { const depth = depths[i] ?? 0.3; return { left: x + (jit[i] ?? 0), top: g.baseTop - depth * g.rise, depth } })
+}
+
 // ─── Round copy ────────────────────────────────────────────────────────────────────
 function promptFor(d: CompareData): string {
   const three = d.vals.length >= 3
@@ -458,8 +495,8 @@ type Mode = 'guided' | 'practice'
 const ComparePlay: React.FC<{ data: CompareData; mode: Mode; onComplete: (correct: boolean) => void }> = ({ data, mode, onComplete }) => {
   const { station, vals, answerIdx, symbolic } = data
   const n = vals.length
-  const xs = n === 2 ? [28, 72] : [19, 50, 81]
-  const TOP = 56
+  const slots = placeVessels(n)
+  const groundLine = VESSEL_GROUND.groundLine
   const scale = useVesselScale(n)
   const [picked, setPicked] = useState<number | null>(null)
   const [wrongIdx, setWrongIdx] = useState<number | null>(null)
@@ -499,7 +536,7 @@ const ComparePlay: React.FC<{ data: CompareData; mode: Mode; onComplete: (correc
       {vals.map((v, i) => {
         const glow = (reveal && i === answerIdx) || picked === i
         return <Vessel key={i} station={station} val={v} symbolic={symbolic} scale={scale}
-          left={xs[i]} top={TOP} glow={glow} wrong={wrongIdx === i}
+          left={slots[i].left} top={slots[i].top} depth={slots[i].depth} groundLine={groundLine} glow={glow} wrong={wrongIdx === i}
           onTap={() => tap(i)} aria={`choice ${v}`} />
       })}
     </>
@@ -514,8 +551,8 @@ const ComparePlay: React.FC<{ data: CompareData; mode: Mode; onComplete: (correc
 const CompareExplain: React.FC<{ data: CompareData; onDone: () => void }> = ({ data, onDone }) => {
   const { station, vals, answerIdx, mode } = data
   const n = vals.length
-  const xs = n === 2 ? [28, 72] : [19, 50, 81]
-  const TOP = 56
+  const slots = placeVessels(n)
+  const groundLine = VESSEL_GROUND.groundLine
   const scale = useVesselScale(n)
   const [shown, setShown] = useState<number[]>(() => vals.map(() => 0))
   const [reveal, setReveal] = useState(false)
@@ -552,12 +589,12 @@ const CompareExplain: React.FC<{ data: CompareData; onDone: () => void }> = ({ d
     <>
       {vals.map((v, i) => (
         <Vessel key={i} station={station} val={v} symbolic={false} shown={shown[i]} scale={scale}
-          left={xs[i]} top={TOP} glow={reveal && i === answerIdx} wrong={false}
+          left={slots[i].left} top={slots[i].top} depth={slots[i].depth} groundLine={groundLine} glow={reveal && i === answerIdx} wrong={false}
           aria={`example ${v}`} />
       ))}
       {/* big count numbers popping over each group as Milo counts it */}
       {vals.map((v, i) => shown[i] > 0
-        ? <CountNumber key={`n${i}`} value={shown[i]} cx={xs[i]} topPct={TOP} scale={scale} />
+        ? <CountNumber key={`n${i}`} value={shown[i]} cx={slots[i].left} topPct={slots[i].top} scale={scale} />
         : null)}
     </>
   )
@@ -624,7 +661,7 @@ const MK_CSS = `
 
 type Phase = 'intro' | 'demo' | 'guided' | 'practice'
 export default function Kitchen({ onFinish, onExit }: {
-  onFinish?: (correct: number, wrong: number) => void
+  onFinish?: (correct: number, wrong: number, mastered?: boolean) => void
   onExit?: () => void
 }) {
   const router = useRouter()
@@ -636,10 +673,10 @@ export default function Kitchen({ onFinish, onExit }: {
   const finished = useRef(false)
   const exit = useCallback(() => { stopSpeech(); (onExit ?? (() => router.push('/menu')))() }, [router, onExit])
 
-  const finishChapter = useCallback((c: number, w: number) => {
+  const finishChapter = useCallback((c: number, w: number, mastered?: boolean) => {
     if (finished.current) return; finished.current = true
     stopSpeech()
-    if (onFinish) onFinish(c, w); else exit()
+    if (onFinish) onFinish(c, w, mastered); else exit()
   }, [onFinish, exit])
 
   const interlude = useCallback(() => new Promise<void>(res => window.setTimeout(res, 850)), [])
@@ -687,7 +724,7 @@ export default function Kitchen({ onFinish, onExit }: {
           <div style={{ position: 'absolute', top: 48, left: 0, right: 0, zIndex: 45, display: 'flex', justifyContent: 'center', padding: '0 12px' }}>
             <SkillBeat beat={kitchenCompareBeat} onInterlude={interlude}
               onRound={(data) => { if (data?.station) { setStation(data.station); setFeast(f => [...f, STATION_FOOD[data.station as Station]]) } }}
-              onComplete={(c, w) => { result.current.correct += c; result.current.wrong += w; finishChapter(result.current.correct, result.current.wrong) }} />
+              onComplete={(c, w, mastered) => { result.current.correct += c; result.current.wrong += w; finishChapter(result.current.correct, result.current.wrong, mastered) }} />
           </div>
           {feast.length > 0 && (
             <div style={{ position: 'fixed', bottom: 10, left: 0, right: 0, zIndex: 45, display: 'flex', justifyContent: 'center' }}>

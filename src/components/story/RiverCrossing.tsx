@@ -84,6 +84,42 @@ function Background({ scenario }: { scenario: Scenario }) {
   )
 }
 
+// ─── Grounded, depth-aware placement cues ───────────────────────────────────────
+// These scenes are INTENTIONALLY composed: tapped items slide into a deliberate shape
+// (a stepping path, a mended bridge, a train line, fish reeled into a bucket) and the
+// untapped ones are meant to read as randomly STREWN across the water/scene (the
+// `scatter`/`seed` positions already give organic x/y variation). So — unlike a flat
+// even row of stickers — we do NOT restack them into a depth-staggered grid; that would
+// wreck the ordering mechanic and the path composition. Instead we add only the
+// grounding CUES that fit: a soft CONTACT SHADOW under every item so it sits IN the
+// world instead of floating flat, a touch of depth-based size falloff, and near-in-front
+// z-ordering. Top-down items (stones/planks, lit from above) get a tight shadow hugging
+// their base; side-view items (train cars, fish) get a wider ground/water shadow below.
+//
+// `depthFor(top%)` derives a 0..1 depth from an item's vertical position (lower on
+// screen = nearer = 0; higher = farther = 1), so scattered items naturally shrink a hair
+// and sit behind nearer ones — the same depth feel as RainbowTown, read from the layout
+// the game already produces rather than imposed on it.
+function depthFor(top: number): number {
+  return Math.max(0, Math.min(1, (90 - top) / 80))
+}
+// A soft contact-shadow ellipse, same recipe/colour as RainbowTown. `kind` tunes how the
+// shadow sits relative to the item: 'flat' hugs the base (top-down, light from above),
+// 'ground' drops it a touch lower & wider (side-view objects standing on a surface),
+// 'water' is a faint, broad blur under a swimming fish.
+function ContactShadow({ left, top, w, depth, kind = 'ground', lit = false }: { left: number; top: number; w: number; depth: number; kind?: 'flat' | 'ground' | 'water'; lit?: boolean }) {
+  const ar = kind === 'flat' ? 0.34 : kind === 'water' ? 0.3 : 0.3
+  const baseOp = kind === 'water' ? 0.16 : 0.24
+  const op = Math.max(0.05, (baseOp - depth * 0.12) * (lit ? 0.5 : 1))
+  const wMul = kind === 'flat' ? 0.62 : kind === 'water' ? 0.78 : 0.7
+  const shW = w * wMul
+  return (
+    <div aria-hidden style={{ position: 'fixed', left: `${left}%`, top: `${top}%`, transform: 'translate(-50%,-50%)', zIndex: 25,
+      width: shW, height: shW * ar, background: `radial-gradient(ellipse at center, rgba(38,28,18,${op}) 0%, rgba(38,28,18,0) 72%)`, pointerEvents: 'none',
+      transition: 'left .5s cubic-bezier(.34,1.3,.64,1), top .5s cubic-bezier(.34,1.3,.64,1)' }} />
+  )
+}
+
 // ─── Crossing geometry (top-down water) ────────────────────────────────────────
 const NEAR = { left: 50, top: 93 }   // Milo's start bank (bottom)
 const FAR = { left: 50, top: 7 }     // the far bank (top)
@@ -108,22 +144,29 @@ function MiloTop({ left, top, size = 148 }: { left: number; top: number; size?: 
   )
 }
 // One tappable ordering item — a STONE (River Crossing) or a PLANK (Mend the Bridge).
+// Depth is read from the item's screen position (lower = nearer = larger/in-front) so the
+// scattered stones gain a little near/far feel, and each casts a tight top-down contact
+// shadow on the water so it reads as sitting IN the river, not pasted over it.
 function OrderItem({ n, left, top, placed, wrong, onTap, size = 124, src = '/assets/objects/stone_top.png', aria = 'stone' }: { n: number; left: number; top: number; placed: boolean; wrong: boolean; onTap?: () => void; size?: number; src?: string; aria?: string }) {
   const [missing, setMissing] = useState(false)
-  const sz = size * useScale()
+  const depth = depthFor(top)
+  const sz = size * useScale() * (1 - depth * 0.16)
   return (
-    <button onClick={onTap} disabled={!onTap || placed} aria-label={`${aria} ${n}`}
-      style={{ position: 'fixed', left: `${left}%`, top: `${top}%`, transform: `translate(-50%,-50%) ${wrong ? 'rotate(-6deg)' : ''}`, zIndex: 30,
-        width: sz, height: sz, padding: 0, border: 'none', background: 'transparent', cursor: onTap && !placed ? 'pointer' : 'default',
-        transition: 'left .5s cubic-bezier(.34,1.3,.64,1), top .5s cubic-bezier(.34,1.3,.64,1), transform .15s' }}>
-      {missing
-        ? <div style={{ width: '100%', height: '100%', borderRadius: '46% 46% 50% 50% / 56% 56% 44% 44%', background: placed ? '#a6dd84' : (wrong ? '#f3b0a0' : '#cabda9'), border: `4px solid ${placed ? '#6fbe3f' : (wrong ? '#d9512f' : '#9c8f7a')}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: sz * 0.42, color: '#3d2516' }}>{n}</div>
-        : <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-            <img src={src} alt="" draggable={false} onError={() => setMissing(true)}
-              style={{ width: '100%', height: '100%', objectFit: 'contain', filter: placed ? 'drop-shadow(0 0 12px rgba(111,190,63,.7))' : 'drop-shadow(0 4px 5px rgba(0,0,0,.4))' }} />
-            <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: sz * 0.4, color: '#3d2516' }}>{n}</span>
-          </div>}
-    </button>
+    <>
+      <ContactShadow left={left} top={top + 1.4} w={sz} depth={depth} kind="flat" lit={placed} />
+      <button onClick={onTap} disabled={!onTap || placed} aria-label={`${aria} ${n}`}
+        style={{ position: 'fixed', left: `${left}%`, top: `${top}%`, transform: `translate(-50%,-50%) ${wrong ? 'rotate(-6deg)' : ''}`, zIndex: 30 + Math.round((1 - depth) * 6),
+          width: sz, height: sz, padding: 0, border: 'none', background: 'transparent', cursor: onTap && !placed ? 'pointer' : 'default',
+          transition: 'left .5s cubic-bezier(.34,1.3,.64,1), top .5s cubic-bezier(.34,1.3,.64,1), transform .15s' }}>
+        {missing
+          ? <div style={{ width: '100%', height: '100%', borderRadius: '46% 46% 50% 50% / 56% 56% 44% 44%', background: placed ? '#a6dd84' : (wrong ? '#f3b0a0' : '#cabda9'), border: `4px solid ${placed ? '#6fbe3f' : (wrong ? '#d9512f' : '#9c8f7a')}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: sz * 0.42, color: '#3d2516' }}>{n}</div>
+          : <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+              <img src={src} alt="" draggable={false} onError={() => setMissing(true)}
+                style={{ width: '100%', height: '100%', objectFit: 'contain', filter: placed ? 'drop-shadow(0 0 12px rgba(111,190,63,.7))' : 'drop-shadow(0 4px 5px rgba(0,0,0,.4))' }} />
+              <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: sz * 0.4, color: '#3d2516' }}>{n}</span>
+            </div>}
+      </button>
+    </>
   )
 }
 
@@ -230,16 +273,22 @@ function EngineSprite({ left }: { left: number }) {
 }
 function TrainCar({ n, left, top, placed, wrong, onTap }: { n: number; left: number; top: number; placed: boolean; wrong: boolean; onTap: () => void }) {
   const [m, setM] = useState(false)
-  const w = 190 * useScale(), h = w * 0.56
+  // Side-view: depth from the car's vertical position (scattered cars sit higher = farther),
+  // and a ground shadow on the surface right beneath its wheels so it stands on the ground.
+  const depth = depthFor(top)
+  const w = 190 * useScale() * (1 - depth * 0.14), h = w * 0.56
   return (
-    <button onClick={onTap} disabled={placed} aria-label={`car ${n}`}
-      style={{ position: 'fixed', left: `${left}%`, top: `${top}%`, transform: `translate(-50%,-90%) ${wrong ? 'rotate(-5deg)' : ''}`, zIndex: 30, width: w, height: h, padding: 0, border: 'none', background: 'transparent', cursor: placed ? 'default' : 'pointer', transition: 'left .55s cubic-bezier(.34,1.3,.64,1), top .55s cubic-bezier(.34,1.3,.64,1), transform .15s' }}>
-      {m ? <div style={{ width: '100%', height: '100%', borderRadius: 14, background: placed ? '#a6dd84' : '#4f9fd4', border: '4px solid #2e6e9e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: w * 0.3, color: '#fff' }}>{n}</div>
-        : <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-            <img src="/assets/objects/train_car.png" alt="" draggable={false} onError={() => setM(true)} style={{ width: '100%', height: '100%', objectFit: 'contain', filter: placed ? 'drop-shadow(0 0 10px rgba(111,190,63,.8))' : 'drop-shadow(0 3px 4px rgba(0,0,0,.35))' }} />
-            <span style={{ position: 'absolute', left: 0, right: 0, top: '28%', textAlign: 'center', fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: w * 0.26, color: '#15406b' }}>{n}</span>
-          </div>}
-    </button>
+    <>
+      <ContactShadow left={left} top={top + 0.6} w={w} depth={depth} kind="ground" lit={placed} />
+      <button onClick={onTap} disabled={placed} aria-label={`car ${n}`}
+        style={{ position: 'fixed', left: `${left}%`, top: `${top}%`, transform: `translate(-50%,-90%) ${wrong ? 'rotate(-5deg)' : ''}`, zIndex: 30 + Math.round((1 - depth) * 6), width: w, height: h, padding: 0, border: 'none', background: 'transparent', cursor: placed ? 'default' : 'pointer', transition: 'left .55s cubic-bezier(.34,1.3,.64,1), top .55s cubic-bezier(.34,1.3,.64,1), transform .15s' }}>
+        {m ? <div style={{ width: '100%', height: '100%', borderRadius: 14, background: placed ? '#a6dd84' : '#4f9fd4', border: '4px solid #2e6e9e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: w * 0.3, color: '#fff' }}>{n}</div>
+          : <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+              <img src="/assets/objects/train_car.png" alt="" draggable={false} onError={() => setM(true)} style={{ width: '100%', height: '100%', objectFit: 'contain', filter: placed ? 'drop-shadow(0 0 10px rgba(111,190,63,.8))' : 'drop-shadow(0 3px 4px rgba(0,0,0,.35))' }} />
+              <span style={{ position: 'absolute', left: 0, right: 0, top: '28%', textAlign: 'center', fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: w * 0.26, color: '#15406b' }}>{n}</span>
+            </div>}
+      </button>
+    </>
   )
 }
 const ENGINE_X = 86
@@ -273,13 +322,22 @@ function FishingMilo({ left, top }: { left: number; top: number }) {
   return <img src={m ? '/assets/characters/milo_idle.png' : '/assets/characters/milo_fishing.png'} alt="Milo" draggable={false} onError={() => setM(true)} style={{ position: 'fixed', left: `${left}%`, top: `${top}%`, transform: 'translate(-50%,-50%)', zIndex: 27, width: sz, height: sz, objectFit: 'contain', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,.3))' }} />
 }
 function Fish({ n, left, top, caught, wrong, onTap }: { n: number; left: number; top: number; caught: boolean; wrong: boolean; onTap: () => void }) {
-  const w = 100 * useScale()
+  // Depth from how deep the fish swims (lower in the water = nearer); a faint, broad water
+  // shadow drifts below it so it reads as swimming WITHIN the water, not stuck on the glass.
+  // The shadow fades with the fish as it's reeled into the bucket.
+  const depth = depthFor(top)
+  const w = 100 * useScale() * (1 - depth * 0.16)
   return (
-    <button onClick={onTap} disabled={caught} aria-label={`fish ${n}`}
-      style={{ position: 'fixed', left: `${left}%`, top: `${top}%`, transform: `translate(-50%,-50%) ${wrong ? 'rotate(-8deg)' : ''}`, zIndex: 30, width: w, height: w * 0.72, padding: 0, border: 'none', background: 'transparent', cursor: caught ? 'default' : 'pointer', opacity: caught ? 0 : 1, transition: 'left .5s cubic-bezier(.34,1.3,.64,1), top .5s cubic-bezier(.34,1.3,.64,1), opacity .45s, transform .15s' }}>
-      <img src="/assets/objects/fish.png" alt="" draggable={false} style={{ width: '100%', height: '100%', objectFit: 'contain', filter: 'drop-shadow(0 3px 4px rgba(0,0,0,.3))' }} />
-      <span style={{ position: 'absolute', top: '-8%', left: '50%', transform: 'translateX(-50%)', background: '#fff', border: '3px solid var(--milo-orange)', borderRadius: '50%', width: w * 0.4, height: w * 0.4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: w * 0.24, color: 'var(--milo-orange)' }}>{n}</span>
-    </button>
+    <>
+      <div style={{ opacity: caught ? 0 : 1, transition: 'opacity .45s' }}>
+        <ContactShadow left={left} top={top + 4.5} w={w} depth={depth} kind="water" />
+      </div>
+      <button onClick={onTap} disabled={caught} aria-label={`fish ${n}`}
+        style={{ position: 'fixed', left: `${left}%`, top: `${top}%`, transform: `translate(-50%,-50%) ${wrong ? 'rotate(-8deg)' : ''}`, zIndex: 30 + Math.round((1 - depth) * 6), width: w, height: w * 0.72, padding: 0, border: 'none', background: 'transparent', cursor: caught ? 'default' : 'pointer', opacity: caught ? 0 : 1, transition: 'left .5s cubic-bezier(.34,1.3,.64,1), top .5s cubic-bezier(.34,1.3,.64,1), opacity .45s, transform .15s' }}>
+        <img src="/assets/objects/fish.png" alt="" draggable={false} style={{ width: '100%', height: '100%', objectFit: 'contain', filter: 'drop-shadow(0 3px 4px rgba(0,0,0,.3))' }} />
+        <span style={{ position: 'absolute', top: '-8%', left: '50%', transform: 'translateX(-50%)', background: '#fff', border: '3px solid var(--milo-orange)', borderRadius: '50%', width: w * 0.4, height: w * 0.4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: w * 0.24, color: 'var(--milo-orange)' }}>{n}</span>
+      </button>
+    </>
   )
 }
 const FishingPlay: React.FC<{ nums: number[]; onSubmit: (c: boolean) => void }> = ({ nums, onSubmit }) => {
@@ -332,7 +390,7 @@ export const riverOrderBeat: Beat<OrderData> = {
 
 // ─── Orchestrator ──────────────────────────────────────────────────────────────
 export default function RiverCrossing({ onFinish, onExit }: {
-  onFinish?: (correct: number, wrong: number) => void
+  onFinish?: (correct: number, wrong: number, mastered?: boolean) => void
   onExit?: () => void
 }) {
   const router = useRouter()
@@ -341,10 +399,10 @@ export default function RiverCrossing({ onFinish, onExit }: {
   const finished = useRef(false)
   const exit = useCallback(() => { stopSpeech(); (onExit ?? (() => router.push('/menu')))() }, [router, onExit])
 
-  const finishChapter = useCallback((c: number, w: number) => {
+  const finishChapter = useCallback((c: number, w: number, mastered?: boolean) => {
     if (finished.current) return; finished.current = true
     stopSpeech()
-    if (onFinish) onFinish(c, w); else exit()
+    if (onFinish) onFinish(c, w, mastered); else exit()
   }, [onFinish, exit])
 
   // Brief pause when a new mini-game begins (the bg cross-fades, Milo announces it).
@@ -363,7 +421,7 @@ export default function RiverCrossing({ onFinish, onExit }: {
       <div style={{ position: 'absolute', top: 48, left: 0, right: 0, zIndex: 45, display: 'flex', justifyContent: 'center', padding: '0 12px' }}>
         <SkillBeat beat={riverOrderBeat} onInterlude={interlude}
           onRound={(data) => { if (data?.scenario) setScenario(data.scenario) }}
-          onComplete={(c, w) => { result.current.correct += c; result.current.wrong += w; finishChapter(result.current.correct, result.current.wrong) }} />
+          onComplete={(c, w, mastered) => { result.current.correct += c; result.current.wrong += w; finishChapter(result.current.correct, result.current.wrong, mastered) }} />
       </div>
     </div>
   )

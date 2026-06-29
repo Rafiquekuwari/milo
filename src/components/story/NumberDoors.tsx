@@ -171,29 +171,37 @@ function PaintedDoor({ scene, scale, onError }: { scene: Scene; scale: number; o
   )
 }
 
-function Door({ scene, num, state, scale, left, top, onTap, aria }: {
+function Door({ scene, num, state, scale, left, top, depth = 0.3, groundLine, onTap, aria }: {
   scene: Scene; num: number; state: DoorState; scale: number
-  left: number; top: number; onTap?: () => void; aria: string
+  left: number; top: number; depth?: number; groundLine: number; onTap?: () => void; aria: string
 }) {
   const [imgOk, setImgOk] = useState(true)
-  const W = DOOR_W * scale, H = DOOR_H * scale
+  const dscale = scale * (1 - depth * 0.22)   // farther doors are a touch smaller
+  const W = DOOR_W * dscale, H = DOOR_H * dscale
   const lit = state === 'glow' || state === 'open'
+  const shW = W * 0.74
+  const shOp = Math.max(0.06, (0.26 - depth * 0.13) * (lit ? 0.5 : 1))
   return (
-    <button onClick={onTap} disabled={!onTap} aria-label={aria}
-      style={{ position: 'fixed', left: `${left}%`, top: `${top}%`, transform: 'translate(-50%,-50%)', zIndex: 30, width: W, height: H, padding: 0, border: 'none', background: 'transparent', cursor: onTap ? 'pointer' : 'default' }}>
-      {/* the door's NUMBER floats on a little sign ABOVE the door (read it, match the sound) */}
-      <div style={{ position: 'absolute', left: 0, right: 0, top: '-16%', display: 'flex', justifyContent: 'center', zIndex: 7, pointerEvents: 'none' }}>
-        <span style={{ background: 'var(--paper)', border: `${3 * scale}px solid var(--milo-orange)`, borderRadius: 999, padding: `0 ${14 * scale}px`, fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 48 * scale, color: 'var(--ink)', lineHeight: 1.3, boxShadow: `0 ${3 * scale}px 0 rgba(242,107,44,.3)` }}>{num}</span>
-      </div>
-      {/* the door — painted sprite, or the code-drawn fallback if the PNG is missing */}
-      <div style={{ position: 'absolute', inset: 0,
-        animation: state === 'wrong' ? 'nd_shake .42s ease' : lit ? 'nd_pop .45s ease' : 'none',
-        filter: lit ? 'drop-shadow(0 0 18px var(--garden-green)) drop-shadow(0 0 12px var(--garden-green))' : 'drop-shadow(0 8px 10px rgba(0,0,0,.28))' }}>
-        {imgOk
-          ? <PaintedDoor scene={scene} scale={scale} onError={() => setImgOk(false)} />
-          : <DoorFace scene={scene} scale={scale} />}
-      </div>
-    </button>
+    <>
+      {/* Soft contact shadow on the scene's ground line — the main "it stands here" cue. */}
+      <div aria-hidden style={{ position: 'fixed', left: `${left}%`, top: `${groundLine}%`, transform: 'translate(-50%,-50%)', zIndex: 28,
+        width: shW, height: shW * 0.3, background: `radial-gradient(ellipse at center, rgba(38,28,18,${shOp}) 0%, rgba(38,28,18,0) 72%)`, pointerEvents: 'none' }} />
+      <button onClick={onTap} disabled={!onTap} aria-label={aria}
+        style={{ position: 'fixed', left: `${left}%`, top: `${top}%`, transform: 'translate(-50%,-50%)', zIndex: 30 + Math.round((1 - depth) * 6), width: W, height: H, padding: 0, border: 'none', background: 'transparent', cursor: onTap ? 'pointer' : 'default' }}>
+        {/* the door's NUMBER floats on a little sign ABOVE the door (read it, match the sound) */}
+        <div style={{ position: 'absolute', left: 0, right: 0, top: '-16%', display: 'flex', justifyContent: 'center', zIndex: 7, pointerEvents: 'none' }}>
+          <span style={{ background: 'var(--paper)', border: `${3 * dscale}px solid var(--milo-orange)`, borderRadius: 999, padding: `0 ${14 * dscale}px`, fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 48 * dscale, color: 'var(--ink)', lineHeight: 1.3, boxShadow: `0 ${3 * dscale}px 0 rgba(242,107,44,.3)` }}>{num}</span>
+        </div>
+        {/* the door — painted sprite, or the code-drawn fallback if the PNG is missing */}
+        <div style={{ position: 'absolute', inset: 0,
+          animation: state === 'wrong' ? 'nd_shake .42s ease' : lit ? 'nd_pop .45s ease' : 'none',
+          filter: lit ? 'drop-shadow(0 0 18px var(--garden-green)) drop-shadow(0 0 12px var(--garden-green))' : 'drop-shadow(0 8px 10px rgba(0,0,0,.28))' }}>
+          {imgOk
+            ? <PaintedDoor scene={scene} scale={dscale} onError={() => setImgOk(false)} />
+            : <DoorFace scene={scene} scale={dscale} />}
+        </div>
+      </button>
+    </>
   )
 }
 
@@ -215,8 +223,41 @@ function useDoorScale(n: number): number {
   return scale
 }
 
-const XS: Record<number, number[]> = { 2: [31, 69], 3: [22, 50, 78], 4: [15, 38, 62, 85] }
-const TOP = 56
+// ─── Grounded, depth-aware placement ────────────────────────────────────────────────
+// Doors used to sit in a flat, evenly-spaced row at ONE height (TOP) and ONE size — so they
+// read as stickers pasted over the scene. Now each door gets a small DEPTH (0 = near/front,
+// 1 = far/back): farther doors are a touch smaller and stand a little higher (further down the
+// street), and EVERY door casts a soft contact SHADOW on the scene's ground line at its base.
+// The shadow + the depth scatter break the row and stand the doors in the world. Tap targets
+// stay big, non-overlapping, and clear of Milo's bottom-left sprite.
+interface Placed { left: number; top: number; depth: number }
+// Per-scene ground tuning. baseTop = centre Y% of the NEAREST door; rise = how much higher the
+// farthest stands; groundLine = where the contact shadow falls (just below each door's base).
+// Doors are tall objects, so the shadow sits well below their centre.
+const SCENE_GROUND: Record<Scene, { baseTop: number; rise: number; groundLine: number }> = {
+  houses:    { baseTop: 56, rise: 8, groundLine: 84 },
+  mailboxes: { baseTop: 57, rise: 8, groundLine: 85 },
+  lockers:   { baseTop: 56, rise: 7, groundLine: 84 },
+  shops:     { baseTop: 56, rise: 8, groundLine: 84 },
+}
+// A gentle, balanced depth scatter per door count (centre nearest) — never a flat line.
+const DEPTHS: Record<number, number[]> = { 2: [0.12, 0.55], 3: [0.5, 0.05, 0.65], 4: [0.6, 0.18, 0.4, 0.78] }
+// Small deterministic x nudges so the columns aren't mechanically even.
+const XJIT: Record<number, number[]> = { 2: [-1.5, 1.5], 3: [-1.5, 1, -1], 4: [-1.5, 1, -1, 1.5] }
+
+// Per-door placement (left%, top%, depth). Doors spread across but stay right of Milo's
+// bottom-left column so a near (lower) door never collides with him. Always returns at least
+// `n` entries so a lookup can never be undefined.
+function placeFor(n: number, scene: Scene): Placed[] {
+  const g = SCENE_GROUND[scene]
+  const xs = n <= 2 ? [33, 70]
+    : n === 3 ? [26, 52, 80]
+    : n === 4 ? [20, 42, 64, 87]
+    : Array.from({ length: n }, (_, i) => 22 + (i * 66) / (n - 1))
+  const depths = DEPTHS[n] ?? xs.map((_, i) => (i % 2 ? 0.55 : 0.2))
+  const jit = XJIT[n] ?? xs.map(() => 0)
+  return xs.map((x, i) => { const depth = depths[i] ?? 0.3; return { left: x + (jit[i] ?? 0), top: g.baseTop - depth * g.rise, depth } })
+}
 
 // ─── Round copy ──────────────────────────────────────────────────────────────────
 // prompt is SHOWN (must NOT reveal the number — recognition is by ear); say is HEARD.
@@ -232,7 +273,8 @@ const DoorsPlay: React.FC<{ data: DoorRound; mode: Mode; onComplete: (correct: b
   const { scene, doors, answerIdx } = data
   const target = doors[answerIdx]
   const n = doors.length
-  const xs = XS[n] ?? XS[2]
+  const slots = placeFor(n, scene)
+  const groundLine = SCENE_GROUND[scene].groundLine
   const scale = useDoorScale(n)
   const [openIdx, setOpenIdx] = useState<number | null>(null)
   const [wrongIdx, setWrongIdx] = useState<number | null>(null)
@@ -271,7 +313,7 @@ const DoorsPlay: React.FC<{ data: DoorRound; mode: Mode; onComplete: (correct: b
       {doors.map((num, i) => {
         const state: DoorState = openIdx === i ? 'open' : wrongIdx === i ? 'wrong' : 'idle'
         return <Door key={i} scene={scene} num={num} state={state} scale={scale}
-          left={xs[i]} top={TOP} onTap={() => tap(i)} aria={`door ${num}`} />
+          left={slots[i].left} top={slots[i].top} depth={slots[i].depth} groundLine={groundLine} onTap={() => tap(i)} aria={`door ${num}`} />
       })}
     </>
   )
@@ -284,7 +326,8 @@ const DoorsExplain: React.FC<{ data: DoorRound; onDone: () => void }> = ({ data,
   const { scene, doors, answerIdx } = data
   const target = doors[answerIdx]
   const n = doors.length
-  const xs = XS[n] ?? XS[2]
+  const slots = placeFor(n, scene)
+  const groundLine = SCENE_GROUND[scene].groundLine
   const scale = useDoorScale(n)
   const [glow, setGlow] = useState(false)
   const ran = useRef(false)
@@ -309,7 +352,7 @@ const DoorsExplain: React.FC<{ data: DoorRound; onDone: () => void }> = ({ data,
     <>
       {doors.map((num, i) => (
         <Door key={i} scene={scene} num={num} state={i === answerIdx && glow ? 'glow' : 'idle'} scale={scale}
-          left={xs[i]} top={TOP} aria={`example ${num}`} />
+          left={slots[i].left} top={slots[i].top} depth={slots[i].depth} groundLine={groundLine} aria={`example ${num}`} />
       ))}
     </>
   )
@@ -362,7 +405,7 @@ const ND_CSS = `
 
 type Phase = 'intro' | 'demo' | 'guided' | 'practice'
 export default function NumberDoors({ onFinish, onExit }: {
-  onFinish?: (correct: number, wrong: number) => void
+  onFinish?: (correct: number, wrong: number, mastered?: boolean) => void
   onExit?: () => void
 }) {
   const router = useRouter()
@@ -373,10 +416,10 @@ export default function NumberDoors({ onFinish, onExit }: {
   const finished = useRef(false)
   const exit = useCallback(() => { stopSpeech(); (onExit ?? (() => router.push('/menu')))() }, [router, onExit])
 
-  const finishChapter = useCallback((c: number, w: number) => {
+  const finishChapter = useCallback((c: number, w: number, mastered?: boolean) => {
     if (finished.current) return; finished.current = true
     stopSpeech()
-    if (onFinish) onFinish(c, w); else exit()
+    if (onFinish) onFinish(c, w, mastered); else exit()
   }, [onFinish, exit])
 
   const interlude = useCallback(() => new Promise<void>(res => window.setTimeout(res, 850)), [])
@@ -423,7 +466,7 @@ export default function NumberDoors({ onFinish, onExit }: {
         <div style={{ position: 'absolute', top: 48, left: 0, right: 0, zIndex: 45, display: 'flex', justifyContent: 'center', padding: '0 12px' }}>
           <SkillBeat beat={doorsRecognizeBeat} onInterlude={interlude}
             onRound={(data) => { if (data?.scene) setScene(data.scene as Scene) }}
-            onComplete={(c, w) => { result.current.correct += c; result.current.wrong += w; finishChapter(result.current.correct, result.current.wrong) }} />
+            onComplete={(c, w, mastered) => { result.current.correct += c; result.current.wrong += w; finishChapter(result.current.correct, result.current.wrong, mastered) }} />
         </div>
       )}
 

@@ -204,32 +204,36 @@ function ObjectSVG({ scene, color, size }: { scene: Scene; color: ColorName; siz
 const THING = 112
 type ThingState = 'idle' | 'glow' | 'wrong' | 'picked'
 
-function ColorThing({ scene, color, state, scale, left, top, onTap, aria }: {
+function ColorThing({ scene, color, state, scale, left, top, depth = 0.3, groundLine, onTap, aria }: {
   scene: Scene; color: ColorName; state: ThingState; scale: number
-  left: number; top: number; onTap?: () => void; aria: string
+  left: number; top: number; depth?: number; groundLine: number; onTap?: () => void; aria: string
 }) {
-  const box = THING * scale
+  const box = THING * scale * (1 - depth * 0.22)   // farther objects are a touch smaller
   const lit = state === 'glow' || state === 'picked'
+  const shW = box * 0.6
+  const shOp = Math.max(0.06, (0.26 - depth * 0.13) * (lit ? 0.5 : 1))
   return (
-    <button onClick={onTap} disabled={!onTap} aria-label={aria}
-      style={{ position: 'fixed', left: `${left}%`, top: `${top}%`, transform: 'translate(-50%,-50%)', zIndex: 30, width: box, height: box, padding: 0, border: 'none', background: 'transparent', cursor: onTap ? 'pointer' : 'default' }}>
-      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        animation: state === 'wrong' ? 'rt_shake .42s ease' : lit ? 'rt_pop .45s ease' : 'rt_sway 4s ease-in-out infinite',
-        filter: lit ? 'drop-shadow(0 0 16px var(--garden-green)) drop-shadow(0 0 10px var(--garden-green))' : 'drop-shadow(0 6px 8px rgba(0,0,0,.22))' }}>
-        <ObjectSVG scene={scene} color={color} size={box} />
-      </div>
-    </button>
+    <>
+      {/* Soft contact shadow on the scene's ground line — the main "it belongs here" cue. */}
+      <div aria-hidden style={{ position: 'fixed', left: `${left}%`, top: `${groundLine}%`, transform: 'translate(-50%,-50%)', zIndex: 28,
+        width: shW, height: shW * 0.32, background: `radial-gradient(ellipse at center, rgba(38,28,18,${shOp}) 0%, rgba(38,28,18,0) 72%)`, pointerEvents: 'none' }} />
+      <button onClick={onTap} disabled={!onTap} aria-label={aria}
+        style={{ position: 'fixed', left: `${left}%`, top: `${top}%`, transform: 'translate(-50%,-50%)', zIndex: 30 + Math.round((1 - depth) * 6), width: box, height: box, padding: 0, border: 'none', background: 'transparent', cursor: onTap ? 'pointer' : 'default' }}>
+        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          animation: state === 'wrong' ? 'rt_shake .42s ease' : lit ? 'rt_pop .45s ease' : 'rt_sway 4s ease-in-out infinite',
+          filter: lit ? 'drop-shadow(0 0 16px var(--garden-green)) drop-shadow(0 0 10px var(--garden-green))' : 'drop-shadow(0 5px 6px rgba(0,0,0,.16))' }}>
+          <ObjectSVG scene={scene} color={color} size={box} />
+        </div>
+      </button>
+    </>
   )
 }
 
-// Objects sit at the same height as the Shape Town siblings (each is a self-contained sprite,
-// no decoration band below, so TOP can match ShapeTown's 50).
-const TOP = 50
-// How big to draw the objects — as large as fits given the count and viewport, but CAPPED three
-// ways: (a) a huge sprite on a wide screen reads as oversized/crowded (see feedback-viewport-
-// scaling); (b) narrow phones shrink them to fit — the per-object width fraction is already under
-// the column spacing, so they never overlap each other; (c) on short / tablet-landscape viewports
-// the object is kept ABOVE Milo's bottom-left sprite so they never collide. One row only (max 4).
+// Base footprint top, used only by the scale clamp below (keep objects clear of Milo).
+const THING_BASE_TOP = 50
+// How big to draw the objects — as large as fits given the count and viewport, CAPPED so a
+// huge sprite never reads as oversized/crowded, narrow phones shrink to fit, and short
+// viewports keep the object clear of Milo's bottom-left sprite.
 function useThingScale(n: number, scene: Scene): number {
   const [scale, setScale] = useState(1.3)
   useEffect(() => {
@@ -238,12 +242,9 @@ function useThingScale(n: number, scene: Scene): number {
       const byWidth = w * (n <= 2 ? 0.28 : n === 3 ? 0.22 : 0.175)        // horizontal room per object
       const byHeight = h * 0.42                                           // vertical room (square box)
       const s = Math.min(byWidth, byHeight, THING * 1.5) / THING
-      // Cars sit on the road grouped to Milo's RIGHT, so they're cleared horizontally and don't
-      // need the "stay above Milo" clamp the floating objects use.
       if (scene === 'cars') { setScale(Math.max(0.62, s)); return }
-      // Keep the box bottom above Milo (anchored bottom-left, height min(36vh, 320)).
       const miloTop = h - Math.min(0.36 * h, 320)
-      const clearScale = ((miloTop - (TOP / 100) * h) * 2) / THING
+      const clearScale = ((miloTop - (THING_BASE_TOP / 100) * h) * 2) / THING
       setScale(Math.max(0.62, Math.min(s, clearScale)))
     }
     calc()
@@ -253,22 +254,37 @@ function useThingScale(n: number, scene: Scene): number {
   return scale
 }
 
-// Cars sit LOWER — on the road — instead of floating at house level like the balloons. They're
-// also grouped to Milo's right so the row never collides with his bottom-left sprite (the road
-// is at Milo's level, so we clear him horizontally rather than vertically).
-const CAR_TOP = 64
+// ─── Grounded, depth-aware placement ────────────────────────────────────────────────
+// Objects used to sit in a flat, evenly-spaced row at ONE height and ONE size — so they read
+// as stickers pasted over the scene. Now each gets a small DEPTH (0 = near/front, 1 = far/back):
+// farther objects are a touch smaller and sit a little higher, and EVERY object casts a soft
+// contact SHADOW on the scene's ground line below it. The shadow + the depth scatter break the
+// row and anchor the objects in the world. Tap targets stay big and never overlap.
+interface Placed { left: number; top: number; depth: number }
+// Per-scene ground tuning. baseTop = centre Y% of the NEAREST object; rise = how much higher the
+// farthest sits; groundLine = where contact shadows fall (balloons hover well above theirs,
+// flowers/cars sit just above theirs).
+const SCENE_GROUND: Record<Scene, { baseTop: number; rise: number; groundLine: number }> = {
+  balloons: { baseTop: 44, rise: 10, groundLine: 82 },
+  cars:     { baseTop: 64, rise: 7,  groundLine: 75 },
+  flowers:  { baseTop: 60, rise: 8,  groundLine: 73 },
+}
+// A gentle, balanced depth scatter per object count (centre nearest) — never a flat line.
+const DEPTHS: Record<number, number[]> = { 1: [0.25], 2: [0.15, 0.6], 3: [0.5, 0.05, 0.7], 4: [0.7, 0.2, 0.45, 0.85] }
+// Small deterministic x nudges so the columns aren't mechanically even.
+const XJIT: Record<number, number[]> = { 1: [0], 2: [-2, 2], 3: [-1.5, 1.5, -1], 4: [-2, 1, -1.5, 2] }
 
-// Slot positions (left%, top%) — a single centred row. Always returns at least `n` slots
-// (evenly spread for any unexpected count) so a slot lookup can never be undefined.
-function layoutFor(n: number, scene: Scene): { left: number; top: number }[] {
-  if (scene === 'cars') {
-    const xs = n <= 2 ? [44, 75] : n === 3 ? [33, 57, 81] : n === 4 ? [28, 49, 70, 91]
-      : Array.from({ length: n }, (_, i) => 28 + (i * 63) / (n - 1))
-    return xs.map(left => ({ left, top: CAR_TOP }))
-  }
-  const xs = n <= 2 ? [33, 67] : n === 3 ? [24, 50, 76] : n === 4 ? [15, 38, 62, 85]
-    : Array.from({ length: n }, (_, i) => 12 + (i * 76) / (n - 1))
-  return xs.map(left => ({ left, top: TOP }))
+// Per-object placement (left%, top%, depth). Cars group to Milo's right (the road); the others
+// spread across but stay right of Milo's bottom-left column so a low object never collides.
+// Always returns at least `n` entries so a lookup can never be undefined.
+function placeFor(n: number, scene: Scene): Placed[] {
+  const g = SCENE_GROUND[scene]
+  const xs = scene === 'cars'
+    ? (n <= 2 ? [46, 76] : n === 3 ? [34, 58, 82] : n === 4 ? [30, 50, 70, 90] : Array.from({ length: n }, (_, i) => 30 + (i * 60) / (n - 1)))
+    : (n <= 2 ? [36, 68] : n === 3 ? [30, 54, 80] : n === 4 ? [24, 45, 65, 86] : Array.from({ length: n }, (_, i) => 22 + (i * 66) / (n - 1)))
+  const depths = DEPTHS[n] ?? xs.map((_, i) => (i % 2 ? 0.55 : 0.2))
+  const jit = XJIT[n] ?? xs.map(() => 0)
+  return xs.map((x, i) => { const depth = depths[i] ?? 0.3; return { left: x + (jit[i] ?? 0), top: g.baseTop - depth * g.rise, depth } })
 }
 
 // ─── Round copy ──────────────────────────────────────────────────────────────────
@@ -287,7 +303,8 @@ const ColorsPlay: React.FC<{ data: ColorRound; mode: Mode; onComplete: (correct:
   const { scene, options, answerIdx } = data
   const { label, noun } = targetOf(data)
   const n = options.length
-  const slots = layoutFor(n, scene)
+  const slots = placeFor(n, scene)
+  const groundLine = SCENE_GROUND[scene].groundLine
   const scale = useThingScale(n, scene)
   const [pickedIdx, setPickedIdx] = useState<number | null>(null)
   const [wrongIdx, setWrongIdx] = useState<number | null>(null)
@@ -326,7 +343,7 @@ const ColorsPlay: React.FC<{ data: ColorRound; mode: Mode; onComplete: (correct:
       {options.map((color, i) => {
         const state: ThingState = pickedIdx === i ? 'picked' : wrongIdx === i ? 'wrong' : 'idle'
         return <ColorThing key={i} scene={scene} color={color} state={state} scale={scale}
-          left={slots[i].left} top={slots[i].top} onTap={() => tap(i)} aria={`${COLORS[color].label} ${SCENE_NOUN[scene]}`} />
+          left={slots[i].left} top={slots[i].top} depth={slots[i].depth} groundLine={groundLine} onTap={() => tap(i)} aria={`${COLORS[color].label} ${SCENE_NOUN[scene]}`} />
       })}
     </>
   )
@@ -339,7 +356,8 @@ const ColorsExplain: React.FC<{ data: ColorRound; onDone: () => void }> = ({ dat
   const { scene, options, answerIdx } = data
   const { label, noun } = targetOf(data)
   const n = options.length
-  const slots = layoutFor(n, scene)
+  const slots = placeFor(n, scene)
+  const groundLine = SCENE_GROUND[scene].groundLine
   const scale = useThingScale(n, scene)
   const [glow, setGlow] = useState(false)
   const ran = useRef(false)
@@ -361,7 +379,7 @@ const ColorsExplain: React.FC<{ data: ColorRound; onDone: () => void }> = ({ dat
     <>
       {options.map((color, i) => (
         <ColorThing key={i} scene={scene} color={color} state={i === answerIdx && glow ? 'glow' : 'idle'} scale={scale}
-          left={slots[i].left} top={slots[i].top} aria={`example ${COLORS[color].label} ${SCENE_NOUN[scene]}`} />
+          left={slots[i].left} top={slots[i].top} depth={slots[i].depth} groundLine={groundLine} aria={`example ${COLORS[color].label} ${SCENE_NOUN[scene]}`} />
       ))}
     </>
   )
@@ -471,7 +489,7 @@ const RT_CSS = `
 
 type Phase = 'intro' | 'showcase' | 'demo' | 'guided' | 'practice'
 export default function RainbowTown({ onFinish, onExit }: {
-  onFinish?: (correct: number, wrong: number) => void
+  onFinish?: (correct: number, wrong: number, mastered?: boolean) => void
   onExit?: () => void
 }) {
   const router = useRouter()
@@ -482,10 +500,10 @@ export default function RainbowTown({ onFinish, onExit }: {
   const finished = useRef(false)
   const exit = useCallback(() => { stopSpeech(); (onExit ?? (() => router.push('/menu')))() }, [router, onExit])
 
-  const finishChapter = useCallback((c: number, w: number) => {
+  const finishChapter = useCallback((c: number, w: number, mastered?: boolean) => {
     if (finished.current) return; finished.current = true
     stopSpeech()
-    if (onFinish) onFinish(c, w); else exit()
+    if (onFinish) onFinish(c, w, mastered); else exit()
   }, [onFinish, exit])
 
   const interlude = useCallback(() => new Promise<void>(res => window.setTimeout(res, 850)), [])
@@ -535,7 +553,7 @@ export default function RainbowTown({ onFinish, onExit }: {
         <div style={{ position: 'absolute', top: 48, left: 0, right: 0, zIndex: 45, display: 'flex', justifyContent: 'center', padding: '0 12px' }}>
           <SkillBeat beat={rainbowTownBeat} onInterlude={interlude}
             onRound={(data) => { if (data?.scene) setScene(data.scene as Scene) }}
-            onComplete={(c, w) => { result.current.correct += c; result.current.wrong += w; finishChapter(result.current.correct, result.current.wrong) }} />
+            onComplete={(c, w, mastered) => { result.current.correct += c; result.current.wrong += w; finishChapter(result.current.correct, result.current.wrong, mastered) }} />
         </div>
       )}
 

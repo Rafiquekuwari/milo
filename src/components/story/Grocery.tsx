@@ -106,6 +106,36 @@ function Item({ cfg, size }: { cfg: StallCfg; size: string }) {
     style={{ width: size, height: size, objectFit: 'contain', filter: 'drop-shadow(0 2px 3px rgba(0,0,0,.2))' }} />
 }
 
+// ─── A shelf item, GROUNDED on the wooden ledge ─────────────────────────────────────
+// The shelf is intrinsically a LINE of items resting on a ledge, so we don't scatter them
+// into RainbowTown's depth field (that would break the "sitting on a shelf" reading).
+// Instead we add the grounding CUES that fit a shelf: each item sits in a column with a soft
+// contact-shadow ellipse pooled on the ledge directly below it, a touch of depth (every other
+// item set a hair back — slightly smaller + raised, dimmer shadow, lower z) and a small organic
+// vertical/horizontal jitter, so the row reads as real goods placed on wood rather than a
+// mechanically even strip of stickers. `i` drives the deterministic per-item variation.
+function ShelfItem({ cfg, size, i, onPick }: { cfg: StallCfg; size: string; i: number; onPick?: () => void }) {
+  const back = i % 2 === 1                                   // alternate items sit slightly farther back
+  const depth = back ? 0.5 : 0.12
+  const lift = back ? 0.5 : 0                                // vmin the back row floats up off the ledge
+  const jx = [-1.4, 1.1, -0.6, 1.6, -1.1, 0.7][i % 6]       // gentle horizontal nudge (px-ish via translate)
+  const shOp = 0.24 - depth * 0.12                           // farther → fainter contact pool
+  const shW = `calc(${size} * 0.66)`
+  const inner = (
+    <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center',
+      transform: `translate(${jx}px, ${-lift}vmin) scale(${1 - depth * 0.14})`,
+      zIndex: back ? 1 : 2, transformOrigin: 'bottom center' }}>
+      <Item cfg={cfg} size={size} />
+      {/* contact shadow pooled on the ledge directly beneath the item */}
+      <div aria-hidden style={{ width: shW, height: `calc(${shW} * 0.3)`, marginTop: '0.4vmin',
+        background: `radial-gradient(ellipse at center, rgba(38,28,18,${shOp.toFixed(2)}) 0%, rgba(38,28,18,0) 72%)`, pointerEvents: 'none' }} />
+    </div>
+  )
+  return onPick
+    ? <button onClick={onPick} aria-label={`take ${cfg.noun}`} style={bareBtn}>{inner}</button>
+    : <span style={{ lineHeight: 0 }}>{inner}</span>
+}
+
 // ─── The bag/box the order fills into. NO running count shown — the child must count for
 // themselves (the live tally was a crutch); they just see the items they've gathered. ───
 function Bag({ cfg, picked }: { cfg: StallCfg; picked: number }) {
@@ -145,22 +175,39 @@ function Stage({ cfg, target, shelf, picked, glow, shake, onPick }: {
   const itemSize = 'clamp(42px, 7vmin, 82px)'
   return (
     <>
-      {/* shelf of items to pick from */}
-      <div style={{ position: 'fixed', left: 0, right: 0, top: '40%', transform: 'translateY(-50%)', zIndex: 30, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.2vh' }}>
+      {/* shelf of items to pick from — items sit IN a row on the ledge, each grounded by its
+          own contact shadow + a touch of depth so it reads as goods on wood, not a flat strip.
+          alignItems:flex-end keeps every item's base on the same shelf line (the shadows pool
+          just above the ledge), while ShelfItem adds the per-item depth/lift/jitter. */}
+      <div style={{ position: 'fixed', left: 0, right: 0, top: '40%', transform: 'translateY(-50%)', zIndex: 30, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4vh' }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.6vmin', justifyContent: 'center', alignItems: 'flex-end', maxWidth: '74vw', minHeight: '13vh' }}>
-          {Array.from({ length: remaining }).map((_, i) => onPick
-            ? <button key={i} onClick={onPick} aria-label={`take ${cfg.noun}`} style={bareBtn}><Item cfg={cfg} size={itemSize} /></button>
-            : <span key={i} style={{ lineHeight: 0 }}><Item cfg={cfg} size={itemSize} /></span>)}
+          {Array.from({ length: remaining }).map((_, i) => (
+            <ShelfItem key={i} cfg={cfg} size={itemSize} i={i} onPick={onPick} />
+          ))}
         </div>
         {/* wooden shelf ledge */}
         <div style={{ width: '76vw', maxWidth: 780, height: '2.4vh', minHeight: 14, background: 'linear-gradient(#caa46a,#a07a44)', borderRadius: 6, boxShadow: '0 5px 9px rgba(0,0,0,.28)' }} />
       </div>
-      {/* the order (big number figure), the customer, and the bag they're being served */}
-      <div style={{ position: 'fixed', left: 0, right: 0, top: '70%', transform: 'translateY(-50%)', zIndex: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'clamp(14px, 3vw, 50px)' }}>
+      {/* the order (big number figure), the customer, and the bag they're being served.
+          The customer and the bag are free-standing, so each gets a soft contact-shadow pooled
+          on a shared floor line below it (alignItems:flex-end puts them on one ground); the
+          customer stands a hair back (smaller, dimmer pool, lower z) so the served bag reads
+          as nearer the front — grounding the group in the shop floor, not floating over it. */}
+      <div style={{ position: 'fixed', left: 0, right: 0, top: '70%', transform: 'translateY(-50%)', zIndex: 30, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 'clamp(14px, 3vw, 50px)' }}>
         <OrderTicket cfg={cfg} target={target} />
-        <span style={{ fontSize: 'clamp(46px, 9vmin, 108px)', lineHeight: 1, filter: 'drop-shadow(0 4px 6px rgba(0,0,0,.25))', animation: glow ? 'gr_pop .5s ease' : 'gr_float 3.6s ease-in-out infinite' }}>{cfg.customer}</span>
-        <div style={{ position: 'relative', animation: shake ? 'gr_shake .42s ease' : 'none', filter: glow ? 'drop-shadow(0 0 18px var(--garden-green))' : 'drop-shadow(0 8px 10px rgba(0,0,0,.25))' }}>
-          <Bag cfg={cfg} picked={picked} />
+        {/* customer — grounded, set slightly back */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 1, transform: 'scale(0.93)', transformOrigin: 'bottom center' }}>
+          <span style={{ fontSize: 'clamp(46px, 9vmin, 108px)', lineHeight: 1, filter: 'drop-shadow(0 4px 6px rgba(0,0,0,.25))', animation: glow ? 'gr_pop .5s ease' : 'gr_float 3.6s ease-in-out infinite' }}>{cfg.customer}</span>
+          <div aria-hidden style={{ width: 'clamp(40px, 7vmin, 90px)', height: 'clamp(12px, 2.1vmin, 27px)', marginTop: '0.3vmin',
+            background: 'radial-gradient(ellipse at center, rgba(38,28,18,0.16) 0%, rgba(38,28,18,0) 72%)', pointerEvents: 'none' }} />
+        </div>
+        {/* served bag — grounded, nearer the front */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 2, transformOrigin: 'bottom center' }}>
+          <div style={{ position: 'relative', animation: shake ? 'gr_shake .42s ease' : 'none', filter: glow ? 'drop-shadow(0 0 18px var(--garden-green))' : 'drop-shadow(0 8px 10px rgba(0,0,0,.25))' }}>
+            <Bag cfg={cfg} picked={picked} />
+          </div>
+          <div aria-hidden style={{ width: 'clamp(80px, 15vmin, 170px)', height: 'clamp(20px, 4vmin, 46px)', marginTop: '0.2vmin',
+            background: 'radial-gradient(ellipse at center, rgba(38,28,18,0.24) 0%, rgba(38,28,18,0) 72%)', pointerEvents: 'none' }} />
         </div>
       </div>
     </>
@@ -300,7 +347,7 @@ const GR_CSS = `
 
 type Phase = 'intro' | 'demo' | 'guided' | 'practice'
 export default function Grocery({ onFinish, onExit }: {
-  onFinish?: (correct: number, wrong: number) => void
+  onFinish?: (correct: number, wrong: number, mastered?: boolean) => void
   onExit?: () => void
 }) {
   const router = useRouter()
@@ -311,10 +358,10 @@ export default function Grocery({ onFinish, onExit }: {
   const finished = useRef(false)
   const exit = useCallback(() => { stopSpeech(); (onExit ?? (() => router.push('/menu')))() }, [router, onExit])
 
-  const finishChapter = useCallback((c: number, w: number) => {
+  const finishChapter = useCallback((c: number, w: number, mastered?: boolean) => {
     if (finished.current) return; finished.current = true
     stopSpeech()
-    if (onFinish) onFinish(c, w); else exit()
+    if (onFinish) onFinish(c, w, mastered); else exit()
   }, [onFinish, exit])
 
   const interlude = useCallback(() => new Promise<void>(res => window.setTimeout(res, 850)), [])
@@ -361,7 +408,7 @@ export default function Grocery({ onFinish, onExit }: {
         <div style={{ position: 'absolute', top: 48, left: 0, right: 0, zIndex: 45, display: 'flex', justifyContent: 'center', padding: '0 12px' }}>
           <SkillBeat beat={groceryBeat} onInterlude={interlude}
             onRound={(data) => { if (data?.stall) setStall(data.stall as Stall) }}
-            onComplete={(c, w) => { result.current.correct += c; result.current.wrong += w; finishChapter(result.current.correct, result.current.wrong) }} />
+            onComplete={(c, w, mastered) => { result.current.correct += c; result.current.wrong += w; finishChapter(result.current.correct, result.current.wrong, mastered) }} />
         </div>
       )}
 

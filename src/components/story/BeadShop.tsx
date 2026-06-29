@@ -11,6 +11,15 @@
  * just "a bead". Beads are pure code-drawn (no art); a code-drawn shop backdrop always shows with an
  * optional <img> auto-upgrade. Mirrors story/ShapeTown.tsx (phases intro→demo→guided→practice, ONE
  * SkillBeat); wrapped by game/PatternsChapter.tsx.
+ *
+ * GROUNDING (so beads read as part of the world, not flat stickers — same treatment as RainbowTown,
+ * adapted to this scene's TWO intrinsically-linear layouts): every bead carries a soft CONTACT SHADOW
+ * ellipse beneath it. The NECKLACE stays a deliberate straight row (the "what comes next" reading
+ * depends on it) so it's NOT depth-scattered — only the shadow grounds its beads. The TRAY beads are
+ * the freest elements (a loose pile on the counter), so they get the full treatment: a small per-bead
+ * DEPTH (nearer = bigger + lower + denser shadow; farther = smaller + higher), a slight vertical
+ * jitter, and a nearer-in-front z-order — breaking the mechanical even row while keeping tap targets
+ * large and well-spaced.
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
@@ -87,37 +96,63 @@ function useBeadSizes(seqLen: number): { stringBead: number; trayBead: number } 
 }
 
 // ─── A single bead (code-drawn glossy bead) ─────────────────────────────────────────
+// Each bead sits over a soft CONTACT SHADOW ellipse (the "it rests on the surface" cue) and may
+// carry a small DEPTH (0 = near/front, 1 = far/back): farther beads are a touch smaller, sit a
+// little higher, and cast a fainter, tighter shadow. The necklace itself stays a deliberate row
+// (the pattern reading depends on it), so there depth = 0 and only the shadow grounds it; the tray
+// beads — the freest elements — get a gentle depth scatter so they don't read as flat stickers.
 type BeadState = 'idle' | 'glow' | 'wrong' | 'pop'
-function Bead({ color, size, state = 'idle' }: { color: BeadColor; size: number; state?: BeadState }) {
+function Bead({ color, size, state = 'idle', depth = 0, shadow = true }: {
+  color: BeadColor; size: number; state?: BeadState; depth?: number; shadow?: boolean
+}) {
   const { hex, deep } = BEADS[color]
   const lit = state === 'glow'
+  const box = size * (1 - depth * 0.18)            // farther beads are a touch smaller
+  const shW = box * 0.82
+  const shOp = Math.max(0.05, (0.24 - depth * 0.1) * (lit ? 0.5 : 1))
+  // A wrapper so the bead can lift on its float/pop while the shadow stays put on the ground line.
   return (
-    <div style={{
-      width: size, height: size, borderRadius: '50%',
-      background: `radial-gradient(circle at 32% 28%, rgba(255,255,255,.85), ${hex} 46%, ${deep} 100%)`,
-      border: `${Math.max(1.5, size * 0.03)}px solid ${deep}`,
-      boxShadow: lit
-        ? '0 0 16px var(--garden-green), 0 0 9px var(--garden-green)'
-        : '0 3px 5px rgba(0,0,0,.28), inset 0 -2px 4px rgba(0,0,0,.18)',
-      animation: state === 'wrong' ? 'bs_shake .42s ease' : state === 'pop' || lit ? 'bs_pop .45s ease' : undefined,
-    }} />
+    <div style={{ position: 'relative', width: box, height: box * 1.18, display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
+      {shadow && (
+        <div aria-hidden style={{ position: 'absolute', left: '50%', bottom: 0, transform: 'translateX(-50%)',
+          width: shW, height: shW * 0.3, pointerEvents: 'none',
+          background: `radial-gradient(ellipse at center, rgba(38,28,18,${shOp}) 0%, rgba(38,28,18,0) 72%)` }} />
+      )}
+      <div style={{
+        width: box, height: box, borderRadius: '50%',
+        background: `radial-gradient(circle at 32% 28%, rgba(255,255,255,.85), ${hex} 46%, ${deep} 100%)`,
+        border: `${Math.max(1.5, box * 0.03)}px solid ${deep}`,
+        boxShadow: lit
+          ? '0 0 16px var(--garden-green), 0 0 9px var(--garden-green)'
+          : '0 3px 5px rgba(0,0,0,.28), inset 0 -2px 4px rgba(0,0,0,.18)',
+        animation: state === 'wrong' ? 'bs_shake .42s ease' : state === 'pop' || lit ? 'bs_pop .45s ease' : undefined,
+      }} />
+    </div>
   )
 }
 
 // ─── The necklace string (sequence + the empty "next" slot) ─────────────────────────
+// INTENTIONALLY a single deliberate row: the "what comes next" reading depends on the beads being
+// strung in one straight line, so this is NOT depth-scattered (that would break the pattern). The
+// grounding cue that fits here is a soft contact shadow UNDER the strung beads — they read as resting
+// on the shop counter rather than floating — so each bead is drawn with its shadow (depth = 0, flat).
+// The bead wrappers reserve a shadow band below the orb; the string is aligned to the ORB centre
+// (which sits in the upper part of each wrapper), not the wrapper's midpoint.
 function Necklace({ sequence, fill, beadPx }: { sequence: BeadColor[]; fill: BeadColor | null; beadPx: number }) {
   const gap = Math.max(4, beadPx * 0.18)
+  // The orb centre within a `beadPx * 1.18`-tall wrapper sits at beadPx/2 from the top.
+  const stringTop = beadPx * 0.5
   return (
-    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', gap, padding: `0 ${beadPx * 0.4}px`, maxWidth: '94vw' }}>
-      {/* the string running through the beads */}
-      <div style={{ position: 'absolute', left: beadPx * 0.2, right: beadPx * 0.2, top: '50%', height: Math.max(3, beadPx * 0.06), transform: 'translateY(-50%)', background: 'linear-gradient(#caa46a,#a07c44)', borderRadius: 99, zIndex: 0 }} />
-      {/* clasp/knot at the left end */}
-      <div style={{ width: beadPx * 0.34, height: beadPx * 0.34, borderRadius: '50%', background: 'radial-gradient(circle at 35% 30%, #fff8, #d9b25e 50%, #a87f2f)', border: '1.5px solid #8a6724', zIndex: 1, flexShrink: 0 }} />
+    <div style={{ position: 'relative', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap, padding: `0 ${beadPx * 0.4}px`, maxWidth: '94vw' }}>
+      {/* the string running through the beads' centres */}
+      <div style={{ position: 'absolute', left: beadPx * 0.2, right: beadPx * 0.2, top: stringTop, height: Math.max(3, beadPx * 0.06), transform: 'translateY(-50%)', background: 'linear-gradient(#caa46a,#a07c44)', borderRadius: 99, zIndex: 0 }} />
+      {/* clasp/knot at the left end (aligned to the string line) */}
+      <div style={{ width: beadPx * 0.34, height: beadPx * 0.34, borderRadius: '50%', background: 'radial-gradient(circle at 35% 30%, #fff8, #d9b25e 50%, #a87f2f)', border: '1.5px solid #8a6724', zIndex: 1, flexShrink: 0, marginTop: stringTop - beadPx * 0.17 }} />
       {sequence.map((c, i) => (
         <div key={i} style={{ zIndex: 1, flexShrink: 0 }}><Bead color={c} size={beadPx} /></div>
       ))}
-      {/* the empty next slot — fills with the answer bead once revealed */}
-      <div style={{ zIndex: 1, flexShrink: 0, width: beadPx, height: beadPx, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      {/* the empty next slot — fills with the answer bead once revealed (orb aligned to the string) */}
+      <div style={{ zIndex: 1, flexShrink: 0, width: beadPx, height: beadPx, display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
         {fill
           ? <Bead color={fill} size={beadPx} state="pop" />
           : <div style={{ width: beadPx, height: beadPx, borderRadius: '50%', border: `${Math.max(2, beadPx * 0.05)}px dashed var(--milo-orange)`, background: 'rgba(255,255,255,.35)' }} />}
@@ -127,19 +162,34 @@ function Necklace({ sequence, fill, beadPx }: { sequence: BeadColor[]; fill: Bea
 }
 
 // ─── The bead tray (the tappable choices) ───────────────────────────────────────────
+// The tray beads are the freest elements (a small loose pile on the counter, not a strung row), so
+// they get the FULL grounding treatment: each carries a small deterministic DEPTH (nearer beads
+// bigger + lower + a denser shadow, farther ones smaller + higher), a contact shadow, a slight
+// vertical jitter, and a nearer-in-front z-order — so they read as resting in the tray, not as a
+// mechanically even row of stickers. Tap targets stay large and well-spaced (the gaps are unchanged).
+// Centre-out depth/jitter patterns keyed by the choice count (typically 3, sometimes 4).
+const TRAY_DEPTHS: Record<number, number[]> = { 1: [0.2], 2: [0.15, 0.5], 3: [0.45, 0.05, 0.6], 4: [0.6, 0.15, 0.4, 0.75] }
+const TRAY_YJIT: Record<number, number[]> = { 1: [0], 2: [2, -2], 3: [3, -2, 4], 4: [4, -2, 1, 5] }
 function Tray({ choices, beadPx, stateFor, onTap }: {
   choices: BeadColor[]; beadPx: number; stateFor: (i: number) => BeadState; onTap?: (i: number) => void
 }) {
+  const n = choices.length
+  const depths = TRAY_DEPTHS[n] ?? choices.map((_, i) => (i % 2 ? 0.5 : 0.15))
+  const yjit = TRAY_YJIT[n] ?? choices.map(() => 0)
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'clamp(12px,3vw,30px)', flexWrap: 'wrap',
+    <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 'clamp(12px,3vw,30px)', flexWrap: 'wrap',
       background: 'rgba(255,255,255,.5)', borderRadius: 26, padding: 'clamp(10px,2vh,18px) clamp(14px,3vw,28px)', border: '3px solid rgba(140,110,70,.5)', boxShadow: '0 5px 0 rgba(61,37,22,.1)' }}>
-      {choices.map((c, i) => (
-        <button key={i} onClick={onTap ? () => onTap(i) : undefined} disabled={!onTap} aria-label={`${BEADS[c].label} bead`}
-          style={{ background: 'transparent', border: 'none', padding: 0, cursor: onTap ? 'pointer' : 'default', lineHeight: 0,
-            transform: stateFor(i) === 'glow' ? 'scale(1.12)' : 'scale(1)', transition: 'transform .2s' }}>
-          <Bead color={c} size={beadPx} state={stateFor(i)} />
-        </button>
-      ))}
+      {choices.map((c, i) => {
+        const depth = depths[i] ?? 0.3
+        return (
+          <button key={i} onClick={onTap ? () => onTap(i) : undefined} disabled={!onTap} aria-label={`${BEADS[c].label} bead`}
+            style={{ background: 'transparent', border: 'none', padding: 0, cursor: onTap ? 'pointer' : 'default', lineHeight: 0,
+              marginTop: yjit[i] ?? 0, position: 'relative', zIndex: 2 + Math.round((1 - depth) * 4),
+              transform: stateFor(i) === 'glow' ? 'scale(1.12)' : 'scale(1)', transition: 'transform .2s' }}>
+            <Bead color={c} size={beadPx} state={stateFor(i)} depth={depth} />
+          </button>
+        )
+      })}
     </div>
   )
 }
@@ -289,7 +339,7 @@ const BS_CSS = `
 
 type Phase = 'intro' | 'demo' | 'guided' | 'practice'
 export default function BeadShop({ onFinish, onExit }: {
-  onFinish?: (correct: number, wrong: number) => void
+  onFinish?: (correct: number, wrong: number, mastered?: boolean) => void
   onExit?: () => void
 }) {
   const router = useRouter()
@@ -299,10 +349,10 @@ export default function BeadShop({ onFinish, onExit }: {
   const finished = useRef(false)
   const exit = useCallback(() => { stopSpeech(); (onExit ?? (() => router.push('/menu')))() }, [router, onExit])
 
-  const finishChapter = useCallback((c: number, w: number) => {
+  const finishChapter = useCallback((c: number, w: number, mastered?: boolean) => {
     if (finished.current) return; finished.current = true
     stopSpeech()
-    if (onFinish) onFinish(c, w); else exit()
+    if (onFinish) onFinish(c, w, mastered); else exit()
   }, [onFinish, exit])
 
   const TopBar = (
@@ -346,7 +396,7 @@ export default function BeadShop({ onFinish, onExit }: {
       {phase === 'practice' && (
         <div style={{ position: 'absolute', top: 48, left: 0, right: 0, bottom: 0, zIndex: 45 }}>
           <SkillBeat beat={beadShopBeat}
-            onComplete={(c, w) => { result.current.correct += c; result.current.wrong += w; finishChapter(result.current.correct, result.current.wrong) }} />
+            onComplete={(c, w, mastered) => { result.current.correct += c; result.current.wrong += w; finishChapter(result.current.correct, result.current.wrong, mastered) }} />
         </div>
       )}
 

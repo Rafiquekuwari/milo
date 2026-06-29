@@ -132,38 +132,51 @@ function Decoration({ scene, scale }: { scene: Scene; scale: number }) {
   )
 }
 
-function ShapeThing({ scene, name, state, scale, left, top, onTap, aria }: {
+function ShapeThing({ scene, name, state, scale, left, top, depth = 0.3, groundLine, onTap, aria }: {
   scene: Scene; name: ShapeName; state: ThingState; scale: number
-  left: number; top: number; onTap?: () => void; aria: string
+  left: number; top: number; depth?: number; groundLine: number; onTap?: () => void; aria: string
 }) {
-  const W = THING_W * scale, H = THING_H * scale
-  const shapePx = THING_W * scale * 0.96
+  // Farther things are a touch smaller (depth falloff) — the same cue RainbowTown uses, but
+  // here the WHOLE thing (shape + its decoration band) shrinks together so the form-to-stem
+  // proportion is preserved.
+  const ds = scale * (1 - depth * 0.22)
+  const W = THING_W * ds, H = THING_H * ds
+  const shapePx = THING_W * ds * 0.96
   const lit = state === 'glow' || state === 'picked'
   // 'street' frames the shape on a little paper board so it reads as a hanging sign.
   const onBoard = scene === 'street'
+  // Contact shadow: a soft ellipse on the scene's ground line where the decoration's foot
+  // touches down (string knot / signpost base / flower stem) — the main "it belongs here" cue.
+  const shW = W * 0.58
+  const shOp = Math.max(0.06, (0.26 - depth * 0.13) * (lit ? 0.5 : 1))
   return (
-    <button onClick={onTap} disabled={!onTap} aria-label={aria}
-      style={{ position: 'fixed', left: `${left}%`, top: `${top}%`, transform: 'translate(-50%,-50%)', zIndex: 30, width: W, height: H, padding: 0, border: 'none', background: 'transparent', cursor: onTap ? 'pointer' : 'default' }}>
-      <Decoration scene={scene} scale={scale} />
-      <div style={{ position: 'absolute', left: '50%', top: 0, transform: 'translateX(-50%)', width: THING_W * scale, height: THING_W * scale,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        animation: state === 'wrong' ? 'st_shake .42s ease' : lit ? 'st_pop .45s ease' : 'st_sway 4s ease-in-out infinite',
-        filter: lit ? 'drop-shadow(0 0 16px var(--garden-green)) drop-shadow(0 0 10px var(--garden-green))' : 'drop-shadow(0 6px 8px rgba(0,0,0,.22))' }}>
-        {onBoard && (
-          <div style={{ position: 'absolute', inset: `${6 * scale}px`, background: 'var(--paper)', borderRadius: 14 * scale, border: `${3 * scale}px solid #b88a52`, boxShadow: 'inset 0 2px 4px rgba(0,0,0,.1)' }} />
-        )}
-        <div style={{ position: 'relative', lineHeight: 0 }}>
-          <ShapeSVG name={name} size={onBoard ? shapePx * 0.74 : shapePx} />
+    <>
+      <div aria-hidden style={{ position: 'fixed', left: `${left}%`, top: `${groundLine}%`, transform: 'translate(-50%,-50%)', zIndex: 28,
+        width: shW, height: shW * 0.32, background: `radial-gradient(ellipse at center, rgba(38,28,18,${shOp}) 0%, rgba(38,28,18,0) 72%)`, pointerEvents: 'none' }} />
+      <button onClick={onTap} disabled={!onTap} aria-label={aria}
+        style={{ position: 'fixed', left: `${left}%`, top: `${top}%`, transform: 'translate(-50%,-50%)', zIndex: 30 + Math.round((1 - depth) * 6), width: W, height: H, padding: 0, border: 'none', background: 'transparent', cursor: onTap ? 'pointer' : 'default' }}>
+        <Decoration scene={scene} scale={ds} />
+        <div style={{ position: 'absolute', left: '50%', top: 0, transform: 'translateX(-50%)', width: THING_W * ds, height: THING_W * ds,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          animation: state === 'wrong' ? 'st_shake .42s ease' : lit ? 'st_pop .45s ease' : 'st_sway 4s ease-in-out infinite',
+          filter: lit ? 'drop-shadow(0 0 16px var(--garden-green)) drop-shadow(0 0 10px var(--garden-green))' : 'drop-shadow(0 6px 8px rgba(0,0,0,.22))' }}>
+          {onBoard && (
+            <div style={{ position: 'absolute', inset: `${6 * ds}px`, background: 'var(--paper)', borderRadius: 14 * ds, border: `${3 * ds}px solid #b88a52`, boxShadow: 'inset 0 2px 4px rgba(0,0,0,.1)' }} />
+          )}
+          <div style={{ position: 'relative', lineHeight: 0 }}>
+            <ShapeSVG name={name} size={onBoard ? shapePx * 0.74 : shapePx} />
+          </div>
         </div>
-      </div>
-    </button>
+      </button>
+    </>
   )
 }
 
-// Shapes sit a little higher than the door siblings (TOP=50 vs NumberDoors' 56) because each
-// shape has a decoration band hanging BELOW it (balloon string / signpost / flower stem); the row
-// of shapes needs that headroom so the decoration doesn't dangle off the bottom.
-const TOP = 50
+// Base footprint top, used only by the scale clamp below (keep objects clear of Milo). Shapes
+// sit a little higher than the door siblings because each shape has a decoration band hanging
+// BELOW it (balloon string / signpost / flower stem) — the layout needs that headroom so the
+// decoration doesn't dangle off the bottom. Actual per-object tops come from placeFor (below).
+const THING_BASE_TOP = 50
 // How big to draw the shapes — as large as fits given the count and viewport, but CAPPED three
 // ways: (a) a huge sprite on a wide screen reads as oversized/crowded (see feedback-viewport-
 // scaling); (b) narrow phones shrink them to fit — the per-shape width fraction is already under
@@ -181,7 +194,7 @@ function useThingScale(n: number): number {
       // Keep the box bottom above Milo (anchored bottom-left, height min(36vh, 320)). The tight
       // case is short / landscape viewports where Milo is large relative to the height.
       const miloTop = h - Math.min(0.36 * h, 320)
-      const clearScale = ((miloTop - (TOP / 100) * h) * 2) / THING_H
+      const clearScale = ((miloTop - (THING_BASE_TOP / 100) * h) * 2) / THING_H
       setScale(Math.max(0.62, Math.min(s, clearScale)))
     }
     calc()
@@ -191,12 +204,37 @@ function useThingScale(n: number): number {
   return scale
 }
 
-// Slot positions (left%, top%) — a single centred row. Always returns at least `n` slots
-// (evenly spread for any unexpected count) so a slot lookup can never be undefined.
-function layoutFor(n: number): { left: number; top: number }[] {
-  const xs = n <= 2 ? [33, 67] : n === 3 ? [24, 50, 76] : n === 4 ? [15, 38, 62, 85]
-    : Array.from({ length: n }, (_, i) => 12 + (i * 76) / (n - 1))
-  return xs.map(left => ({ left, top: TOP }))
+// ─── Grounded, depth-aware placement ────────────────────────────────────────────────
+// Shapes used to sit in a flat, evenly-spaced row at ONE height and ONE size — so they read
+// as stickers pasted over the scene. Now each gets a small DEPTH (0 = near/front, 1 = far/back):
+// farther shapes (with their whole decoration) are a touch smaller and sit a little higher, and
+// EVERY object casts a soft contact SHADOW on the scene's ground line below it. The shadow + the
+// depth scatter break the row and anchor the objects in the world. Tap targets stay big and never
+// overlap, and the decoration band still hangs cleanly below each shape.
+interface Placed { left: number; top: number; depth: number }
+// Per-scene ground tuning. baseTop = centre Y% of the NEAREST shape; rise = how much higher the
+// farthest sits; groundLine = where contact shadows fall — just below the decoration's foot
+// (balloon strings hover higher above theirs; signposts + flower stems plant closer to theirs).
+const SCENE_GROUND: Record<Scene, { baseTop: number; rise: number; groundLine: number }> = {
+  park:   { baseTop: 48, rise: 10, groundLine: 84 },
+  street: { baseTop: 52, rise: 8,  groundLine: 86 },
+  garden: { baseTop: 50, rise: 9,  groundLine: 84 },
+}
+// A gentle, balanced depth scatter per shape count (centre nearest) — never a flat line.
+const DEPTHS: Record<number, number[]> = { 1: [0.25], 2: [0.15, 0.6], 3: [0.5, 0.05, 0.7], 4: [0.7, 0.2, 0.45, 0.85] }
+// Small deterministic x nudges so the columns aren't mechanically even.
+const XJIT: Record<number, number[]> = { 1: [0], 2: [-2, 2], 3: [-1.5, 1.5, -1], 4: [-2, 1, -1.5, 2] }
+
+// Per-object placement (left%, top%, depth). Shapes spread across but stay right of Milo's
+// bottom-left column so a low object never collides. Always returns at least `n` entries so a
+// lookup can never be undefined.
+function placeFor(n: number, scene: Scene): Placed[] {
+  const g = SCENE_GROUND[scene]
+  const xs = n <= 2 ? [36, 70] : n === 3 ? [27, 53, 79] : n === 4 ? [20, 42, 64, 87]
+    : Array.from({ length: n }, (_, i) => 18 + (i * 70) / (n - 1))
+  const depths = DEPTHS[n] ?? xs.map((_, i) => (i % 2 ? 0.55 : 0.2))
+  const jit = XJIT[n] ?? xs.map(() => 0)
+  return xs.map((x, i) => { const depth = depths[i] ?? 0.3; return { left: x + (jit[i] ?? 0), top: g.baseTop - depth * g.rise, depth } })
 }
 
 // ─── Round copy ──────────────────────────────────────────────────────────────────
@@ -212,7 +250,8 @@ const ShapesPlay: React.FC<{ data: ShapeRound; mode: Mode; onComplete: (correct:
   const { scene, options, answerIdx } = data
   const label = SHAPES[options[answerIdx]].label
   const n = options.length
-  const slots = layoutFor(n)
+  const slots = placeFor(n, scene)
+  const groundLine = SCENE_GROUND[scene].groundLine
   const scale = useThingScale(n)
   const [pickedIdx, setPickedIdx] = useState<number | null>(null)
   const [wrongIdx, setWrongIdx] = useState<number | null>(null)
@@ -251,7 +290,7 @@ const ShapesPlay: React.FC<{ data: ShapeRound; mode: Mode; onComplete: (correct:
       {options.map((name, i) => {
         const state: ThingState = pickedIdx === i ? 'picked' : wrongIdx === i ? 'wrong' : 'idle'
         return <ShapeThing key={i} scene={scene} name={name} state={state} scale={scale}
-          left={slots[i].left} top={slots[i].top} onTap={() => tap(i)} aria={`${SHAPES[name].label}`} />
+          left={slots[i].left} top={slots[i].top} depth={slots[i].depth} groundLine={groundLine} onTap={() => tap(i)} aria={`${SHAPES[name].label}`} />
       })}
     </>
   )
@@ -264,7 +303,8 @@ const ShapesExplain: React.FC<{ data: ShapeRound; onDone: () => void }> = ({ dat
   const { scene, options, answerIdx } = data
   const label = SHAPES[options[answerIdx]].label
   const n = options.length
-  const slots = layoutFor(n)
+  const slots = placeFor(n, scene)
+  const groundLine = SCENE_GROUND[scene].groundLine
   const scale = useThingScale(n)
   const [glow, setGlow] = useState(false)
   const ran = useRef(false)
@@ -290,7 +330,7 @@ const ShapesExplain: React.FC<{ data: ShapeRound; onDone: () => void }> = ({ dat
     <>
       {options.map((name, i) => (
         <ShapeThing key={i} scene={scene} name={name} state={i === answerIdx && glow ? 'glow' : 'idle'} scale={scale}
-          left={slots[i].left} top={slots[i].top} aria={`example ${SHAPES[name].label}`} />
+          left={slots[i].left} top={slots[i].top} depth={slots[i].depth} groundLine={groundLine} aria={`example ${SHAPES[name].label}`} />
       ))}
     </>
   )
@@ -402,7 +442,7 @@ const ST_CSS = `
 
 type Phase = 'intro' | 'showcase' | 'demo' | 'guided' | 'practice'
 export default function ShapeTown({ onFinish, onExit }: {
-  onFinish?: (correct: number, wrong: number) => void
+  onFinish?: (correct: number, wrong: number, mastered?: boolean) => void
   onExit?: () => void
 }) {
   const router = useRouter()
@@ -413,10 +453,10 @@ export default function ShapeTown({ onFinish, onExit }: {
   const finished = useRef(false)
   const exit = useCallback(() => { stopSpeech(); (onExit ?? (() => router.push('/menu')))() }, [router, onExit])
 
-  const finishChapter = useCallback((c: number, w: number) => {
+  const finishChapter = useCallback((c: number, w: number, mastered?: boolean) => {
     if (finished.current) return; finished.current = true
     stopSpeech()
-    if (onFinish) onFinish(c, w); else exit()
+    if (onFinish) onFinish(c, w, mastered); else exit()
   }, [onFinish, exit])
 
   const interlude = useCallback(() => new Promise<void>(res => window.setTimeout(res, 850)), [])
@@ -466,7 +506,7 @@ export default function ShapeTown({ onFinish, onExit }: {
         <div style={{ position: 'absolute', top: 48, left: 0, right: 0, zIndex: 45, display: 'flex', justifyContent: 'center', padding: '0 12px' }}>
           <SkillBeat beat={shapeTownBeat} onInterlude={interlude}
             onRound={(data) => { if (data?.scene) setScene(data.scene as Scene) }}
-            onComplete={(c, w) => { result.current.correct += c; result.current.wrong += w; finishChapter(result.current.correct, result.current.wrong) }} />
+            onComplete={(c, w, mastered) => { result.current.correct += c; result.current.wrong += w; finishChapter(result.current.correct, result.current.wrong, mastered) }} />
         </div>
       )}
 
