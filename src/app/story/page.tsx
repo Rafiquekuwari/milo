@@ -27,6 +27,9 @@ import Grocery from '@/components/story/Grocery'
 import ShapeTown from '@/components/story/ShapeTown'
 import RainbowTown from '@/components/story/RainbowTown'
 import BeadShop from '@/components/story/BeadShop'
+import Orchard from '@/components/story/Orchard'
+import LilyPond from '@/components/story/LilyPond'
+import TallForest from '@/components/story/TallForest'
 
 export default function StoryPage() {
   const [ch, setCh] = useState('counting')
@@ -55,6 +58,12 @@ export default function StoryPage() {
   if (ch === 'rainbow') return <RainbowTown world={orderWorld} />
   // ?world=beads|party|train jumps into a pattern world.
   if (ch === 'beads') return <BeadShop world={orderWorld} />
+  // ?world=orchard|reef|space jumps into an addition world.
+  if (ch === 'add') return <Orchard world={orderWorld} />
+  // ?world=pond|party|night jumps into a subtraction world.
+  if (ch === 'sub') return <LilyPond world={orderWorld} />
+  // ?world=forest|trail|market jumps into a measurement world.
+  if (ch === 'measure') return <TallForest world={orderWorld} />
   // Counting: play the forced/chosen world, else show the picker.
   if (chapter) return <ForestWalk chapter={chapter} />
   if (!ready) return null

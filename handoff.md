@@ -4,7 +4,32 @@ _Last updated: 2026-06-30_
 
 Concise, current state. Per-chapter detail + conventions live in the auto-memory (`project-milo-*-chapter.md`, `project-milo-demo-voice.md`, `feedback-viewport-scaling.md`, …) — read those for the deep notes.
 
-## LATEST SESSION (2026-06-30) — STORYTELLING EXPANSION COMPLETE: ALL 8 of the 3–5 chapters now have 3 picked worlds — COMMITTED + PUSHED
+## LATEST SESSION (2026-06-30 pm) — LAST 3 of the 3–5 chapters converted to story mode (Addition · Subtraction · Measurement) — COMMITTED + PUSHED to `main` → Vercel
+
+**Goal (user):** finish the 3–5 set — convert the remaining 3 drills (addition · subtraction · measurement) to the same 3-world WorldSelect story pattern as the other 8. Same locked structure (3 storytellings × 3 bg × 3 objects), everything must BLEND. **→ The whole 3–5 set (11 chapters) is now story-mode. Committed + pushed to `main` (auto-deploys to Vercel production).**
+
+**DONE — all 3 built, `tsc` + `next build` clean, verified live via `/story?ch=…`:**
+- **Ch.9 Addition** — `src/components/story/Orchard.tsx` (+ thin wrapper `game/AdditionChapter.tsx`, preview `?ch=add`). Count both groups → pick the total; "altogether" basket fills as reward. Worlds: 🍎 Orchard · 🐠 Coral Reef · 🚀 Space. REUSED art only.
+- **Ch.10 Subtraction** — `LilyPond.tsx` (`game/SubtractionChapter.tsx`, `?ch=sub`). N objects, some LEAVE (staggered drift), count what's left. Worlds: 🐸 Lily Pond (hop in) · 🎉 Party (float up) · 🌙 Night Sky (blink out). REUSED art only.
+- **Ch.11 Measurement** — `TallForest.tsx` (`game/MeasurementChapter.tsx`, `?ch=measure`). Tap the bigger one; each world = ONE attribute. 🌳 Tall Forest (height, uniform scale) · 🐍 Long Trail (length, `object-fit:fill` stretch) · ⚖️ Balance Market (weight, code-drawn SEESAW tilts toward heavier).
+  - **5 NEW AI sprites** generated (Nano Banana 2, ~7.5 cr) — snake, giraffe, watermelon, pumpkin, flour_sack — referenced original library art (caterpillar/bear/apple/grocery_bun), cutout via remove_background, snake autocropped tight (for fill-stretch), rest square-padded. In `public/assets/objects/`. Backgrounds REUSED from existing photoreal library.
+  - **Then EXPANDED each measurement world 3→6 objects** (user wanted more variety; was repetitive cycling only 3 over 10 rounds). All from existing assets: height +tulip/daisy/pine; length +train_engine/bus/fish; weight +crate·egg/bucket·cookie/fruitbowl·candy. Verified live (giraffe/tulip scale, snake/train/bus stretch, watermelon/sack seesaw).
+
+All 3 mirror the Grocery pattern (WorldSelect → intro → demo → guided → one adaptive `SkillBeat` 10-round, reteach after 3, mastery early-exit). Detail in auto-memory `project-milo-{addition,subtraction,measurement}-chapter`.
+
+**REFINEMENTS (same session, after the build):**
+- **Measurement expanded 3→6 objects per world** (was repetitive cycling only 3 over 10 rounds) — all existing assets: height +tulip/daisy/pine; length +train_engine/bus/fish; weight +crate·egg/bucket·cookie/fruitbowl·candy. Verified live.
+- **Addition + Subtraction now have a STAGED REVEAL** (user: don't dump everything on screen at once). The question builds up — group A pops in one-by-one → `+` → group B → THEN the choices/answer box fade in (subtraction: pop in → the `take` leave → then choices). Object sizes bumped for prominence. `AddPlay`/`SubPlay` drive it with timers; `Stage`/`Group` gained `aShown/bShown/showPlus/showQ` (add) and `shown?/showQ?` (sub). Verified live, `tsc`+`next build` clean.
+
+- **Addition: basket REMOVED** (user said the "ALTOGETHER" basket/box looked bad). No vessel now — on a correct answer (and in the demo) the objects are COUNTED one-by-one (each glows via `lit`) while the answer box climbs 1→total then turns green. `Orchard` `Stage`/`AddPlay`/`AddExplain` use `lit`/`boxValue`/`boxDone`; old `Basket`+`filled` deleted. (Subtraction never had a basket.) Verified live across all 3 worlds, `tsc`+`next build` clean.
+
+- **Demo now pops one-by-one too** (user: the first explanation showed everything in one take). `AddExplain`/`SubExplain` rewritten from `speakSteps` to timer-driven staged pop-in matching the play (each object pops in one at a time counting up, then `+`, then group B; subtraction pops all in → `take` leave → count left). Verified via DOM object-count sampling. Object sizes also bumped big (`clamp(74px,13.5vmin,150px)`) since the old vmin floor read tiny on mobile.
+
+**NEXT:** (committed + pushed to `main` → Vercel). The whole 3–5 set (11 chapters) is now story-mode. Optional follow-ups: smoke-test on prod; apply the same count-up reveal / bigger-object polish to other 3–5 chapters if desired.
+
+---
+
+## EARLIER (2026-06-30 am) — STORYTELLING EXPANSION COMPLETE: ALL 8 of the 3–5 chapters now have 3 picked worlds — COMMITTED + PUSHED
 
 **Goal (user):** give each 3–5 chapter **3 storytellings (worlds), each with its own backgrounds + objects** (the locked structure: **3 storytellings × 3 backgrounds × 3 objects**), chosen by the child from a picker — so it never feels repetitive. The hard requirement throughout: **everything must BLEND** (objects look like they belong in the scene — grounded, sized right, no floating).
 
@@ -15,7 +40,10 @@ Concise, current state. Per-chapter detail + conventions live in the auto-memory
   - **Ch.8 Patterns** (`BeadShop.tsx`): 📿 Bead Shop (beads/buttons/gems) · 🎉 Party (flags/balloons/lanterns) · 🧸 Toy Box (cars/blocks/ducks). Items code-drawn + **code-tinted greyscale sprites** (colour is the pattern variable). 9 backgrounds + 9 greyscale sprites.
   - **Ch.3 Comparison** (`Kitchen.tsx`): 🍳 Kitchen (apple/cookie/candy) · 🛒 Grocery (orange/egg/strawberry) · 🧁 Bakery (cupcake/cake/cherry). Quantity not colour → uses **COLOURED** sprites directly: REUSED the existing consistent library + generated only 3 fresh (strawberry/orange/cupcake). Vessel renderers (bowl/tray/jar/cake) parameterised by item sprite. Per-world Milo (chef/grocer).
 
-**REFERENCE-IMAGE DRIFT FIX (hard-won, carry forward):** Higgsfield `media_import_url` only works on **committed/deployed** asset URLs — pointing a reference at *uncommitted* art 404s and the ref **silently fails to attach** → the model generates from text alone → style/type drift. Always reference a **committed** asset (e.g. `apple.png`, `cookie.png`, `pond.jpeg`); verify the import returns a `media_id`. For colour-recognition + patterns, objects must be **greyscale** sprites tinted in code (never bake colour into the PNG). Processing pipeline (scratch `proc.py`/`proc_color.py`/`measure.py`): cutout via `remove_background` → desaturate (greyscale only) → autocrop to alpha bbox → square-pad (top-align for hanging items) → for Kitchen, measure alpha bbox into `SPRITE_BBOX`.
+**REFERENCE-IMAGE RULE — USE ONLY THE ORIGINAL/OLDER IMAGES AS REFERENCES (hard-won, carry forward — do NOT skip):**
+- **Always reference the ORIGINAL / earliest art set** — the hand-made / first-batch committed assets like `apple.png`, `cookie.png`, `pear.png`, `duck.png`, `pond.jpeg`, `forest_*.jpeg`. **These are PERFECT for the use case** — correct style, correct object type. **Do NOT use the later-generated images as references** — the newer AI batches drift slightly (style + type are a little off), so referencing them compounds the drift. Older images in, perfect images out.
+- **Why later refs failed silently:** Higgsfield `media_import_url` only works on **committed/deployed** URLs. Many later assets were *uncommitted* → the URL 404s → the reference **silently fails to attach** → the model generates from text alone → drift. So the rule is doubly true: the older images are both *on-style* AND *actually deployed* (so the ref attaches). Always verify `media_import_url` returns a `media_id` before generating; if it 404s, that asset is not a usable reference.
+- **Pipeline:** for colour-recognition + patterns, objects must be **greyscale** sprites tinted in code (never bake colour into the PNG); comparison keeps colour. Scratch helpers `proc.py`/`proc_color.py`/`measure.py`: cutout via `remove_background` → desaturate (greyscale only) → autocrop to alpha bbox → square-pad (top-align for hanging items) → for Kitchen, measure alpha bbox into `SPRITE_BBOX`.
 
 **Earlier-done 4 chapters (also part of this commit):**
 
