@@ -114,6 +114,10 @@ export type CountKind =
   | 'snail'
   // other scenes
   | 'mushroom' | 'apple' | 'flower'
+  // ── Storytelling 2: Farm Day (barnyard · orchard · pond) ──
+  | 'chick' | 'lamb' | 'duckling' | 'pear' | 'frog' | 'dragonfly'
+  // ── Storytelling 3: Space Adventure (launchpad · deep space · moon) ──
+  | 'rocket' | 'star' | 'cloud' | 'planet' | 'comet' | 'satellite' | 'astronaut' | 'moonRock' | 'alien'
 // Each kind can have several art variants (e.g. butterflies of different colors, a
 // pigeon flying left vs right); instances cycle through them for variety. Kinds
 // with an EMPTY list have no painted art yet → they render as a big emoji and
@@ -143,6 +147,24 @@ export const COUNT_SRC: Record<CountKind, string[]> = {
   // Render as emoji until the PNG is dropped in (then they auto-upgrade).
   shark: ['/assets/objects/shark.png'],
   ladybug: ['/assets/objects/ladybug.png'],
+  // Farm Day — frog/dragonfly/duck/bee/apple already have art; the rest auto-upgrade
+  // the moment the generated PNG lands (until then a 404 falls back to the emoji).
+  chick: ['/assets/objects/chick.png'],
+  lamb: ['/assets/objects/lamb.png'],
+  duckling: ['/assets/objects/duckling.png'],
+  pear: ['/assets/objects/pear.png'],
+  frog: ['/assets/objects/frog.png'],
+  dragonfly: ['/assets/objects/dragonfly.png'],
+  // Space Adventure — star already exists; the rest auto-upgrade when generated.
+  rocket: ['/assets/objects/rocket.png'],
+  star: ['/assets/objects/star.png'],
+  cloud: ['/assets/objects/space_cloud.png'],
+  planet: ['/assets/objects/planet.png'],
+  comet: ['/assets/objects/comet.png'],
+  satellite: ['/assets/objects/satellite.png'],
+  astronaut: ['/assets/objects/astronaut.png'],
+  moonRock: ['/assets/objects/moon_rock.png'],
+  alien: ['/assets/objects/alien.png'],
 }
 export const COUNT_EMOJI: Record<CountKind, string> = {
   firefly: '🪲', butterfly: '🦋',
@@ -152,6 +174,8 @@ export const COUNT_EMOJI: Record<CountKind, string> = {
   mushroom: '🍄', apple: '🍎', flower: '🌸',
   octopus: '🐙', crab: '🦀', rabbit: '🐰',
   shark: '🦈', ladybug: '🐞',
+  chick: '🐤', lamb: '🐑', duckling: '🐥', pear: '🍐', frog: '🐸', dragonfly: '🪰',
+  rocket: '🚀', star: '⭐', cloud: '☁️', planet: '🪐', comet: '☄️', satellite: '🛰️', astronaut: '👨‍🚀', moonRock: '🌑', alien: '👽',
 }
 export const COUNT_LABEL: Record<CountKind, string> = {
   firefly: 'firefly', butterfly: 'butterfly',
@@ -161,6 +185,8 @@ export const COUNT_LABEL: Record<CountKind, string> = {
   mushroom: 'mushroom', apple: 'apple', flower: 'flower',
   octopus: 'octopus', crab: 'crab', rabbit: 'rabbit',
   shark: 'shark', ladybug: 'ladybug',
+  chick: 'chick', lamb: 'lamb', duckling: 'duckling', pear: 'pear', frog: 'frog', dragonfly: 'dragonfly',
+  rocket: 'rocket', star: 'star', cloud: 'cloud', planet: 'planet', comet: 'comet', satellite: 'satellite', astronaut: 'astronaut', moonRock: 'moon rock', alien: 'alien',
 }
 export const COUNT_PLURAL: Record<CountKind, string> = {
   firefly: 'fireflies', butterfly: 'butterflies',
@@ -170,6 +196,8 @@ export const COUNT_PLURAL: Record<CountKind, string> = {
   mushroom: 'mushrooms', apple: 'apples', flower: 'flowers',
   octopus: 'octopuses', crab: 'crabs', rabbit: 'rabbits',
   shark: 'sharks', ladybug: 'ladybugs',
+  chick: 'chicks', lamb: 'lambs', duckling: 'ducklings', pear: 'pears', frog: 'frogs', dragonfly: 'dragonflies',
+  rocket: 'rockets', star: 'stars', cloud: 'clouds', planet: 'planets', comet: 'comets', satellite: 'satellites', astronaut: 'astronauts', moonRock: 'moon rocks', alien: 'aliens',
 }
 
 // `on` = counted/found. When tapped, an object pops + glows so "I found one!" is

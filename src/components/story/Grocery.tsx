@@ -1,66 +1,93 @@
 'use client'
 /**
- * Chapter 5 — "Milo's Little Grocery", the number↔QUANTITY story (skill
- * `matchingQuantities`, the old "Apple Basket" drill reborn as story mode, same as
- * Ch.1–4). Milo runs a corner shop; each round a new customer orders EXACTLY N of one
- * item. The child taps items off the shelf into the customer's bag (each tap counts
- * aloud), fixes miscounts with "put one back", then rings the bell to serve — correct
- * only when the bag holds exactly N. This is the cardinality skill: a number tells you
- * exactly HOW MANY, and the real challenge is to STOP at N.
+ * Chapter 5 — number↔QUANTITY / cardinality (skill `matchingQuantities`). An order asks for
+ * EXACTLY N of one item; the child taps items off the shelf INTO/ONTO a container (each tap
+ * counts aloud), fixes miscounts with "put one back", then serves — correct only at exactly N.
+ * The real skill is to STOP at N. The child PICKS one of three worlds; in each, the same skill
+ * is dressed differently and the scene rotates across the 10 adaptive rounds (one continuous
+ * SkillBeat — harder on a streak, gentler when struggling, re-teach after 3 wrong):
+ *   🛒 Little Grocery — fill the bag        (produce · bakery · deli · flowers · sweets)
+ *   🍕 Pizza Parlor   — top the pizza, bake (olive · mushroom · pepper)
+ *   🌻 Flower Garden  — plant the flowers   (tulip · daisy · sunflower)
  *
- * FIVE stalls rotate across the 10 adaptive rounds (one continuous SkillBeat — harder on
- * a streak, gentler when struggling, re-teach after 3 wrong):
- *   🍎 Produce · 🥐 Bakery · 🥚 Deli · 🌷 Flowers · 🍬 Sweet shop
- * Difficulty (the count to build) ramps 1–3 → 3–6 → 6–10 (matchTarget); harder rounds
- * also leave more spare items on the shelf so the child must count and STOP, not grab
- * everything. PURE counting — every item on the shelf is the right kind (no decoys).
- *
- * Code-drawn + emoji first (fully playable), with auto-upgrade hooks for painted PNGs.
- * Mirrors story/NumberDoors.tsx (phases intro→demo→guided→practice, ONE SkillBeat);
- * wrapped by game/MatchingQuantitiesChapter.tsx.
+ * BLEND: items rest on a wooden shelf (contact shadow), and the picked items go where they
+ * belong — into the bag, scattered ON the pizza, or planted standing on the green grass (no
+ * 3D container — each flower stands with a soft contact shadow). Difficulty (the count) ramps
+ * 1–3 → 3–6 → 6–10; harder rounds leave more spare items so the child must count and STOP.
+ * Wrapped by game/MatchingQuantitiesChapter.tsx.
  */
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { speak, speakSteps, stopSpeech } from '@/lib/useMiloSpeaker'
 import { SkillBeat, type Beat } from './StoryWorld'
 import { matchTarget } from '@/lib/adaptive'
+import WorldSelect from './WorldSelect'
 
 const rint = (lo: number, hi: number) => lo + Math.floor(Math.random() * (hi - lo + 1))
 
-// ─── Stalls ──────────────────────────────────────────────────────────────────────
-type Stall = 'produce' | 'bakery' | 'deli' | 'flowers' | 'sweets'
-interface OrderRound {
-  stall: Stall
-  target: number    // how many to put in the bag
-  shelf: number     // how many items sit on the shelf (>= target; the spare is the "stop at N" pressure)
-}
-interface StallCfg {
-  noun: string; nounPlural: string; item: string; itemImg: string; customer: string; container: string
+// ─── Scenes & Worlds ───────────────────────────────────────────────────────────────
+type Scene =
+  | 'produce' | 'bakery' | 'deli' | 'flowers' | 'sweets'   // Little Grocery
+  | 'olive' | 'mushroom' | 'pepper'                        // Pizza Parlor
+  | 'tulip' | 'daisy' | 'sunflower'                        // Flower Garden
+type CType = 'bag' | 'pizza' | 'ground'
+
+interface SceneCfg {
+  noun: string; nounPlural: string; item: string; itemImg: string; customer: string
+  container: string                         // the spoken word ("bag" / "pizza" / "box")
+  cType: CType; containerImg?: string       // how the container renders
   bg: { grad: string; img: string }
-  // optional alpha bbox — for a sprite with heavy transparent padding (e.g. the reused
-  // apple.png), crop to its bounds so it fills its slot like the tight grocery sprites.
   bbox?: { W: number; H: number; x: number; y: number; w: number; h: number }
 }
-const STALL_ORDER: Stall[] = ['produce', 'bakery', 'deli', 'flowers', 'sweets']
-const stallForRound = (round: number): Stall => STALL_ORDER[round % STALL_ORDER.length]
-// "1 apple" / "3 apples" — singular when one, so the spoken+shown order reads naturally.
-const qty = (n: number, cfg: StallCfg) => `${n} ${n === 1 ? cfg.noun : cfg.nounPlural}`
-
-const STALL: Record<Stall, StallCfg> = {
-  produce: { noun: 'apple',  nounPlural: 'apples',  item: '🍎', itemImg: '/assets/objects/apple.png',          customer: '🐰', container: 'bag',     bg: { grad: 'linear-gradient(#dff0c8 0%, #eaf7d6 52%, #cfe9a8 100%)', img: '/assets/backgrounds/grocery_produce.jpeg' }, bbox: { W: 1536, H: 1024, x: 526, y: 205, w: 498, h: 573 } },
-  bakery:  { noun: 'bun',    nounPlural: 'buns',    item: '🥐', itemImg: '/assets/objects/grocery_bun.png',    customer: '🐻', container: 'box',     bg: { grad: 'linear-gradient(#ffe9c4 0%, #ffe0b0 55%, #f3c483 100%)', img: '/assets/backgrounds/grocery_bakery.jpeg' } },
-  deli:    { noun: 'egg',    nounPlural: 'eggs',    item: '🥚', itemImg: '/assets/objects/grocery_egg.png',    customer: '🐱', container: 'carton',  bg: { grad: 'linear-gradient(#eef3f7 0%, #e6eef5 55%, #d4e2ee 100%)', img: '/assets/backgrounds/grocery_deli.jpeg' } },
-  flowers: { noun: 'flower', nounPlural: 'flowers', item: '🌷', itemImg: '/assets/objects/grocery_flower.png', customer: '🐭', container: 'bouquet', bg: { grad: 'linear-gradient(#ffe6f0 0%, #fdeef6 55%, #e7f3d8 100%)', img: '/assets/backgrounds/grocery_flowers.jpeg' } },
-  sweets:  { noun: 'candy',  nounPlural: 'candies', item: '🍬', itemImg: '/assets/objects/grocery_candy.png',  customer: '🦔', container: 'cone',    bg: { grad: 'linear-gradient(#ffe3f3 0%, #f3e0ff 55%, #d8ecff 100%)', img: '/assets/backgrounds/grocery_sweets.jpeg' } },
+const SCENE: Record<Scene, SceneCfg> = {
+  // Little Grocery (code-drawn bag)
+  produce: { noun: 'apple', nounPlural: 'apples', item: '🍎', itemImg: '/assets/objects/apple.png', customer: '🐰', container: 'bag', cType: 'bag', bg: { grad: 'linear-gradient(#dff0c8 0%, #eaf7d6 52%, #cfe9a8 100%)', img: '/assets/backgrounds/grocery_produce.jpeg' }, bbox: { W: 1536, H: 1024, x: 526, y: 205, w: 498, h: 573 } },
+  bakery:  { noun: 'bun', nounPlural: 'buns', item: '🥐', itemImg: '/assets/objects/grocery_bun.png', customer: '🐻', container: 'box', cType: 'bag', bg: { grad: 'linear-gradient(#ffe9c4 0%, #ffe0b0 55%, #f3c483 100%)', img: '/assets/backgrounds/grocery_bakery.jpeg' } },
+  deli:    { noun: 'egg', nounPlural: 'eggs', item: '🥚', itemImg: '/assets/objects/grocery_egg.png', customer: '🐱', container: 'carton', cType: 'bag', bg: { grad: 'linear-gradient(#eef3f7 0%, #e6eef5 55%, #d4e2ee 100%)', img: '/assets/backgrounds/grocery_deli.jpeg' } },
+  flowers: { noun: 'flower', nounPlural: 'flowers', item: '🌷', itemImg: '/assets/objects/grocery_flower.png', customer: '🐭', container: 'bouquet', cType: 'bag', bg: { grad: 'linear-gradient(#ffe6f0 0%, #fdeef6 55%, #e7f3d8 100%)', img: '/assets/backgrounds/grocery_flowers.jpeg' } },
+  sweets:  { noun: 'candy', nounPlural: 'candies', item: '🍬', itemImg: '/assets/objects/grocery_candy.png', customer: '🦔', container: 'cone', cType: 'bag', bg: { grad: 'linear-gradient(#ffe3f3 0%, #f3e0ff 55%, #d8ecff 100%)', img: '/assets/backgrounds/grocery_sweets.jpeg' } },
+  // Pizza Parlor (toppings scatter ON the pizza base)
+  olive:     { noun: 'olive', nounPlural: 'olives', item: '🫒', itemImg: '/assets/objects/topping_olive.png', customer: '🐺', container: 'pizza', cType: 'pizza', containerImg: '/assets/objects/pizza_base.png', bg: { grad: 'linear-gradient(#ffe9c4 0%, #ffe0b0 55%, #e6c89a 100%)', img: '/assets/backgrounds/pizzeria.png' } },
+  mushroom:  { noun: 'mushroom', nounPlural: 'mushrooms', item: '🍄', itemImg: '/assets/objects/topping_mushroom.png', customer: '🐯', container: 'pizza', cType: 'pizza', containerImg: '/assets/objects/pizza_base.png', bg: { grad: 'linear-gradient(#ffe9c4 0%, #ffe0b0 55%, #e6c89a 100%)', img: '/assets/backgrounds/pizzeria.png' } },
+  pepper:    { noun: 'pepper', nounPlural: 'peppers', item: '🫑', itemImg: '/assets/objects/topping_pepper.png', customer: '🐮', container: 'pizza', cType: 'pizza', containerImg: '/assets/objects/pizza_base.png', bg: { grad: 'linear-gradient(#ffe9c4 0%, #ffe0b0 55%, #e6c89a 100%)', img: '/assets/backgrounds/pizzeria.png' } },
+  // Flower Garden (flowers planted standing in a soil bed — no 3D container, no float)
+  tulip:     { noun: 'tulip', nounPlural: 'tulips', item: '🌷', itemImg: '/assets/objects/flower_tulip.png', customer: '🐰', container: 'garden', cType: 'ground', bg: { grad: 'linear-gradient(#bfe7ff 0%, #d8f1e6 44%, #9ad06a 100%)', img: '/assets/backgrounds/garden_meadow.png' } },
+  daisy:     { noun: 'daisy', nounPlural: 'daisies', item: '🌼', itemImg: '/assets/objects/flower_daisy.png', customer: '🐭', container: 'garden', cType: 'ground', bg: { grad: 'linear-gradient(#bfe7ff 0%, #dceee0 44%, #9ad06a 100%)', img: '/assets/backgrounds/garden_fence.png' } },
+  sunflower: { noun: 'sunflower', nounPlural: 'sunflowers', item: '🌻', itemImg: '/assets/objects/flower_sunflower.png', customer: '🐻', container: 'garden', cType: 'ground', bg: { grad: 'linear-gradient(#bfe7ff 0%, #d8f1e6 44%, #9ad06a 100%)', img: '/assets/backgrounds/garden_park.png' } },
 }
 
-function Background({ stall }: { stall: Stall }) {
+interface ShopWorld {
+  id: string; label: string; emoji: string
+  scenes: Scene[]
+  milo: { src: string; emoji: string; accessory: string }
+  verbLabel: string; verbEmoji: string   // the serve button ("Ring it up" / "Bake it!" / "Pack it!")
+  prep: 'in' | 'on'                      // "put N {prep} the {container}"
+  intro: string
+}
+const WORLDS: ShopWorld[] = [
+  { id: 'grocery', label: "Little Grocery", emoji: '🛒', scenes: ['produce', 'bakery', 'deli', 'flowers', 'sweets'],
+    milo: { src: '/assets/characters/milo_grocer.png', emoji: '🦊', accessory: '🛒' }, verbLabel: 'Ring it up!', verbEmoji: '🔔', prep: 'in',
+    intro: "Milo's shop is open! Each customer wants EXACTLY some things — tap them into the bag and ring the bell. First, watch Milo!" },
+  { id: 'pizza', label: "Pizza Parlor", emoji: '🍕', scenes: ['olive', 'mushroom', 'pepper'],
+    milo: { src: '/assets/characters/milo_chef.png', emoji: '🦊', accessory: '🍕' }, verbLabel: 'Bake it!', verbEmoji: '🔥', prep: 'on',
+    intro: "Milo's pizzeria is open! Each order wants EXACTLY some toppings — tap them onto the pizza, then bake it. First, watch Milo!" },
+  { id: 'garden', label: "Flower Garden", emoji: '🌻', scenes: ['tulip', 'daisy', 'sunflower'],
+    milo: { src: '/assets/characters/milo_idle.png', emoji: '🐴', accessory: '🌻' }, verbLabel: 'Plant it!', verbEmoji: '🌱', prep: 'in',
+    intro: "Milo's garden is open! Each order wants EXACTLY some flowers — tap them into the flower bed, then plant them. First, watch Milo!" },
+]
+const worldById = (id: string) => WORLDS.find(w => w.id === id)
+const PICK_WORLDS = WORLDS.map(w => ({ id: w.id, label: w.label, emoji: w.emoji, bgImage: SCENE[w.scenes[0]].bg.img }))
+
+interface OrderRound { scene: Scene; target: number; shelf: number }
+const qty = (n: number, cfg: SceneCfg) => `${n} ${n === 1 ? cfg.noun : cfg.nounPlural}`
+
+function Background({ scene, scenes }: { scene: Scene; scenes: Scene[] }) {
   return (
     <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: '#f3ead8' }}>
-      {STALL_ORDER.map(s => (
-        <div key={s} style={{ position: 'absolute', inset: 0, opacity: s === stall ? 1 : 0, transition: 'opacity .6s ease' }}>
-          <div style={{ position: 'absolute', inset: 0, background: STALL[s].bg.grad }} />
-          <img src={STALL[s].bg.img} alt="" draggable={false}
+      {scenes.map(s => (
+        <div key={s} style={{ position: 'absolute', inset: 0, opacity: s === scene ? 1 : 0, transition: 'opacity .6s ease' }}>
+          <div style={{ position: 'absolute', inset: 0, background: SCENE[s].bg.grad }} />
+          <img src={SCENE[s].bg.img} alt="" draggable={false}
             onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
         </div>
@@ -69,35 +96,32 @@ function Background({ stall }: { stall: Stall }) {
   )
 }
 
-// ─── Milo the grocer (bottom-left, grounded; bigger sprite stays on the floor) ──────
-function MiloGrocer({ left }: { left: number }) {
+function MiloHost({ left, milo }: { left: number; milo: ShopWorld['milo'] }) {
   const [step, setStep] = useState(0)
-  const srcs = ['/assets/characters/milo_grocer.png', '/assets/characters/milo_idle.png']
+  const srcs = [milo.src, '/assets/characters/milo_idle.png']
   return (
     <div style={{ position: 'fixed', left: `${left}%`, bottom: 0, transform: 'translateX(-50%)', zIndex: 26, width: 'min(34vh, 300px)', height: 'min(34vh, 300px)' }}>
       <div style={{ width: '100%', height: '100%', animation: 'gr_float 3.4s ease-in-out infinite' }}>
         {step >= srcs.length
           ? <div style={{ width: '100%', height: '100%', position: 'relative', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-              <span style={{ fontSize: 100, filter: 'drop-shadow(0 5px 8px rgba(0,0,0,.35))' }}>🦊</span>
-              <span style={{ position: 'absolute', bottom: 14, right: 16, fontSize: 44 }}>🛒</span>
+              <span style={{ fontSize: 100, filter: 'drop-shadow(0 5px 8px rgba(0,0,0,.35))' }}>{milo.emoji}</span>
+              <span style={{ position: 'absolute', bottom: 14, right: 16, fontSize: 44 }}>{milo.accessory}</span>
             </div>
-          : <img src={srcs[step]} alt="Milo the grocer" draggable={false} onError={() => setStep(s => s + 1)}
+          : <img src={srcs[step]} alt="Milo" draggable={false} onError={() => setStep(s => s + 1)}
               style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'bottom', filter: 'drop-shadow(0 5px 8px rgba(0,0,0,.35))' }} />}
       </div>
     </div>
   )
 }
 
-// ─── An item sprite (painted PNG if present, else the stall's emoji) ────────────────
-function Item({ cfg, size }: { cfg: StallCfg; size: string }) {
+// ─── An item sprite (painted PNG if present, else the scene's emoji) ────────────────
+function Item({ cfg, size }: { cfg: SceneCfg; size: string }) {
   const [missing, setMissing] = useState(false)
   if (missing) return <span style={{ fontSize: size, lineHeight: 1, filter: 'drop-shadow(0 2px 3px rgba(0,0,0,.2))' }}>{cfg.item}</span>
   if (cfg.bbox) {
-    // crop to the alpha bbox via background-image so a padded sprite fills the slot like
-    // the tight grocery sprites (the reused apple.png is mostly transparent padding).
     const b = cfg.bbox
-    const FILL = 0.86                                    // fraction of the slot the item fills
-    const bgH = ((b.H / b.h) * FILL * 100).toFixed(1)    // bg height as % of the square slot
+    const FILL = 0.86
+    const bgH = ((b.H / b.h) * FILL * 100).toFixed(1)
     const cx = (((b.x + b.w / 2) / b.W) * 100).toFixed(1)
     const cy = (((b.y + b.h / 2) / b.H) * 100).toFixed(1)
     return <span style={{ display: 'block', width: size, height: size, backgroundImage: `url(${cfg.itemImg})`, backgroundSize: `auto ${bgH}%`, backgroundPosition: `${cx}% ${cy}%`, backgroundRepeat: 'no-repeat', filter: 'drop-shadow(0 2px 3px rgba(0,0,0,.2))' }} />
@@ -107,26 +131,17 @@ function Item({ cfg, size }: { cfg: StallCfg; size: string }) {
 }
 
 // ─── A shelf item, GROUNDED on the wooden ledge ─────────────────────────────────────
-// The shelf is intrinsically a LINE of items resting on a ledge, so we don't scatter them
-// into RainbowTown's depth field (that would break the "sitting on a shelf" reading).
-// Instead we add the grounding CUES that fit a shelf: each item sits in a column with a soft
-// contact-shadow ellipse pooled on the ledge directly below it, a touch of depth (every other
-// item set a hair back — slightly smaller + raised, dimmer shadow, lower z) and a small organic
-// vertical/horizontal jitter, so the row reads as real goods placed on wood rather than a
-// mechanically even strip of stickers. `i` drives the deterministic per-item variation.
-function ShelfItem({ cfg, size, i, onPick }: { cfg: StallCfg; size: string; i: number; onPick?: () => void }) {
-  const back = i % 2 === 1                                   // alternate items sit slightly farther back
+function ShelfItem({ cfg, size, i, onPick }: { cfg: SceneCfg; size: string; i: number; onPick?: () => void }) {
+  const back = i % 2 === 1
   const depth = back ? 0.5 : 0.12
-  const lift = back ? 0.5 : 0                                // vmin the back row floats up off the ledge
-  const jx = [-1.4, 1.1, -0.6, 1.6, -1.1, 0.7][i % 6]       // gentle horizontal nudge (px-ish via translate)
-  const shOp = 0.24 - depth * 0.12                           // farther → fainter contact pool
+  const lift = back ? 0.5 : 0
+  const jx = [-1.4, 1.1, -0.6, 1.6, -1.1, 0.7][i % 6]
+  const shOp = 0.24 - depth * 0.12
   const shW = `calc(${size} * 0.66)`
   const inner = (
     <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center',
-      transform: `translate(${jx}px, ${-lift}vmin) scale(${1 - depth * 0.14})`,
-      zIndex: back ? 1 : 2, transformOrigin: 'bottom center' }}>
+      transform: `translate(${jx}px, ${-lift}vmin) scale(${1 - depth * 0.14})`, zIndex: back ? 1 : 2, transformOrigin: 'bottom center' }}>
       <Item cfg={cfg} size={size} />
-      {/* contact shadow pooled on the ledge directly beneath the item */}
       <div aria-hidden style={{ width: shW, height: `calc(${shW} * 0.3)`, marginTop: '0.4vmin',
         background: `radial-gradient(ellipse at center, rgba(38,28,18,${shOp.toFixed(2)}) 0%, rgba(38,28,18,0) 72%)`, pointerEvents: 'none' }} />
     </div>
@@ -136,27 +151,43 @@ function ShelfItem({ cfg, size, i, onPick }: { cfg: StallCfg; size: string; i: n
     : <span style={{ lineHeight: 0 }}>{inner}</span>
 }
 
-// ─── The bag/box the order fills into. NO running count shown — the child must count for
-// themselves (the live tally was a crutch); they just see the items they've gathered. ───
-function Bag({ cfg, picked }: { cfg: StallCfg; picked: number }) {
+// ─── The container the order fills into (bag / pizza / box). NO running count shown. ─
+// Radial spots for toppings ON the pizza disk (centre-out, never overlapping the crust).
+const PIZZA_SPOTS: Array<[number, number]> = [
+  [0, -2], [-22, -16], [22, -14], [-26, 12], [24, 14], [0, 26], [-4, -28], [-34, -2], [34, 0], [2, 4],
+]
+function Container({ cfg, picked }: { cfg: SceneCfg; picked: number }) {
+  if (cfg.cType === 'pizza') {
+    return (
+      <div style={{ position: 'relative', width: 'clamp(150px, 27vmin, 290px)', height: 'clamp(150px, 27vmin, 290px)' }}>
+        <img src={cfg.containerImg} alt="" draggable={false} onError={e => { (e.currentTarget as HTMLImageElement).style.opacity = '0.001' }}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', filter: 'drop-shadow(0 6px 8px rgba(0,0,0,.25))' }} />
+        {Array.from({ length: picked }).map((_, i) => {
+          const [x, y] = PIZZA_SPOTS[i % PIZZA_SPOTS.length]
+          return <span key={i} style={{ position: 'absolute', left: `${50 + x}%`, top: `${50 + y}%`, transform: 'translate(-50%,-50%)', animation: 'gr_pop .3s ease both' }}>
+            <Item cfg={cfg} size="clamp(22px, 4vmin, 46px)" />
+          </span>
+        })}
+      </div>
+    )
+  }
+  // ('ground' / flower garden is rendered directly by <Stage> as a scatter on the grass —
+  //  no container box — so it never reaches here.)
+  // bag (grocery) — code-drawn
   return (
     <div style={{ position: 'relative', width: 'clamp(118px, 21vmin, 230px)', height: 'clamp(128px, 23vmin, 250px)' }}>
-      {/* bag body */}
       <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, top: '20%', borderRadius: '7% 7% 13% 13%', background: 'linear-gradient(#ecc89a,#d2a86f)', border: '4px solid #b07f44', overflow: 'hidden',
         boxShadow: 'inset 0 6px 12px rgba(255,255,255,.25), inset 0 -8px 14px rgba(0,0,0,.18)', display: 'flex', flexWrap: 'wrap', alignContent: 'flex-end', justifyContent: 'center', gap: '0.5vmin', padding: '7% 6% 6%' }}>
         {Array.from({ length: picked }).map((_, i) => (
           <span key={i} style={{ display: 'inline-block', animation: 'gr_pop .3s ease both' }}><Item cfg={cfg} size="clamp(24px, 4.4vmin, 50px)" /></span>
         ))}
       </div>
-      {/* rolled-down bag top */}
       <div style={{ position: 'absolute', left: '-2%', right: '-2%', top: '12%', height: '15%', background: 'linear-gradient(#f2d4a6,#e3bd86)', borderRadius: 6, border: '4px solid #b07f44' }} />
     </div>
   )
 }
 
-// The customer's order, shown as a big NUMBER FIGURE + the item — the child RECOGNISES the
-// numeral (and hears it spoken) and builds that many. This is the figure-recognition cue.
-function OrderTicket({ cfg, target }: { cfg: StallCfg; target: number }) {
+function OrderTicket({ cfg, target }: { cfg: SceneCfg; target: number }) {
   return (
     <div style={{ position: 'relative', background: 'var(--paper)', border: '4px solid var(--milo-orange)', borderRadius: 16, padding: 'clamp(6px,1.3vmin,14px) clamp(14px,2.4vmin,26px)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2vh', boxShadow: '0 5px 0 rgba(242,107,44,.25)' }}>
       <span style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 'clamp(46px,9.5vmin,104px)', color: 'var(--ink)', lineHeight: 1 }}>{target}</span>
@@ -167,71 +198,104 @@ function OrderTicket({ cfg, target }: { cfg: StallCfg; target: number }) {
 
 const bareBtn: React.CSSProperties = { border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', lineHeight: 0 }
 
-// ─── The shelf + bag + customer (shared by the play surface and the demo) ───────────
-function Stage({ cfg, target, shelf, picked, glow, shake, onPick }: {
-  cfg: StallCfg; target: number; shelf: number; picked: number; glow: boolean; shake: boolean; onPick?: () => void
-}) {
-  const remaining = Math.max(0, shelf - picked)
-  const itemSize = 'clamp(42px, 7vmin, 82px)'
+// ─── Flower Garden: planted flowers scattered on the green ground ───────────────────
+// No container — each planted flower just stands on the grass at a scattered spot with a
+// soft contact shadow at its base (depth: higher up = a touch smaller/farther). Big blooms.
+// Order alternates near/far + left/right so even 2–4 flowers read as scattered across the
+// open grass (not a single tidy row near the shelf).
+const GROUND_SPOTS: Array<{ l: number; t: number }> = [
+  { l: 44, t: 79 }, { l: 68, t: 67 }, { l: 86, t: 81 }, { l: 33, t: 70 }, { l: 58, t: 85 },
+  { l: 80, t: 71 }, { l: 91, t: 84 }, { l: 50, t: 74 }, { l: 73, t: 86 }, { l: 38, t: 85 },
+]
+function GroundScatter({ cfg, picked, glow }: { cfg: SceneCfg; picked: number; glow: boolean }) {
   return (
     <>
-      {/* shelf of items to pick from — items sit IN a row on the ledge, each grounded by its
-          own contact shadow + a touch of depth so it reads as goods on wood, not a flat strip.
-          alignItems:flex-end keeps every item's base on the same shelf line (the shadows pool
-          just above the ledge), while ShelfItem adds the per-item depth/lift/jitter. */}
-      <div style={{ position: 'fixed', left: 0, right: 0, top: '40%', transform: 'translateY(-50%)', zIndex: 30, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4vh' }}>
+      {Array.from({ length: picked }).map((_, i) => {
+        const p = GROUND_SPOTS[i % GROUND_SPOTS.length]
+        const depth = Math.max(0, Math.min(1, (86 - p.t) / 30))   // higher on screen → farther → smaller
+        const k = 1 - depth * 0.24
+        const size = `clamp(${Math.round(64 * k)}px, ${(11.5 * k).toFixed(1)}vmin, ${Math.round(150 * k)}px)`
+        const shW = `clamp(${Math.round(34 * k)}px, ${(6 * k).toFixed(1)}vmin, ${Math.round(78 * k)}px)`
+        return (
+          <React.Fragment key={i}>
+            {/* contact shadow pooled on the grass at the flower's base */}
+            <div aria-hidden style={{ position: 'fixed', left: `${p.l}%`, top: `${p.t}%`, transform: 'translate(-50%,-50%)', zIndex: 28,
+              width: shW, height: `calc(${shW} * 0.3)`, background: `radial-gradient(ellipse at center, rgba(38,28,18,${(0.22 - depth * 0.1).toFixed(2)}) 0%, rgba(38,28,18,0) 72%)`, pointerEvents: 'none' }} />
+            {/* the planted flower — anchored by its base on the spot */}
+            <div style={{ position: 'fixed', left: `${p.l}%`, top: `${p.t}%`, transform: 'translate(-50%,-100%)', zIndex: 30 + Math.round((1 - depth) * 6), animation: 'gr_pop .35s ease both',
+              filter: glow ? 'drop-shadow(0 0 14px var(--garden-green))' : 'drop-shadow(0 4px 5px rgba(0,0,0,.25))' }}>
+              <Item cfg={cfg} size={size} />
+            </div>
+          </React.Fragment>
+        )
+      })}
+    </>
+  )
+}
+
+function Stage({ cfg, target, shelf, picked, glow, shake, onPick }: {
+  cfg: SceneCfg; target: number; shelf: number; picked: number; glow: boolean; shake: boolean; onPick?: () => void
+}) {
+  const remaining = Math.max(0, shelf - picked)
+  const isGround = cfg.cType === 'ground'
+  // Flowers are big blooms — bigger shelf box than the compact grocery/pizza items.
+  const itemSize = isGround ? 'clamp(60px, 11vmin, 132px)' : 'clamp(42px, 7vmin, 82px)'
+  return (
+    <>
+      <div style={{ position: 'fixed', left: 0, right: 0, top: isGround ? '50%' : '40%', transform: 'translateY(-50%)', zIndex: 30, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4vh' }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.6vmin', justifyContent: 'center', alignItems: 'flex-end', maxWidth: '74vw', minHeight: '13vh' }}>
           {Array.from({ length: remaining }).map((_, i) => (
             <ShelfItem key={i} cfg={cfg} size={itemSize} i={i} onPick={onPick} />
           ))}
         </div>
-        {/* wooden shelf ledge */}
-        <div style={{ width: '76vw', maxWidth: 780, height: '2.4vh', minHeight: 14, background: 'linear-gradient(#caa46a,#a07a44)', borderRadius: 6, boxShadow: '0 5px 9px rgba(0,0,0,.28)' }} />
+        {/* a wooden shelf ledge for the shop worlds; the garden has no plank (flowers on grass). */}
+        {!isGround && <div style={{ width: '76vw', maxWidth: 780, height: '2.4vh', minHeight: 14, background: 'linear-gradient(#caa46a,#a07a44)', borderRadius: 6, boxShadow: '0 5px 9px rgba(0,0,0,.28)' }} />}
       </div>
-      {/* the order (big number figure), the customer, and the bag they're being served.
-          The customer and the bag are free-standing, so each gets a soft contact-shadow pooled
-          on a shared floor line below it (alignItems:flex-end puts them on one ground); the
-          customer stands a hair back (smaller, dimmer pool, lower z) so the served bag reads
-          as nearer the front — grounding the group in the shop floor, not floating over it. */}
-      <div style={{ position: 'fixed', left: 0, right: 0, top: '70%', transform: 'translateY(-50%)', zIndex: 30, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 'clamp(14px, 3vw, 50px)' }}>
-        <OrderTicket cfg={cfg} target={target} />
-        {/* customer — grounded, set slightly back */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 1, transform: 'scale(0.93)', transformOrigin: 'bottom center' }}>
-          <span style={{ fontSize: 'clamp(46px, 9vmin, 108px)', lineHeight: 1, filter: 'drop-shadow(0 4px 6px rgba(0,0,0,.25))', animation: glow ? 'gr_pop .5s ease' : 'gr_float 3.6s ease-in-out infinite' }}>{cfg.customer}</span>
-          <div aria-hidden style={{ width: 'clamp(40px, 7vmin, 90px)', height: 'clamp(12px, 2.1vmin, 27px)', marginTop: '0.3vmin',
-            background: 'radial-gradient(ellipse at center, rgba(38,28,18,0.16) 0%, rgba(38,28,18,0) 72%)', pointerEvents: 'none' }} />
+      {isGround ? (
+        // Flower Garden: order pinned at the TOP (out of the grass), flowers planted below.
+        <div style={{ position: 'fixed', top: '15%', left: 0, right: 0, zIndex: 31, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 'clamp(12px, 2.5vw, 40px)' }}>
+          <OrderTicket cfg={cfg} target={target} />
+          <span style={{ fontSize: 'clamp(40px, 8vmin, 96px)', lineHeight: 1, filter: 'drop-shadow(0 4px 6px rgba(0,0,0,.25))', animation: glow ? 'gr_pop .5s ease' : 'gr_float 3.6s ease-in-out infinite' }}>{cfg.customer}</span>
         </div>
-        {/* served bag — grounded, nearer the front */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 2, transformOrigin: 'bottom center' }}>
-          <div style={{ position: 'relative', animation: shake ? 'gr_shake .42s ease' : 'none', filter: glow ? 'drop-shadow(0 0 18px var(--garden-green))' : 'drop-shadow(0 8px 10px rgba(0,0,0,.25))' }}>
-            <Bag cfg={cfg} picked={picked} />
+      ) : (
+        <div style={{ position: 'fixed', left: 0, right: 0, top: '70%', transform: 'translateY(-50%)', zIndex: 30, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 'clamp(14px, 3vw, 50px)' }}>
+          <OrderTicket cfg={cfg} target={target} />
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 1, transform: 'scale(0.93)', transformOrigin: 'bottom center' }}>
+            <span style={{ fontSize: 'clamp(46px, 9vmin, 108px)', lineHeight: 1, filter: 'drop-shadow(0 4px 6px rgba(0,0,0,.25))', animation: glow ? 'gr_pop .5s ease' : 'gr_float 3.6s ease-in-out infinite' }}>{cfg.customer}</span>
+            <div aria-hidden style={{ width: 'clamp(40px, 7vmin, 90px)', height: 'clamp(12px, 2.1vmin, 27px)', marginTop: '0.3vmin',
+              background: 'radial-gradient(ellipse at center, rgba(38,28,18,0.16) 0%, rgba(38,28,18,0) 72%)', pointerEvents: 'none' }} />
           </div>
-          <div aria-hidden style={{ width: 'clamp(80px, 15vmin, 170px)', height: 'clamp(20px, 4vmin, 46px)', marginTop: '0.2vmin',
-            background: 'radial-gradient(ellipse at center, rgba(38,28,18,0.24) 0%, rgba(38,28,18,0) 72%)', pointerEvents: 'none' }} />
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 2, transformOrigin: 'bottom center' }}>
+            <div style={{ position: 'relative', animation: shake ? 'gr_shake .42s ease' : 'none', filter: glow ? 'drop-shadow(0 0 18px var(--garden-green))' : 'drop-shadow(0 8px 10px rgba(0,0,0,.25))' }}>
+              <Container cfg={cfg} picked={picked} />
+            </div>
+            <div aria-hidden style={{ width: 'clamp(80px, 15vmin, 170px)', height: 'clamp(20px, 4vmin, 46px)', marginTop: '0.2vmin',
+              background: 'radial-gradient(ellipse at center, rgba(38,28,18,0.24) 0%, rgba(38,28,18,0) 72%)', pointerEvents: 'none' }} />
+          </div>
         </div>
-      </div>
+      )}
+      {/* Flower Garden: the planted flowers scatter across the open green grass. */}
+      {isGround && <GroundScatter cfg={cfg} picked={picked} glow={glow} />}
     </>
   )
 }
 
 // ─── The interactive play surface (guided / practice) ──────────────────────────────
 type Mode = 'guided' | 'practice'
-const GroceryPlay: React.FC<{ data: OrderRound; mode: Mode; onComplete: (correct: boolean) => void }> = ({ data, mode, onComplete }) => {
-  const { stall, target, shelf } = data
-  const cfg = STALL[stall]
+const ShopPlay: React.FC<{ world: ShopWorld; data: OrderRound; mode: Mode; onComplete: (correct: boolean) => void }> = ({ world, data, mode, onComplete }) => {
+  const { scene, target, shelf } = data
+  const cfg = SCENE[scene]
   const [picked, setPicked] = useState(0)
-  const pickedRef = useRef(0)        // synchronous source of truth (rapid taps mustn't lose a count)
+  const pickedRef = useRef(0)
   const [glow, setGlow] = useState(false)
   const [shake, setShake] = useState(false)
   const erred = useRef(false), done = useRef(false), tapLock = useRef(false), wrongLock = useRef(false)
 
   useEffect(() => {
-    if (mode === 'guided') speak(`Now you! Put ${qty(target, cfg)} in the ${cfg.container}, then ring the bell.`)
+    if (mode === 'guided') speak(`Now you! Put ${qty(target, cfg)} ${world.prep} the ${cfg.container}, then ${world.verbLabel.replace(/!$/, '')}.`)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Pick is NOT gated on speaking — rapid taps each say the running count (the count-aloud
-  // IS the cardinality heartbeat); a new count just cancels the previous, which is fine.
   function pick() {
     if (done.current || pickedRef.current >= shelf) return
     pickedRef.current += 1; setPicked(pickedRef.current); speak(String(pickedRef.current))
@@ -240,14 +304,13 @@ const GroceryPlay: React.FC<{ data: OrderRound; mode: Mode; onComplete: (correct
     if (done.current || pickedRef.current <= 0) return
     pickedRef.current -= 1; setPicked(pickedRef.current)
   }
-
   function ringUp() {
     if (done.current || tapLock.current) return
     tapLock.current = true; window.setTimeout(() => { tapLock.current = false }, 350)
     const p = pickedRef.current
     if (p === target) {
       done.current = true; setGlow(true)
-      if (mode === 'guided') speak(`Yes! Exactly ${target}! Sold!`)   // practice praise comes from SkillBeat
+      if (mode === 'guided') speak(`Yes! Exactly ${target}! Done!`)
       window.setTimeout(() => onComplete(mode === 'practice' ? !erred.current : true), 1100)
     } else {
       erred.current = true; setShake(true); window.setTimeout(() => setShake(false), 460)
@@ -263,13 +326,13 @@ const GroceryPlay: React.FC<{ data: OrderRound; mode: Mode; onComplete: (correct
     <>
       <Stage cfg={cfg} target={target} shelf={shelf} picked={picked} glow={glow} shake={shake} onPick={pick} />
       {glow && (
-        <div style={{ position: 'fixed', left: '50%', top: '53%', transform: 'translateX(-50%)', zIndex: 48, fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 'clamp(26px, 5vmin, 52px)', color: '#fff', background: 'var(--garden-green)', border: '4px solid #fff', borderRadius: 18, padding: '6px 26px', boxShadow: '0 6px 0 rgba(0,0,0,.2)', animation: 'gr_sold .5s cubic-bezier(.34,1.56,.64,1) both', whiteSpace: 'nowrap' }}>✓ Sold!</div>
+        <div style={{ position: 'fixed', left: '50%', top: '53%', transform: 'translateX(-50%)', zIndex: 48, fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 'clamp(26px, 5vmin, 52px)', color: '#fff', background: 'var(--garden-green)', border: '4px solid #fff', borderRadius: 18, padding: '6px 26px', boxShadow: '0 6px 0 rgba(0,0,0,.2)', animation: 'gr_sold .5s cubic-bezier(.34,1.56,.64,1) both', whiteSpace: 'nowrap' }}>✓ Done!</div>
       )}
       <div style={{ position: 'fixed', left: 0, right: 0, bottom: '4%', zIndex: 31, display: 'flex', justifyContent: 'center', gap: '3vw', flexWrap: 'wrap', padding: '0 12px' }}>
         <button onClick={putBack} disabled={picked <= 0}
           style={{ ...CTRL, background: 'var(--paper)', color: 'var(--milo-orange)', border: '3px solid var(--milo-orange)', opacity: picked <= 0 ? 0.45 : 1, cursor: picked <= 0 ? 'default' : 'pointer' }}>↩ Put one back</button>
         <button onClick={ringUp}
-          style={{ ...CTRL, background: 'linear-gradient(135deg,var(--garden-green),var(--garden-green-deep))', color: '#fff', border: 'none', cursor: 'pointer' }}>🔔 Ring it up!</button>
+          style={{ ...CTRL, background: 'linear-gradient(135deg,var(--garden-green),var(--garden-green-deep))', color: '#fff', border: 'none', cursor: 'pointer' }}>{world.verbEmoji} {world.verbLabel}</button>
       </div>
     </>
   )
@@ -277,29 +340,20 @@ const GroceryPlay: React.FC<{ data: OrderRound; mode: Mode; onComplete: (correct
 const CTRL: React.CSSProperties = { padding: '12px 26px', borderRadius: 50, fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 18, boxShadow: '0 5px 0 rgba(0,0,0,.18)' }
 
 // ─── The teaching demo (opening preview + 3-wrong re-teach) ─────────────────────────
-// Milo counts items into the bag one-by-one and STOPS at N. Timer-driven (not
-// speech-gated) so it can never hang if the browser drops voice.
-const GroceryExplain: React.FC<{ data: OrderRound; onDone: () => void }> = ({ data, onDone }) => {
-  const { stall, target, shelf } = data
-  const cfg = STALL[stall]
+const ShopExplain: React.FC<{ world: ShopWorld; data: OrderRound; onDone: () => void }> = ({ world, data, onDone }) => {
+  const { scene, target, shelf } = data
+  const cfg = SCENE[scene]
   const [filled, setFilled] = useState(0)
   const [glow, setGlow] = useState(false)
   const ran = useRef(false)
   useEffect(() => {
     if (ran.current) return; ran.current = true
-    // speakSeq plays each line only when the previous one's `end` fires, so the intro line,
-    // the counted numbers, and the closing line can never overlap or clip (fixed timers
-    // clipped the long intro line). Each line's visual fires from onWord when that line
-    // actually starts; speakSeq's watchdog means it can't hang.
-    const script: string[] = [`This shopper wants ${qty(target, cfg)}. Let's count them into the ${cfg.container}.`]
+    const script: string[] = [`This order wants ${qty(target, cfg)}. Let's count them ${world.prep} the ${cfg.container}.`]
     const actions: Array<() => void> = [() => {}]
     for (let k = 1; k <= target; k++) { const c = k; script.push(String(c)); actions.push(() => setFilled(c)) }
-    script.push(`${target}! Just right — stop. Ring it up, sold!`)
+    script.push(`${target}! Just right — stop. ${world.verbLabel}`)
     actions.push(() => setGlow(true))
-    const cancel = speakSteps(script, {
-      onStep: (i) => actions[i]?.(),
-      onDone: () => window.setTimeout(onDone, 1200),
-    })
+    const cancel = speakSteps(script, { onStep: (i) => actions[i]?.(), onDone: () => window.setTimeout(onDone, 1200) })
     return cancel
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -307,52 +361,42 @@ const GroceryExplain: React.FC<{ data: OrderRound; onDone: () => void }> = ({ da
 }
 
 // ─── Value generation ──────────────────────────────────────────────────────────────
-function makeOrder(d: 1 | 2 | 3, round: number): OrderRound {
-  const stall = stallForRound(round)
-  const target = matchTarget(d as 1 | 2 | 3)                 // 1–3 / 3–6 / 6–10 (shared adaptive ladder)
-  const spares = d === 1 ? 0 : d === 2 ? 2 : rint(3, 4)      // harder → fuller shelf → must STOP at N
-  const shelf = Math.min(10, target + spares)               // shelf capped at 10
-  return { stall, target, shelf }
+function makeOrder(world: ShopWorld, d: 1 | 2 | 3, round: number): OrderRound {
+  const scene = world.scenes[round % world.scenes.length]
+  const target = matchTarget(d as 1 | 2 | 3)
+  const spares = d === 1 ? 0 : d === 2 ? 2 : rint(3, 4)
+  const shelf = Math.min(10, target + spares)
+  return { scene, target, shelf }
 }
 
-// ─── The scored practice (SkillBeat) — one continuous adaptive sequence ────────────
-export const groceryBeat: Beat<OrderRound> = {
-  skillId: 'matchingQuantities', rounds: 10, reteachAfter: 3,
-  // The stall already changes EVERY round (via the bg cross-fade); a short "next customer"
-  // pause every 3 rounds keeps it from feeling rushed.
-  walkEvery: 3,
-  make: (d, round = 0) => makeOrder((d || 1) as 1 | 2 | 3, round),
-  prompt: d => `Put ${qty(d.target, STALL[d.stall])} in the ${STALL[d.stall].container}.`,
-  say: d => `This shopper would like ${qty(d.target, STALL[d.stall])}. Tap them into the ${STALL[d.stall].container}, then ring the bell!`,
-  Play: ({ data, onSubmit }) => <GroceryPlay data={data} mode="practice" onComplete={onSubmit} />,
-  Reteach: ({ data, onDone }) => <GroceryExplain data={data} onDone={onDone} />,
+function makeGroceryBeat(world: ShopWorld): Beat<OrderRound> {
+  return {
+    skillId: 'matchingQuantities', rounds: 10, reteachAfter: 3, walkEvery: 3,
+    make: (d, round = 0) => makeOrder(world, (d || 1) as 1 | 2 | 3, round),
+    prompt: d => `Put ${qty(d.target, SCENE[d.scene])} ${world.prep} the ${SCENE[d.scene].container}.`,
+    say: d => `This order would like ${qty(d.target, SCENE[d.scene])}. Tap them ${world.prep} the ${SCENE[d.scene].container}, then ${world.verbLabel.replace(/!$/, '')}!`,
+    Play: ({ data, onSubmit }) => <ShopPlay world={world} data={data} mode="practice" onComplete={onSubmit} />,
+    Reteach: ({ data, onDone }) => <ShopExplain world={world} data={data} onDone={onDone} />,
+  }
 }
 
 // ─── Orchestrator ──────────────────────────────────────────────────────────────────
-// TWO teaching demos — different stalls — so the intro previews variety. Milo counts an
-// order into the bag and stops at the number.
-const DEMO_ORDERS: OrderRound[] = [
-  { stall: 'produce', target: 3, shelf: 3 },
-  { stall: 'bakery',  target: 5, shelf: 7 },
-]
-const GUIDED_ORDER: OrderRound = { stall: 'deli', target: 2, shelf: 4 }
-
 const GR_CSS = `
 @keyframes gr_float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
 @keyframes gr_pop { 0%{transform:scale(0);opacity:0} 70%{transform:scale(1.15);opacity:1} 100%{transform:scale(1);opacity:1} }
 @keyframes gr_shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px) rotate(-2deg)} 75%{transform:translateX(6px) rotate(2deg)} }
 @keyframes gr_sold { 0%{transform:translateX(-50%) scale(.3);opacity:0} 60%{transform:translateX(-50%) scale(1.2);opacity:1} 100%{transform:translateX(-50%) scale(1);opacity:1} }
-@keyframes k_bounceIn { 0%{transform:scale(0) translateY(30px);opacity:0} 60%{transform:scale(1.25) translateY(-6px);opacity:1} 100%{transform:scale(1) translateY(0);opacity:1} }
 `
-
 type Phase = 'intro' | 'demo' | 'guided' | 'practice'
-export default function Grocery({ onFinish, onExit }: {
+export default function Grocery({ world: forcedWorldId, onFinish, onExit }: {
+  world?: string
   onFinish?: (correct: number, wrong: number, mastered?: boolean) => void
   onExit?: () => void
 }) {
   const router = useRouter()
+  const [world, setWorld] = useState<ShopWorld | null>(() => (forcedWorldId ? worldById(forcedWorldId) ?? null : null))
   const [phase, setPhase] = useState<Phase>('intro')
-  const [stall, setStall] = useState<Stall>('produce')
+  const [scene, setScene] = useState<Scene>('produce')
   const [demoIdx, setDemoIdx] = useState(0)
   const result = useRef({ correct: 0, wrong: 0 })
   const finished = useRef(false)
@@ -365,16 +409,25 @@ export default function Grocery({ onFinish, onExit }: {
   }, [onFinish, exit])
 
   const interlude = useCallback(() => new Promise<void>(res => window.setTimeout(res, 850)), [])
-  const bgStall: Stall = phase === 'practice' ? stall
-    : phase === 'guided' ? GUIDED_ORDER.stall
-    : phase === 'demo' ? DEMO_ORDERS[demoIdx].stall
-    : 'produce'
+  const beat = useMemo(() => (world ? makeGroceryBeat(world) : null), [world])
 
-  const TopBar = (
-    <div style={{ position: 'absolute', top: 12, left: 14, right: 14, display: 'flex', alignItems: 'center', zIndex: 50 }}>
-      <button onClick={exit} style={{ padding: '7px 14px', borderRadius: 50, background: 'var(--paper)', border: '3px solid var(--milo-orange)', color: 'var(--milo-orange)', fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>← Menu</button>
-    </div>
-  )
+  if (!world || !beat) {
+    return (
+      <div style={{ position: 'relative', width: '100vw', height: '100dvh', overflow: 'hidden' }}>
+        <WorldSelect title="Which shop shall we open?" worlds={PICK_WORLDS}
+          onPick={(id) => { const w = worldById(id); if (w) { setScene(w.scenes[0]); setWorld(w) } }} onExit={exit} />
+      </div>
+    )
+  }
+
+  // Per-world demo + guided orders (small numbers, this world's first scenes).
+  const DEMO_ORDERS: OrderRound[] = [
+    { scene: world.scenes[0], target: 3, shelf: 3 },
+    { scene: world.scenes[1] ?? world.scenes[0], target: 5, shelf: 7 },
+  ]
+  const GUIDED_ORDER: OrderRound = { scene: world.scenes[2] ?? world.scenes[0], target: 2, shelf: 4 }
+  const bgScene: Scene = phase === 'practice' ? scene : phase === 'guided' ? GUIDED_ORDER.scene : phase === 'demo' ? DEMO_ORDERS[demoIdx].scene : world.scenes[0]
+
   const Banner = (text: string) => (
     <div style={{ position: 'absolute', top: 50, left: 0, right: 0, zIndex: 45, display: 'flex', justifyContent: 'center', padding: '0 12px' }}>
       <div style={{ background: 'var(--paper)', border: '3px solid var(--milo-orange)', borderRadius: 999, padding: '10px 24px', fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 19, color: 'var(--milo-orange)', boxShadow: '0 4px 0 rgba(242,107,44,.25)', textAlign: 'center' }}>{text}</div>
@@ -384,35 +437,37 @@ export default function Grocery({ onFinish, onExit }: {
   return (
     <div style={{ position: 'relative', width: '100vw', height: '100dvh', overflow: 'hidden' }}>
       <style>{GR_CSS}</style>
-      <Background stall={bgStall} />
-      {TopBar}
+      <Background scene={bgScene} scenes={world.scenes} />
+      <div style={{ position: 'absolute', top: 12, left: 14, right: 14, display: 'flex', alignItems: 'center', zIndex: 50 }}>
+        <button onClick={exit} style={{ padding: '7px 14px', borderRadius: 50, background: 'var(--paper)', border: '3px solid var(--milo-orange)', color: 'var(--milo-orange)', fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>← Menu</button>
+      </div>
 
       {phase === 'intro' && (
         <div style={{ position: 'absolute', inset: 0, zIndex: 45, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20 }}>
           <div style={{ maxWidth: '76%', background: '#fff', border: '3px solid var(--outline)', borderRadius: 18, padding: '14px 20px', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 19, color: 'var(--ink)', textAlign: 'center', boxShadow: '0 4px 0 rgba(61,37,22,.1)' }}>
-            Milo&apos;s shop is open! Each customer wants <b>exactly</b> some things — tap them into the bag and ring the bell. First, watch Milo!
+            {world.intro}
           </div>
           <button onClick={() => setPhase('demo')}
-            style={{ padding: '14px 38px', borderRadius: 50, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg,var(--milo-orange),var(--milo-orange-deep))', color: '#fff', fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 22, boxShadow: '0 6px 16px rgba(242,107,44,.4)' }}>Open the shop! ▶</button>
+            style={{ padding: '14px 38px', borderRadius: 50, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg,var(--milo-orange),var(--milo-orange-deep))', color: '#fff', fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 22, boxShadow: '0 6px 16px rgba(242,107,44,.4)' }}>Open up! ▶</button>
         </div>
       )}
 
       {phase === 'demo' && (<>{Banner(`Watch Milo fill the order  (${demoIdx + 1}/${DEMO_ORDERS.length})`)}
-        <GroceryExplain key={`demo${demoIdx}`} data={DEMO_ORDERS[demoIdx]}
+        <ShopExplain key={`demo${demoIdx}`} world={world} data={DEMO_ORDERS[demoIdx]}
           onDone={() => { if (demoIdx + 1 < DEMO_ORDERS.length) setDemoIdx(demoIdx + 1); else setPhase('guided') }} /></>)}
 
-      {phase === 'guided' && (<>{Banner('Now you! Fill the order, then ring the bell')}
-        <GroceryPlay key="guided" data={GUIDED_ORDER} mode="guided" onComplete={() => setPhase('practice')} /></>)}
+      {phase === 'guided' && (<>{Banner('Now you! Fill the order, then serve it')}
+        <ShopPlay key="guided" world={world} data={GUIDED_ORDER} mode="guided" onComplete={() => setPhase('practice')} /></>)}
 
       {phase === 'practice' && (
         <div style={{ position: 'absolute', top: 48, left: 0, right: 0, zIndex: 45, display: 'flex', justifyContent: 'center', padding: '0 12px' }}>
-          <SkillBeat beat={groceryBeat} onInterlude={interlude}
-            onRound={(data) => { if (data?.stall) setStall(data.stall as Stall) }}
+          <SkillBeat beat={beat} onInterlude={interlude}
+            onRound={(data) => { if (data?.scene) setScene(data.scene as Scene) }}
             onComplete={(c, w, mastered) => { result.current.correct += c; result.current.wrong += w; finishChapter(result.current.correct, result.current.wrong, mastered) }} />
         </div>
       )}
 
-      {phase !== 'intro' && <MiloGrocer left={11} />}
+      {<MiloHost left={11} milo={world.milo} />}
     </div>
   )
 }

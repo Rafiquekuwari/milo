@@ -1,114 +1,131 @@
 'use client'
 /**
- * Chapter 2 — "Milo's Number-Order Journey", told through FOUR mini-games that rotate
- * across the 10 adaptive rounds (one continuous SkillBeat — harder on a streak, easier
- * when struggling, re-explain after 3 wrong):
- *   🪨 River Crossing — tap stones smallest→biggest; they slide into a path, Milo hops over.
- *   🌉 Mend the Bridge — a plank is missing (1·2·?·4·5); tap the number that fits.
- *   🚂 Build the Train — tap cars smallest→biggest; they line up behind the engine.
- *   🎣 Go Fishing      — tap fish smallest→biggest; each is reeled into the bucket.
- * No opening explanation — practice starts immediately, and the theme CHANGES EVERY
- * round (so each question feels fresh). Milo re-explains in-context after 3 wrong.
+ * Chapter 2 — "Milo's Number-Order Journey". The child picks ONE world, then orders
+ * numbered objects smallest→biggest across that world's THREE scenes (a continuous
+ * adaptive SkillBeat — harder on a streak, easier when struggling, re-explain after 3
+ * wrong). The scene CHANGES EVERY round, so each question feels fresh.
+ *
+ *   🪨 River Crossing — 🪨 stepping stones · 🪷 lily pads · 🎣 catch the fish
+ *   🚂 Train Yard     — 🚂 build the train · 🛒 line up the carts · 📦 order the crates
+ *   ☁️ Sky Hop        — ☁️ hop the clouds · 🎈 order the balloons · ⭐ catch the stars
+ *
+ * BLEND is the rule: every numbered object sits naturally in its scene — stones/pads on
+ * water (top-down), carts/crates on the yard ground (side-view), clouds/balloons up in
+ * the sky — grounded with a contact shadow, sized to read big, never pasted-on.
+ *
+ * Three mechanics carry all nine scenes:
+ *   • path   (top-down water): tap smallest→biggest, items slide into a stepping path, Milo hops across.
+ *   • line   (side-view):      tap smallest→biggest, items roll/float into a line (a train trails its engine; carts/crates/clouds/balloons line up).
+ *   • collect (side-view):     tap smallest→biggest, items are gathered into a bucket/basket.
  */
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { speak, speakSeq, useIsSpeaking, stopSpeech } from '@/lib/useMiloSpeaker'
 import { SkillBeat, type Beat } from './StoryWorld'
 import { seqLength } from '@/lib/adaptive'
+import WorldSelect from './WorldSelect'
 
-// After a number is spoken on a correct tap, ignore further taps for this long. The
-// `speaking` flag only flips true ~100-150ms after speak() (Chrome's cancel→speak gap
-// + onstart latency); without this synchronous lock a fast second tap slips through
-// that window and cancels the number mid-word. This bridges to the `speaking` gate.
 const SPEAK_LOCK_MS = 600
-const shuffle = <T,>(a: T[]) => a.slice().sort(() => Math.random() - 0.5)
+const shuffle = <T,>(a: T[]): T[] => {
+  const r = a.slice()
+  for (let i = r.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [r[i], r[j]] = [r[j], r[i]] }
+  return r
+}
 const rint = (lo: number, hi: number) => lo + Math.floor(Math.random() * (hi - lo + 1))
 const frac = (x: number) => x - Math.floor(x)
 const seed = (i: number, s: number) => frac(Math.sin((i + 1) * s) * 43758.5453)
 
-// Sprites are designed against a ~1000px-wide stage. On a real desktop browser the
-// window is far wider (e.g. 1900px), so fixed-px sprites end up occupying a tiny
-// fraction of the screen and look small/sparse — even though a 1000px preview looks
-// right. This scales every sprite by viewport width so it fills the SAME fraction of
-// the screen at any size. (Clamped so it never gets absurd on ultra-wide / tiny.)
+// Sprites are designed against a ~1000px-wide stage; scale by viewport width so they
+// fill the same fraction of the screen at any size (and read BIG, not tiny/sparse).
 const DESIGN_W = 1000
 function useScale() {
   const [s, setS] = useState(1)
   useEffect(() => {
     const calc = () => setS(Math.max(0.8, Math.min(2.3, window.innerWidth / DESIGN_W)))
-    calc()
-    window.addEventListener('resize', calc)
+    calc(); window.addEventListener('resize', calc)
     return () => window.removeEventListener('resize', calc)
   }, [])
   return s
 }
 
-// ─── Scenarios ─────────────────────────────────────────────────────────────────
-type Scenario = 'crossing' | 'bridge' | 'train' | 'fishing'
-const SCENARIO_ORDER: Scenario[] = ['crossing', 'bridge', 'train', 'fishing']
-// The theme CHANGES EVERY ROUND — crossing → bridge → train → fishing → crossing …
-// (never two of the same back-to-back), so each practice question feels fresh.
-function scenarioForRound(round: number): Scenario {
-  return SCENARIO_ORDER[round % SCENARIO_ORDER.length]
-}
-const SCENARIO_BG: Record<Scenario, { src: string; zoom: boolean }> = {
-  crossing: { src: '/assets/backgrounds/River.jpeg', zoom: true },
-  bridge:   { src: '/assets/backgrounds/pond_top.jpeg', zoom: true },
-  train:    { src: '/assets/backgrounds/train_bg.jpeg', zoom: false },
-  fishing:  { src: '/assets/backgrounds/fishing_bg.jpeg', zoom: false },
-}
-const SCENARIO_PROMPT: Record<Scenario, string> = {
-  crossing: 'Put the stones in order — smallest first!',
-  bridge: 'Build the bridge — smallest first!',
-  train: 'Build the train — smallest first!',
-  fishing: 'Catch the fish — smallest first!',
-}
-const SCENARIO_SAY: Record<Scenario, string> = {
-  crossing: 'Order the stones! Smallest first.',
-  bridge: "Let's mend the bridge! Smallest first.",
-  train: "Let's build the train! Smallest first.",
-  fishing: "Let's go fishing! Catch the smallest first.",
+// ─── Scenes & Worlds ─────────────────────────────────────────────────────────────
+type Scenario =
+  | 'crossing' | 'lilypads' | 'fishing'   // River Crossing
+  | 'train' | 'carts' | 'crates'          // Train Yard
+  | 'clouds' | 'balloons' | 'stars'       // Sky Hop
+type Mechanic = 'path' | 'line' | 'collect'
+
+interface SceneCfg {
+  bg: string; zoom?: boolean
+  mech: Mechanic
+  src: string; aria: string
+  prompt: string; say: string
+  // path: top-down water (stones/pads). nothing extra.
+  // line: side-view; objects line up. baseW = sprite width @1000px, aspect = h/w.
+  baseW?: number; aspect?: number; sky?: boolean; lineY?: number
+  leaderSrc?: string; leaderEmoji?: string; leaderFlip?: boolean; milo?: boolean
+  // collect: side-view; objects gathered into a container.
+  itemAspect?: number; containerSrc?: string; collectorSrc?: string; collectorFallback?: string
+  band?: { l0: number; l1: number; t0: number; t1: number }
+  container?: { left: number; top: number }; collector?: { left: number; top: number }
 }
 
-// Painted scene backgrounds; cross-fade by opacity. The top-down water scenes are
-// zoomed so the water fills the screen; the side-view ones are shown as-is.
-function Background({ scenario }: { scenario: Scenario }) {
+const SCENE: Record<Scenario, SceneCfg> = {
+  // River Crossing — top-down water; stones & pads sit ON the water, fish swim IN it.
+  crossing: { bg: '/assets/backgrounds/River.jpeg', zoom: true, mech: 'path', src: '/assets/objects/stone_top.png', aria: 'stone',
+    prompt: 'Put the stones in order — smallest first!', say: 'Order the stones! Smallest first.' },
+  lilypads: { bg: '/assets/backgrounds/pond_top.jpeg', zoom: true, mech: 'path', src: '/assets/objects/lilypad.png', aria: 'lily pad',
+    prompt: 'Hop the lily pads — smallest first!', say: 'Hop the lily pads! Smallest first.' },
+  fishing: { bg: '/assets/backgrounds/fishing_bg.jpeg', mech: 'collect', src: '/assets/objects/fish.png', aria: 'fish', itemAspect: 0.72,
+    containerSrc: '/assets/objects/bucket.png', collectorSrc: '/assets/characters/milo_fishing.png', collectorFallback: '/assets/characters/milo_idle.png',
+    band: { l0: 40, l1: 94, t0: 58, t1: 92 }, container: { left: 22, top: 64 }, collector: { left: 29, top: 54 },
+    prompt: 'Catch the fish — smallest first!', say: "Let's go fishing! Catch the smallest first." },
+  // Train Yard — side-view ground; cars/carts/crates stand on the yard floor.
+  train: { bg: '/assets/backgrounds/train_bg.jpeg', mech: 'line', src: '/assets/objects/train_car.png', aria: 'car', baseW: 190, aspect: 0.56, lineY: 70,
+    leaderSrc: '/assets/objects/train_engine.png', leaderEmoji: '🚂',
+    prompt: 'Build the train — smallest first!', say: "Let's build the train! Smallest first." },
+  carts: { bg: '/assets/backgrounds/order_yard.png', mech: 'line', src: '/assets/objects/cart.png', aria: 'cart', baseW: 160, aspect: 0.74, lineY: 74, milo: true,
+    prompt: 'Line up the carts — smallest first!', say: 'Line up the carts! Smallest first.' },
+  crates: { bg: '/assets/backgrounds/order_depot.png', mech: 'line', src: '/assets/objects/crate.png', aria: 'crate', baseW: 138, aspect: 0.92, lineY: 76, milo: true,
+    prompt: 'Order the crates — smallest first!', say: 'Order the crates! Smallest first.' },
+  // Sky Hop — side-view sky; clouds & balloons float at altitude (no ground shadow).
+  clouds: { bg: '/assets/backgrounds/sky.jpeg', mech: 'line', src: '/assets/objects/space_cloud.png', aria: 'cloud', baseW: 150, aspect: 0.7, sky: true, lineY: 42,
+    prompt: 'Hop the clouds — smallest first!', say: 'Hop the clouds! Smallest first.' },
+  balloons: { bg: '/assets/backgrounds/order_balloonsky.png', mech: 'line', src: '/assets/objects/balloon.png', aria: 'balloon', baseW: 116, aspect: 1.3, sky: true, lineY: 46,
+    prompt: 'Order the balloons — smallest first!', say: 'Order the balloons! Smallest first.' },
+  stars: { bg: '/assets/backgrounds/space_deepspace.png', mech: 'collect', src: '/assets/objects/star.png', aria: 'star', itemAspect: 1,
+    containerSrc: '/assets/objects/basket.png', collectorSrc: '/assets/characters/milo_idle.png', collectorFallback: '/assets/characters/milo_idle.png',
+    band: { l0: 30, l1: 92, t0: 16, t1: 56 }, container: { left: 24, top: 80 }, collector: { left: 31, top: 72 },
+    prompt: 'Catch the stars — smallest first!', say: 'Catch the falling stars! Smallest first.' },
+}
+
+interface OrderWorld { id: string; label: string; emoji: string; scenes: Scenario[] }
+const ORDER_WORLDS: OrderWorld[] = [
+  { id: 'river', label: 'River Crossing', emoji: '🪨', scenes: ['crossing', 'lilypads', 'fishing'] },
+  { id: 'train', label: 'Train Yard', emoji: '🚂', scenes: ['train', 'carts', 'crates'] },
+  { id: 'sky', label: 'Sky Hop', emoji: '☁️', scenes: ['clouds', 'balloons', 'stars'] },
+]
+const worldById = (id: string) => ORDER_WORLDS.find(w => w.id === id)
+
+// Painted scene backgrounds for the active world; cross-fade by opacity. Top-down water
+// scenes are zoomed so the water fills the screen; side-view ones are shown as-is.
+function Background({ scenario, scenes }: { scenario: Scenario; scenes: Scenario[] }) {
   return (
     <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: '#86ca63' }}>
-      {SCENARIO_ORDER.map(s => {
-        const b = SCENARIO_BG[s]
-        return <img key={s} src={b.src} alt="" draggable={false}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', transform: b.zoom ? 'scale(1.4)' : 'none', transformOrigin: 'center', opacity: s === scenario ? 1 : 0, transition: 'opacity .6s ease' }} />
+      {scenes.map(s => {
+        const c = SCENE[s]
+        return <img key={s} src={c.bg} alt="" draggable={false}
+          onError={e => { (e.currentTarget as HTMLImageElement).style.opacity = '0' }}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', transform: c.zoom ? 'scale(1.4)' : 'none', transformOrigin: 'center', opacity: s === scenario ? 1 : 0, transition: 'opacity .6s ease' }} />
       })}
     </div>
   )
 }
 
-// ─── Grounded, depth-aware placement cues ───────────────────────────────────────
-// These scenes are INTENTIONALLY composed: tapped items slide into a deliberate shape
-// (a stepping path, a mended bridge, a train line, fish reeled into a bucket) and the
-// untapped ones are meant to read as randomly STREWN across the water/scene (the
-// `scatter`/`seed` positions already give organic x/y variation). So — unlike a flat
-// even row of stickers — we do NOT restack them into a depth-staggered grid; that would
-// wreck the ordering mechanic and the path composition. Instead we add only the
-// grounding CUES that fit: a soft CONTACT SHADOW under every item so it sits IN the
-// world instead of floating flat, a touch of depth-based size falloff, and near-in-front
-// z-ordering. Top-down items (stones/planks, lit from above) get a tight shadow hugging
-// their base; side-view items (train cars, fish) get a wider ground/water shadow below.
-//
-// `depthFor(top%)` derives a 0..1 depth from an item's vertical position (lower on
-// screen = nearer = 0; higher = farther = 1), so scattered items naturally shrink a hair
-// and sit behind nearer ones — the same depth feel as RainbowTown, read from the layout
-// the game already produces rather than imposed on it.
-function depthFor(top: number): number {
-  return Math.max(0, Math.min(1, (90 - top) / 80))
-}
-// A soft contact-shadow ellipse, same recipe/colour as RainbowTown. `kind` tunes how the
-// shadow sits relative to the item: 'flat' hugs the base (top-down, light from above),
-// 'ground' drops it a touch lower & wider (side-view objects standing on a surface),
-// 'water' is a faint, broad blur under a swimming fish.
+// ─── Grounding cues (shared) ─────────────────────────────────────────────────────
+function depthFor(top: number): number { return Math.max(0, Math.min(1, (90 - top) / 80)) }
 function ContactShadow({ left, top, w, depth, kind = 'ground', lit = false }: { left: number; top: number; w: number; depth: number; kind?: 'flat' | 'ground' | 'water'; lit?: boolean }) {
-  const ar = kind === 'flat' ? 0.34 : kind === 'water' ? 0.3 : 0.3
+  const ar = kind === 'flat' ? 0.34 : 0.3
   const baseOp = kind === 'water' ? 0.16 : 0.24
   const op = Math.max(0.05, (baseOp - depth * 0.12) * (lit ? 0.5 : 1))
   const wMul = kind === 'flat' ? 0.62 : kind === 'water' ? 0.78 : 0.7
@@ -119,19 +136,24 @@ function ContactShadow({ left, top, w, depth, kind = 'ground', lit = false }: { 
       transition: 'left .5s cubic-bezier(.34,1.3,.64,1), top .5s cubic-bezier(.34,1.3,.64,1)' }} />
   )
 }
+// A readable number chip, used by the side-view (line/collect) items.
+function NumChip({ d, n }: { d: number; n: number }) {
+  return (
+    <span style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: 2,
+      display: 'flex', minWidth: d, height: d, padding: `0 ${Math.round(d * 0.18)}px`, alignItems: 'center', justifyContent: 'center',
+      background: 'var(--paper)', border: '3px solid var(--milo-orange)', borderRadius: 999,
+      fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: d * 0.56, color: 'var(--milo-orange)', lineHeight: 1, boxShadow: '0 2px 5px rgba(0,0,0,.3)' }}>{n}</span>
+  )
+}
 
-// ─── Crossing geometry (top-down water) ────────────────────────────────────────
-const NEAR = { left: 50, top: 93 }   // Milo's start bank (bottom)
-const FAR = { left: 50, top: 7 }     // the far bank (top)
+// ─── Top-down Milo + path geometry (River world) ────────────────────────────────
+const NEAR = { left: 50, top: 93 }
+const FAR = { left: 50, top: 7 }
 function pathSlot(rank: number, n: number, horizontal = false) {
   if (horizontal) return { left: n <= 1 ? 50 : 9 + rank * (82 / (n - 1)), top: 46 }
-  return { left: 50, top: n <= 1 ? 50 : 84 - rank * (70 / (n - 1)) }   // 84% (near) → 14% (far)
+  return { left: 50, top: n <= 1 ? 50 : 84 - rank * (70 / (n - 1)) }
 }
-function scatterPos(i: number) {
-  return { left: 12 + seed(i, 12.9898) * 76, top: 24 + seed(i, 78.233) * 54 }   // across the water
-}
-
-// ─── Top-down Milo + Stone (River Crossing + Bridge reuse these) ───────────────
+function scatterPos(i: number) { return { left: 12 + seed(i, 12.9898) * 76, top: 24 + seed(i, 78.233) * 54 } }
 function MiloTop({ left, top, size = 148 }: { left: number; top: number; size?: number }) {
   const [missing, setMissing] = useState(false)
   const sz = size * useScale()
@@ -143,11 +165,8 @@ function MiloTop({ left, top, size = 148 }: { left: number; top: number; size?: 
     </div>
   )
 }
-// One tappable ordering item — a STONE (River Crossing) or a PLANK (Mend the Bridge).
-// Depth is read from the item's screen position (lower = nearer = larger/in-front) so the
-// scattered stones gain a little near/far feel, and each casts a tight top-down contact
-// shadow on the water so it reads as sitting IN the river, not pasted over it.
-function OrderItem({ n, left, top, placed, wrong, onTap, size = 124, src = '/assets/objects/stone_top.png', aria = 'stone' }: { n: number; left: number; top: number; placed: boolean; wrong: boolean; onTap?: () => void; size?: number; src?: string; aria?: string }) {
+// One tappable path item — a stone or lily pad on the water (top-down). Number on it.
+function OrderItem({ n, left, top, placed, wrong, onTap, size = 124, src, aria }: { n: number; left: number; top: number; placed: boolean; wrong: boolean; onTap?: () => void; size?: number; src: string; aria: string }) {
   const [missing, setMissing] = useState(false)
   const depth = depthFor(top)
   const sz = size * useScale() * (1 - depth * 0.16)
@@ -170,32 +189,9 @@ function OrderItem({ n, left, top, placed, wrong, onTap, size = 124, src = '/ass
   )
 }
 
-// ─── Shared "tap smallest-first" logic (crossing / train / fishing) ────────────
-function useOrderTaps(nums: number[], onComplete: (correct: boolean) => void) {
-  const sorted = useMemo(() => [...nums].sort((a, b) => a - b), [nums])
-  const [placed, setPlaced] = useState(0)
-  const [wrong, setWrong] = useState<number | null>(null)
-  const erred = useRef(false), done = useRef(false), wrongLock = useRef(false), tapLock = useRef(false)
-  const speaking = useIsSpeaking()
-  function tap(v: number) {
-    if (done.current || speaking || tapLock.current) return
-    if (v === sorted[placed]) {
-      const np = placed + 1; setPlaced(np); setWrong(null)
-      tapLock.current = true; speak(String(v)); window.setTimeout(() => { tapLock.current = false }, SPEAK_LOCK_MS)
-      if (np === sorted.length) { done.current = true; window.setTimeout(() => onComplete(!erred.current), 1000) }
-    } else {
-      erred.current = true; setWrong(v)
-      if (!wrongLock.current) { wrongLock.current = true; speak('Oops! Smallest first.'); window.setTimeout(() => { wrongLock.current = false }, 1300) }
-      window.setTimeout(() => setWrong(w => (w === v ? null : w)), 600)
-    }
-  }
-  return { sorted, placed, wrong, done: done.current, tap }
-}
-
-// ─── 🪨 River Crossing (also powers the 1→10 demo + guided) ────────────────────
+// ─── path mechanic (River world: stones + lily pads) ────────────────────────────
 type Mode = 'demo' | 'guided' | 'practice'
-const CrossingPlay: React.FC<{ nums: number[]; mode: Mode; horizontal?: boolean; item?: 'stone' | 'plank'; onComplete: (correct: boolean) => void }> = ({ nums, mode, horizontal = false, item = 'stone', onComplete }) => {
-  const itemSrc = item === 'plank' ? '/assets/objects/plank_top.png' : '/assets/objects/stone_top.png'
+const CrossingPlay: React.FC<{ nums: number[]; mode: Mode; horizontal?: boolean; src: string; aria: string; onComplete: (correct: boolean) => void }> = ({ nums, mode, horizontal = false, src, aria, onComplete }) => {
   const sorted = useMemo(() => [...nums].sort((a, b) => a - b), [nums])
   const scatter = useMemo(() => nums.map((_, i) => scatterPos(i)), [nums])
   const [placed, setPlaced] = useState(0)
@@ -209,8 +205,6 @@ const CrossingPlay: React.FC<{ nums: number[]; mode: Mode; horizontal?: boolean;
 
   const finish = useCallback(() => {
     if (done.current) return; done.current = true
-    // Only the GUIDED round praises out loud — the demo would say it as it unmounts to
-    // hand off to guided, and the speakSeq cleanup cancel() cuts it off mid-word.
     if (mode === 'guided') speak('You crossed! 🎉')
     window.setTimeout(() => onComplete(mode === 'practice' ? !erred.current : true), 1100)
   }, [mode, onComplete])
@@ -221,8 +215,6 @@ const CrossingPlay: React.FC<{ nums: number[]; mode: Mode; horizontal?: boolean;
       const cancel = speakSeq(words, { onWord: i => { if (i >= 1) setPlaced(i) }, onDone: () => window.setTimeout(finish, 500) })
       return () => cancel()
     }
-    // The guided round used to be silent — give it a spoken prompt so the child hears
-    // what to do (the on-screen banner alone isn't enough for pre-readers).
     if (mode === 'guided') speak('Now you! Tap the smallest one first.')
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -250,150 +242,194 @@ const CrossingPlay: React.FC<{ nums: number[]; mode: Mode; horizontal?: boolean;
         const isPlaced = rank < placed
         if (mode === 'demo' && !isPlaced) return null
         const pos = isPlaced ? pathSlot(rank, n, horizontal) : scatter[i]
-        return <OrderItem key={i} n={v} left={pos.left} top={pos.top} placed={isPlaced} wrong={wrong === v} size={size} src={itemSrc} aria={item} onTap={mode === 'demo' ? undefined : () => tap(v)} />
+        return <OrderItem key={i} n={v} left={pos.left} top={pos.top} placed={isPlaced} wrong={wrong === v} size={size} src={src} aria={aria} onTap={mode === 'demo' ? undefined : () => tap(v)} />
       })}
       <MiloTop left={miloPos.left} top={miloPos.top} />
     </>
   )
 }
 
-// ─── 🚂 Build the Train ────────────────────────────────────────────────────────
-// Engine faces RIGHT, so it sits on the RIGHT and the cars trail to the LEFT (placed
-// "back" behind it). The track is large, so the engine + cars are large to match.
-const RAIL_Y = 70
-function EngineSprite({ left }: { left: number }) {
+// ─── Shared "tap smallest-first" logic (line + collect) ─────────────────────────
+function useOrderTaps(nums: number[], onComplete: (correct: boolean) => void) {
+  const sorted = useMemo(() => [...nums].sort((a, b) => a - b), [nums])
+  const [placed, setPlaced] = useState(0)
+  const [wrong, setWrong] = useState<number | null>(null)
+  const erred = useRef(false), done = useRef(false), wrongLock = useRef(false), tapLock = useRef(false)
+  const speaking = useIsSpeaking()
+  function tap(v: number) {
+    if (done.current || speaking || tapLock.current) return
+    if (v === sorted[placed]) {
+      const np = placed + 1; setPlaced(np); setWrong(null)
+      tapLock.current = true; speak(String(v)); window.setTimeout(() => { tapLock.current = false }, SPEAK_LOCK_MS)
+      if (np === sorted.length) { done.current = true; window.setTimeout(() => onComplete(!erred.current), 1000) }
+    } else {
+      erred.current = true; setWrong(v)
+      if (!wrongLock.current) { wrongLock.current = true; speak('Oops! Smallest first.'); window.setTimeout(() => { wrongLock.current = false }, 1300) }
+      window.setTimeout(() => setWrong(w => (w === v ? null : w)), 600)
+    }
+  }
+  return { sorted, placed, wrong, done: done.current, tap }
+}
+
+// ─── line mechanic (Train Yard: train/carts/crates · Sky: clouds/balloons) ──────
+const ANCHOR_X = 86
+function Leader({ left, y, src, emoji }: { left: number; y: number; src: string; emoji: string }) {
   const [m, setM] = useState(false)
   const w = 250 * useScale(), h = w * 0.75
   return (
-    <div style={{ position: 'fixed', left: `${left}%`, top: `${RAIL_Y}%`, transform: 'translate(-50%,-92%)', zIndex: 36, width: w, height: h }}>
-      {m ? <div style={{ fontSize: 110, transform: 'scaleX(-1)' }}>🚂</div>
-        : <img src="/assets/objects/train_engine.png" alt="engine" draggable={false} onError={() => setM(true)} style={{ width: '100%', height: '100%', objectFit: 'contain', filter: 'drop-shadow(0 5px 7px rgba(0,0,0,.3))' }} />}
+    <div style={{ position: 'fixed', left: `${left}%`, top: `${y}%`, transform: 'translate(-50%,-92%)', zIndex: 36, width: w, height: h }}>
+      {m ? <div style={{ fontSize: 110, transform: 'scaleX(-1)' }}>{emoji}</div>
+        : <img src={src} alt="" draggable={false} onError={() => setM(true)} style={{ width: '100%', height: '100%', objectFit: 'contain', filter: 'drop-shadow(0 5px 7px rgba(0,0,0,.3))' }} />}
     </div>
   )
 }
-function TrainCar({ n, left, top, placed, wrong, onTap }: { n: number; left: number; top: number; placed: boolean; wrong: boolean; onTap: () => void }) {
+// A small Milo standing at the head of a ground line (carts/crates), so the scene isn't empty.
+function CornerMilo({ left, y }: { left: number; y: number }) {
   const [m, setM] = useState(false)
-  // Side-view: depth from the car's vertical position (scattered cars sit higher = farther),
-  // and a ground shadow on the surface right beneath its wheels so it stands on the ground.
+  const h = 150 * useScale()
+  return <img src={m ? '/assets/characters/milo_idle.png' : '/assets/characters/milo_idle.png'} alt="Milo" draggable={false} onError={() => setM(true)}
+    style={{ position: 'fixed', left: `${left}%`, top: `${y}%`, transform: 'translate(-50%,-100%)', zIndex: 35, width: h * 0.8, height: h, objectFit: 'contain', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,.3))' }} />
+}
+function LineItem({ n, left, top, placed, wrong, onTap, c }: { n: number; left: number; top: number; placed: boolean; wrong: boolean; onTap: () => void; c: SceneCfg }) {
+  const [m, setM] = useState(false)
   const depth = depthFor(top)
-  const w = 190 * useScale() * (1 - depth * 0.14), h = w * 0.56
+  const w = (c.baseW ?? 160) * useScale() * (1 - depth * 0.14), h = w * (c.aspect ?? 0.7)
+  const anchor = c.sky ? 'translate(-50%,-50%)' : 'translate(-50%,-90%)'   // sky items float (center), ground items stand (bottom)
+  const d = Math.round(w * 0.34)
   return (
     <>
-      <ContactShadow left={left} top={top + 0.6} w={w} depth={depth} kind="ground" lit={placed} />
-      <button onClick={onTap} disabled={placed} aria-label={`car ${n}`}
-        style={{ position: 'fixed', left: `${left}%`, top: `${top}%`, transform: `translate(-50%,-90%) ${wrong ? 'rotate(-5deg)' : ''}`, zIndex: 30 + Math.round((1 - depth) * 6), width: w, height: h, padding: 0, border: 'none', background: 'transparent', cursor: placed ? 'default' : 'pointer', transition: 'left .55s cubic-bezier(.34,1.3,.64,1), top .55s cubic-bezier(.34,1.3,.64,1), transform .15s' }}>
-        {m ? <div style={{ width: '100%', height: '100%', borderRadius: 14, background: placed ? '#a6dd84' : '#4f9fd4', border: '4px solid #2e6e9e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: w * 0.3, color: '#fff' }}>{n}</div>
+      {!c.sky && <ContactShadow left={left} top={top + 0.6} w={w} depth={depth} kind="ground" lit={placed} />}
+      <button onClick={onTap} disabled={placed} aria-label={`${c.aria} ${n}`}
+        style={{ position: 'fixed', left: `${left}%`, top: `${top}%`, transform: `${anchor} ${wrong ? 'rotate(-5deg)' : ''}`, zIndex: 30 + Math.round((1 - depth) * 6), width: w, height: h, padding: 0, border: 'none', background: 'transparent', cursor: placed ? 'default' : 'pointer', transition: 'left .55s cubic-bezier(.34,1.3,.64,1), top .55s cubic-bezier(.34,1.3,.64,1), transform .15s' }}>
+        {m
+          ? <div style={{ width: '100%', height: '100%', borderRadius: 14, background: placed ? '#a6dd84' : '#4f9fd4', border: '4px solid #2e6e9e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: w * 0.3, color: '#fff' }}>{n}</div>
           : <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-              <img src="/assets/objects/train_car.png" alt="" draggable={false} onError={() => setM(true)} style={{ width: '100%', height: '100%', objectFit: 'contain', filter: placed ? 'drop-shadow(0 0 10px rgba(111,190,63,.8))' : 'drop-shadow(0 3px 4px rgba(0,0,0,.35))' }} />
-              <span style={{ position: 'absolute', left: 0, right: 0, top: '28%', textAlign: 'center', fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: w * 0.26, color: '#15406b' }}>{n}</span>
+              <img src={c.src} alt="" draggable={false} onError={() => setM(true)} style={{ width: '100%', height: '100%', objectFit: 'contain', filter: placed ? 'drop-shadow(0 0 10px rgba(111,190,63,.8))' : 'drop-shadow(0 3px 4px rgba(0,0,0,.35))' }} />
+              <NumChip d={d} n={n} />
             </div>}
       </button>
     </>
   )
 }
-const ENGINE_X = 86
-const TrainPlay: React.FC<{ nums: number[]; onSubmit: (c: boolean) => void }> = ({ nums, onSubmit }) => {
+const LinePlay: React.FC<{ nums: number[]; c: SceneCfg; onSubmit: (correct: boolean) => void }> = ({ nums, c, onSubmit }) => {
   const { sorted, placed, wrong, tap } = useOrderTaps(nums, onSubmit)
   const n = sorted.length
-  const scatter = useMemo(() => nums.map((_, i) => ({ left: 16 + seed(i, 12.9898) * 60, top: 22 + seed(i, 3.17) * 18 })), [nums])
+  const lineY = c.lineY ?? 70
+  const hasLeader = !!c.leaderSrc
+  const scatter = useMemo(() => nums.map((_, i) => c.sky
+    ? ({ left: 14 + seed(i, 12.9898) * 70, top: 16 + seed(i, 3.17) * 22 })
+    : ({ left: 16 + seed(i, 12.9898) * 60, top: 24 + seed(i, 3.17) * 16 })), [nums, c.sky])
   const gap = Math.min(15, 64 / (n + 1))
+  const anchorX = hasLeader ? ANCHOR_X : 88
   return (
     <>
-      <EngineSprite left={ENGINE_X} />
+      {hasLeader && <Leader left={anchorX} y={lineY} src={c.leaderSrc!} emoji={c.leaderEmoji ?? '🚂'} />}
+      {c.milo && <CornerMilo left={94} y={lineY + 2} />}
       {nums.map((v, i) => {
         const rank = sorted.indexOf(v)
         const isPlaced = rank < placed
-        // smallest sits just behind the engine; the rest trail off to the LEFT.
-        const pos = isPlaced ? { left: ENGINE_X - 13 - rank * gap, top: RAIL_Y } : scatter[i]
-        return <TrainCar key={i} n={v} left={pos.left} top={pos.top} placed={isPlaced} wrong={wrong === v} onTap={() => tap(v)} />
+        const pos = isPlaced ? { left: anchorX - 13 - rank * gap, top: lineY } : scatter[i]
+        return <LineItem key={i} n={v} left={pos.left} top={pos.top} placed={isPlaced} wrong={wrong === v} c={c} onTap={() => tap(v)} />
       })}
     </>
   )
 }
 
-// ─── 🎣 Go Fishing ─────────────────────────────────────────────────────────────
-function Bucket({ left, top }: { left: number; top: number }) {
+// ─── collect mechanic (Fishing: fish→bucket · Sky: stars→basket) ────────────────
+function Container({ src, left, top }: { src: string; left: number; top: number }) {
   const b = 118 * useScale()
-  return <img src="/assets/objects/bucket.png" alt="bucket" draggable={false} style={{ position: 'fixed', left: `${left}%`, top: `${top}%`, transform: 'translate(-50%,-50%)', zIndex: 28, width: b, height: b, objectFit: 'contain', filter: 'drop-shadow(0 4px 6px rgba(0,0,0,.3))' }} />
+  return <img src={src} alt="" draggable={false} style={{ position: 'fixed', left: `${left}%`, top: `${top}%`, transform: 'translate(-50%,-50%)', zIndex: 28, width: b, height: b, objectFit: 'contain', filter: 'drop-shadow(0 4px 6px rgba(0,0,0,.3))' }} />
 }
-function FishingMilo({ left, top }: { left: number; top: number }) {
-  const [m, setM] = useState(false)
+function Collector({ src, fallback, left, top }: { src: string; fallback: string; left: number; top: number }) {
+  const [s, setS] = useState(src)
   const sz = 150 * useScale()
-  return <img src={m ? '/assets/characters/milo_idle.png' : '/assets/characters/milo_fishing.png'} alt="Milo" draggable={false} onError={() => setM(true)} style={{ position: 'fixed', left: `${left}%`, top: `${top}%`, transform: 'translate(-50%,-50%)', zIndex: 27, width: sz, height: sz, objectFit: 'contain', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,.3))' }} />
+  return <img src={s} alt="Milo" draggable={false} onError={() => setS(fallback)} style={{ position: 'fixed', left: `${left}%`, top: `${top}%`, transform: 'translate(-50%,-50%)', zIndex: 27, width: sz, height: sz, objectFit: 'contain', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,.3))' }} />
 }
-function Fish({ n, left, top, caught, wrong, onTap }: { n: number; left: number; top: number; caught: boolean; wrong: boolean; onTap: () => void }) {
-  // Depth from how deep the fish swims (lower in the water = nearer); a faint, broad water
-  // shadow drifts below it so it reads as swimming WITHIN the water, not stuck on the glass.
-  // The shadow fades with the fish as it's reeled into the bucket.
+function CollectItem({ n, left, top, caught, wrong, onTap, c }: { n: number; left: number; top: number; caught: boolean; wrong: boolean; onTap: () => void; c: SceneCfg }) {
+  const [m, setM] = useState(false)
   const depth = depthFor(top)
-  const w = 100 * useScale() * (1 - depth * 0.16)
+  const w = 104 * useScale() * (1 - depth * 0.16), asp = c.itemAspect ?? 0.9
+  const d = Math.round(w * 0.4)
   return (
     <>
       <div style={{ opacity: caught ? 0 : 1, transition: 'opacity .45s' }}>
         <ContactShadow left={left} top={top + 4.5} w={w} depth={depth} kind="water" />
       </div>
-      <button onClick={onTap} disabled={caught} aria-label={`fish ${n}`}
-        style={{ position: 'fixed', left: `${left}%`, top: `${top}%`, transform: `translate(-50%,-50%) ${wrong ? 'rotate(-8deg)' : ''}`, zIndex: 30 + Math.round((1 - depth) * 6), width: w, height: w * 0.72, padding: 0, border: 'none', background: 'transparent', cursor: caught ? 'default' : 'pointer', opacity: caught ? 0 : 1, transition: 'left .5s cubic-bezier(.34,1.3,.64,1), top .5s cubic-bezier(.34,1.3,.64,1), opacity .45s, transform .15s' }}>
-        <img src="/assets/objects/fish.png" alt="" draggable={false} style={{ width: '100%', height: '100%', objectFit: 'contain', filter: 'drop-shadow(0 3px 4px rgba(0,0,0,.3))' }} />
-        <span style={{ position: 'absolute', top: '-8%', left: '50%', transform: 'translateX(-50%)', background: '#fff', border: '3px solid var(--milo-orange)', borderRadius: '50%', width: w * 0.4, height: w * 0.4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: w * 0.24, color: 'var(--milo-orange)' }}>{n}</span>
+      <button onClick={onTap} disabled={caught} aria-label={`${c.aria} ${n}`}
+        style={{ position: 'fixed', left: `${left}%`, top: `${top}%`, transform: `translate(-50%,-50%) ${wrong ? 'rotate(-8deg)' : ''}`, zIndex: 30 + Math.round((1 - depth) * 6), width: w, height: w * asp, padding: 0, border: 'none', background: 'transparent', cursor: caught ? 'default' : 'pointer', opacity: caught ? 0 : 1, transition: 'left .5s cubic-bezier(.34,1.3,.64,1), top .5s cubic-bezier(.34,1.3,.64,1), opacity .45s, transform .15s' }}>
+        {m
+          ? <div style={{ width: '100%', height: '100%', borderRadius: '50%', background: '#ffd34d', border: '4px solid #e0a020', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: w * 0.4, color: '#7a5300' }}>{n}</div>
+          : <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+              <img src={c.src} alt="" draggable={false} onError={() => setM(true)} style={{ width: '100%', height: '100%', objectFit: 'contain', filter: 'drop-shadow(0 3px 4px rgba(0,0,0,.3))' }} />
+              <span style={{ position: 'absolute', top: '-8%', left: '50%', transform: 'translateX(-50%)', background: '#fff', border: '3px solid var(--milo-orange)', borderRadius: '50%', width: d, height: d, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: d * 0.56, color: 'var(--milo-orange)' }}>{n}</span>
+            </div>}
       </button>
     </>
   )
 }
-const FishingPlay: React.FC<{ nums: number[]; onSubmit: (c: boolean) => void }> = ({ nums, onSubmit }) => {
+const CollectPlay: React.FC<{ nums: number[]; c: SceneCfg; onSubmit: (correct: boolean) => void }> = ({ nums, c, onSubmit }) => {
   const { sorted, placed, wrong, tap } = useOrderTaps(nums, onSubmit)
-  // Fish swim DOWN in the darker underwater area (lower water), not floating on top.
-  const scatter = useMemo(() => nums.map((_, i) => ({ left: 40 + seed(i, 12.9898) * 54, top: 58 + seed(i, 3.17) * 34 })), [nums])
-  const bucket = { left: 22, top: 64 }
+  const band = c.band ?? { l0: 40, l1: 94, t0: 58, t1: 92 }
+  const scatter = useMemo(() => nums.map((_, i) => ({ left: band.l0 + seed(i, 12.9898) * (band.l1 - band.l0), top: band.t0 + seed(i, 3.17) * (band.t1 - band.t0) })), [nums, band.l0, band.l1, band.t0, band.t1])
+  const container = c.container ?? { left: 22, top: 64 }
+  const collector = c.collector ?? { left: 29, top: 54 }
   return (
     <>
-      <FishingMilo left={29} top={54} />
-      <Bucket left={bucket.left} top={bucket.top} />
+      <Collector src={c.collectorSrc!} fallback={c.collectorFallback ?? '/assets/characters/milo_idle.png'} left={collector.left} top={collector.top} />
+      <Container src={c.containerSrc!} left={container.left} top={container.top} />
       {nums.map((v, i) => {
         const caught = sorted.indexOf(v) < placed
-        const pos = caught ? bucket : scatter[i]
-        return <Fish key={i} n={v} left={pos.left} top={pos.top} caught={caught} wrong={wrong === v} onTap={() => tap(v)} />
+        const pos = caught ? container : scatter[i]
+        return <CollectItem key={i} n={v} left={pos.left} top={pos.top} caught={caught} wrong={wrong === v} c={c} onTap={() => tap(v)} />
       })}
     </>
   )
 }
 
-// ─── The scored practice (SkillBeat) — one continuous adaptive sequence ────────
+// ─── The scored practice (SkillBeat) — one continuous adaptive sequence ──────────
 interface OrderData { nums: number[]; scenario: Scenario }
-export const riverOrderBeat: Beat<OrderData> = {
-  skillId: 'numberOrdering', rounds: 10, reteachAfter: 3,
-  walkEvery: 3,   // a brief travel pause every 3 rounds; the bg still cross-fades EVERY round
-  make: (d, round = 0) => {
-    const scenario = scenarioForRound(round)
-    const diff = (d || 1) as 1 | 2 | 3
-    const len = Math.min(5, seqLength(diff))
-    let nums: number[]
-    // The TRAIN is always a CONSECUTIVE series (1·2·3·4·5) — no skipped numbers.
-    if (scenario === 'train') { const start = rint(1, 10 - len + 1); nums = Array.from({ length: len }, (_, i) => start + i) }
-    else {
-      // Others mix the "pre-ordering" consecutive case with random distinct (harder).
-      const consecutive = diff === 1 ? true : diff === 2 ? Math.random() < 0.5 : Math.random() < 0.25
-      if (consecutive) { const start = rint(1, 10 - len + 1); nums = Array.from({ length: len }, (_, i) => start + i) }
-      else nums = shuffle(Array.from({ length: 10 }, (_, i) => i + 1)).slice(0, len)
-    }
-    return { nums: shuffle(nums), scenario }
-  },
-  prompt: d => SCENARIO_PROMPT[d.scenario],
-  say: d => SCENARIO_SAY[d.scenario],
-  Play: ({ data, onSubmit }) =>
-    data.scenario === 'bridge' ? <CrossingPlay nums={data.nums} mode="practice" item="plank" onComplete={onSubmit} />
-      : data.scenario === 'train' ? <TrainPlay nums={data.nums} onSubmit={onSubmit} />
-        : data.scenario === 'fishing' ? <FishingPlay nums={data.nums} onSubmit={onSubmit} />
-          : <CrossingPlay nums={data.nums} mode="practice" onComplete={onSubmit} />,
-  Reteach: ({ data, onDone }) => <CrossingPlay nums={data.nums} mode="demo" horizontal onComplete={onDone} />,
+function makeRiverOrderBeat(world: OrderWorld): Beat<OrderData> {
+  const scenes = world.scenes
+  return {
+    skillId: 'numberOrdering', rounds: 10, reteachAfter: 3,
+    walkEvery: 3,
+    make: (d, round = 0) => {
+      const scenario = scenes[round % scenes.length]
+      const diff = (d || 1) as 1 | 2 | 3
+      const len = Math.min(5, seqLength(diff))
+      let nums: number[]
+      // The TRAIN is always a CONSECUTIVE series (1·2·3·4·5) — no skipped numbers.
+      if (scenario === 'train') { const start = rint(1, 10 - len + 1); nums = Array.from({ length: len }, (_, i) => start + i) }
+      else {
+        const consecutive = diff === 1 ? true : diff === 2 ? Math.random() < 0.5 : Math.random() < 0.25
+        if (consecutive) { const start = rint(1, 10 - len + 1); nums = Array.from({ length: len }, (_, i) => start + i) }
+        else nums = shuffle(Array.from({ length: 10 }, (_, i) => i + 1)).slice(0, len)
+      }
+      return { nums: shuffle(nums), scenario }
+    },
+    prompt: d => SCENE[d.scenario].prompt,
+    say: d => SCENE[d.scenario].say,
+    Play: ({ data, onSubmit }) => {
+      const c = SCENE[data.scenario]
+      if (c.mech === 'path') return <CrossingPlay nums={data.nums} mode="practice" src={c.src} aria={c.aria} onComplete={onSubmit} />
+      if (c.mech === 'line') return <LinePlay nums={data.nums} c={c} onSubmit={onSubmit} />
+      return <CollectPlay nums={data.nums} c={c} onSubmit={onSubmit} />
+    },
+    // Re-teach is the universal "smallest→biggest" stone demo (concept, not scene-specific).
+    Reteach: ({ data, onDone }) => <CrossingPlay nums={data.nums} mode="demo" horizontal src="/assets/objects/stone_top.png" aria="stone" onComplete={onDone} />,
+  }
 }
 
 // ─── Orchestrator ──────────────────────────────────────────────────────────────
-export default function RiverCrossing({ onFinish, onExit }: {
+const ORDER_PICK_WORLDS = ORDER_WORLDS.map(w => ({ id: w.id, label: w.label, emoji: w.emoji, bgImage: SCENE[w.scenes[0]].bg }))
+
+export default function RiverCrossing({ world: forcedWorldId, onFinish, onExit }: {
+  world?: string
   onFinish?: (correct: number, wrong: number, mastered?: boolean) => void
   onExit?: () => void
 }) {
   const router = useRouter()
+  const [world, setWorld] = useState<OrderWorld | null>(() => (forcedWorldId ? worldById(forcedWorldId) ?? null : null))
   const [scenario, setScenario] = useState<Scenario>('crossing')
   const result = useRef({ correct: 0, wrong: 0 })
   const finished = useRef(false)
@@ -405,7 +441,7 @@ export default function RiverCrossing({ onFinish, onExit }: {
     if (onFinish) onFinish(c, w, mastered); else exit()
   }, [onFinish, exit])
 
-  // Brief pause when a new mini-game begins (the bg cross-fades, Milo announces it).
+  const beat = useMemo(() => (world ? makeRiverOrderBeat(world) : null), [world])
   const interlude = useCallback(() => new Promise<void>(res => window.setTimeout(res, 850)), [])
 
   const TopBar = (
@@ -413,13 +449,23 @@ export default function RiverCrossing({ onFinish, onExit }: {
       <button onClick={exit} style={{ padding: '7px 14px', borderRadius: 50, background: 'var(--paper)', border: '3px solid var(--milo-orange)', color: 'var(--milo-orange)', fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>← Menu</button>
     </div>
   )
+
+  if (!world || !beat) {
+    return (
+      <div style={{ position: 'relative', width: '100vw', height: '100dvh', overflow: 'hidden' }}>
+        <WorldSelect title="Where shall we count in order?" worlds={ORDER_PICK_WORLDS}
+          onPick={(id) => { const w = worldById(id); if (w) { setScenario(w.scenes[0]); setWorld(w) } }}
+          onExit={exit} />
+      </div>
+    )
+  }
+
   return (
     <div style={{ position: 'relative', width: '100vw', height: '100dvh', overflow: 'hidden' }}>
-      <Background scenario={scenario} />
+      <Background scenario={scenario} scenes={world.scenes} />
       {TopBar}
-
       <div style={{ position: 'absolute', top: 48, left: 0, right: 0, zIndex: 45, display: 'flex', justifyContent: 'center', padding: '0 12px' }}>
-        <SkillBeat beat={riverOrderBeat} onInterlude={interlude}
+        <SkillBeat beat={beat} onInterlude={interlude}
           onRound={(data) => { if (data?.scenario) setScenario(data.scenario) }}
           onComplete={(c, w, mastered) => { result.current.correct += c; result.current.wrong += w; finishChapter(result.current.correct, result.current.wrong, mastered) }} />
       </div>

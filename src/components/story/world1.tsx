@@ -10,10 +10,17 @@ import { speak, speakSeq, speakAfterCurrent, useIsSpeaking } from '@/lib/useMilo
 import { type Difficulty } from '@/lib/adaptive'
 import type { World, Beat } from './StoryWorld'
 import { CountItem, CountStage, type CountKind, COUNT_LABEL, COUNT_PLURAL, DoorArt, Apple, Berry, Stone, Basket } from './art'
-import { BIOMES, BIOME_ORDER, type Band, type Biome, type BiomeId } from './biomes'
+import { BIOMES, type Band, type Biome, type BiomeId, type Storytelling } from './biomes'
 
 const rint = (lo: number, hi: number) => lo + Math.floor(Math.random() * (hi - lo + 1))
-const shuffle = <T,>(a: T[]) => a.slice().sort(() => Math.random() - 0.5)
+// Fisher-Yates — an unbiased shuffle. (The old `sort(() => Math.random() - 0.5)` left
+// small arrays mostly in place, so the practice nearly always opened on the pool's first
+// creature — e.g. always a lamb on the farm.)
+const shuffle = <T,>(a: T[]): T[] => {
+  const r = a.slice()
+  for (let i = r.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [r[i], r[j]] = [r[j], r[i]] }
+  return r
+}
 const bare: React.CSSProperties = { background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }
 
 // Creatures are sized in px against a ~1000px-wide stage. On a tiny window they'd be
@@ -147,13 +154,53 @@ function scatter(n: number, band: Band = BIOMES.forest.band, demo = false): Spot
   })
 }
 
+// ── Orchard fruit hangs ON the trees ───────────────────────────────────────────────
+// Apples/pears must sit on the tree CANOPIES, not float in the open central avenue of
+// farm_orchard.png (the grassy gap down the middle has no trees). These anchors sit on
+// the left + right tree rows (and a couple of back-row trees); fruit picks from them so
+// it always reads as "in the trees". Used instead of scatter() for FRUIT only.
+const FRUIT = new Set<CountKind>(['apple', 'pear'])
+const ORCHARD_CANOPIES: Array<{ x: number; y: number }> = [
+  { x: 15, y: 39 }, { x: 85, y: 39 }, { x: 25, y: 47 }, { x: 75, y: 47 },
+  { x: 7, y: 44 }, { x: 93, y: 44 }, { x: 40, y: 57 }, { x: 60, y: 57 },
+  { x: 33, y: 51 }, { x: 67, y: 51 },
+]
+function canopyScatter(n: number, demo = false): Spot[] {
+  const base = demo ? 66 : 74
+  return Array.from({ length: n }, (_, i) => {
+    const a = ORCHARD_CANOPIES[i % ORCHARD_CANOPIES.length]
+    const left = Math.max(4, Math.min(96, a.x + (seed(i, 12.9898) - 0.5) * 5))
+    const top = Math.max(28, Math.min(64, a.y + (seed(i, 78.233) - 0.5) * 4))
+    const depth = Math.max(0, Math.min(1, (64 - top) / (64 - 28)))   // higher in frame = farther
+    return {
+      left, top,
+      size: (base + Math.round(seed(i, 3.17) * 16)) * (1 - depth * 0.18),
+      dur: 3.4 + seed(i, 5.71) * 2.4,
+      rot: Math.round((seed(i, 5.11) - 0.5) * 14),
+      delay: +(seed(i, 9.73) * 2).toFixed(2),
+      depth,
+    }
+  })
+}
+// Fruit → canopy anchors; everything else → the normal band scatter.
+function spotsFor(n: number, obj: CountKind, band?: Band, demo = false): Spot[] {
+  return FRUIT.has(obj) ? canopyScatter(n, demo) : scatter(n, band, demo)
+}
+
 // One hidden object, perched: an outer flutter (gentle in-place bob, desynced per
 // item) wrapping a static tilt, so objects look like they're resting on branches
 // rather than drifting in formation. The pop+glow on "found" lives in CountItem.
 // Some creatures read too small / camouflaged at the base size (their source art has
 // more empty padding around the subject), so scale them up wherever they appear
 // (demo + guided + practice all flow through here). Art is untouched — just display size.
-const SIZE_BOOST: Partial<Record<CountKind, number>> = { firefly: 2.6, eagle: 1.9, fish: 2.6, shark: 2.4, turtle: 1.8, crab: 1.7, ant: 1.75, squirrel: 1.5, rabbit: 1.6, ladybug: 1.6 }
+const SIZE_BOOST: Partial<Record<CountKind, number>> = {
+  firefly: 2.6, eagle: 1.9, fish: 2.6, shark: 2.4, turtle: 1.8, crab: 1.7, ant: 1.75, squirrel: 1.5, rabbit: 1.6, ladybug: 1.6,
+  // Farm Day — bumped up so they read big enough on a wide screen (duck/bee/apple had
+  // no boost before → rendered tiny).
+  chick: 1.85, lamb: 1.95, duckling: 1.85, pear: 1.75, apple: 1.8, frog: 1.95, duck: 2.1, bee: 2.3, dragonfly: 2.15,
+  // Space Adventure
+  rocket: 1.95, star: 1.8, cloud: 1.95, planet: 1.95, comet: 2.1, satellite: 1.95, astronaut: 1.95, moonRock: 1.8, alien: 1.95,
+}
 // `num` (when given) shows the count number on the object once it's counted — used by
 // the explanation so the child sees 1, 2, 3… land on each one. Until an object is
 // counted (`on`) it BLINKS to invite a tap; tapping stops the blink. No more ✓ badge.
@@ -206,7 +253,7 @@ export const FlyingCountPlay: React.FC<{ data: CountData; onSubmit: (c: boolean)
   const [lit, setLit] = useState<boolean[]>(() => Array(data.n).fill(false))
   const done = useRef(false)
   const speaking = useIsSpeaking()              // block taps while Milo says a number,
-  const spots = useMemo(() => scatter(data.n, data.band), [data.n, data.band])  // so fast taps can't skip the count
+  const spots = useMemo(() => spotsFor(data.n, data.obj, data.band), [data.n, data.obj, data.band])  // so fast taps can't skip the count
   const count = lit.filter(Boolean).length
   function tap(i: number) {
     if (lit[i] || done.current || speaking) return
@@ -231,6 +278,8 @@ export const FlyingCountPlay: React.FC<{ data: CountData; onSubmit: (c: boolean)
 }
 const CATCH_INTRO: Partial<Record<CountKind, string>> = {
   firefly: 'Fireflies are out!', butterfly: 'Look, butterflies!', eagle: 'Eagles in the trees!',
+  chick: 'Fluffy chicks!', lamb: 'Little lambs!', duckling: 'Baby ducklings!',
+  rocket: 'Rockets ready to fly!', star: 'Stars are out!', planet: 'Look, planets!', alien: 'Friendly aliens!',
 }
 export function flyingCountBeatFor(obj: CountKind): Beat<CountData> {
   return {
@@ -250,7 +299,7 @@ export function flyingCountBeatFor(obj: CountKind): Beat<CountData> {
 export const FlyingCountDemo: React.FC<{ to: number; obj: CountKind; band?: Band; onDone: () => void }> = ({ to, obj, band, onDone }) => {
   const [shown, setShown] = useState(0)
   const ran = useRef(false)
-  const spots = useMemo(() => scatter(to, band, true), [to, band])
+  const spots = useMemo(() => spotsFor(to, obj, band, true), [to, obj, band])
   useEffect(() => {
     if (ran.current) return; ran.current = true
     // Reveal one object per number on a fixed TIMER — NOT on speech events. The
@@ -298,7 +347,7 @@ const HowManyPlay: React.FC<{ data: HowManyData; onSubmit: (c: boolean) => void 
   const [tapped, setTapped] = useState<boolean[]>(() => Array(data.n).fill(false))
   const [picked, setPicked] = useState<number | null>(null)
   const speaking = useIsSpeaking()                 // taps are blocked until Milo finishes
-  const spots = useMemo(() => scatter(data.n, data.band), [data.n, data.band])
+  const spots = useMemo(() => spotsFor(data.n, data.obj, data.band), [data.n, data.obj, data.band])
   const allTapped = tapped.every(Boolean)
   const asked = useRef(false)
   function tap(i: number) {
@@ -344,7 +393,12 @@ function quantityFor(d: 1 | 2 | 3): number {
 }
 // Big creatures look better (and stay tappable) in small numbers — cap how many ever
 // appear at once. Eagles perch on the trees, so only a few; sharks are large too.
-const MAX_N: Partial<Record<CountKind, number>> = { eagle: 4, shark: 5 }
+const MAX_N: Partial<Record<CountKind, number>> = {
+  eagle: 4, shark: 5,
+  // The new (now-bigger) creatures sit in tighter bands — cap them so a high count
+  // doesn't crowd/overlap. Smaller/airborne ones (chick, star, comet…) stay uncapped.
+  lamb: 6, astronaut: 6, alien: 7, duck: 7, frog: 7, rocket: 7, satellite: 7, planet: 7,
+}
 // Per-creature spawn band overrides so each animal appears where it naturally lives.
 // Y0 = top of window, Y1 = bottom (viewport %). X0 clears Milo on the left.
 function bandFor(biome: Biome, obj: CountKind): Band {
@@ -364,6 +418,28 @@ function bandFor(biome: Biome, obj: CountKind): Band {
     case 'squirrel':  return { ...b, x0: 16, x1: 50, y0: 50, y1: 74 }   // by the cart/rock on the left
     case 'ant':       return { ...b, x0: 30, x1: 74, y0: 58, y1: 80 }   // march on the open green grass
     case 'ladybug':   return { ...b, x0: 24, x1: 80, y0: 54, y1: 80 }   // dot the grass / low flowers
+    // FARM — barnyard animals stand ON THE GRASS (low, tight band → a grounded flock,
+    // never floating); orchard fruit hangs in the trees (elevated is correct); pond life
+    // by/on the water; only the dragonfly truly flies.
+    case 'chick':     return { ...b, y0: 52, y1: 88 }   // spread across the open grass field
+    case 'lamb':      return { ...b, y0: 50, y1: 86 }   // graze across the field (taller, four legs)
+    case 'duckling':  return { ...b, y0: 52, y1: 88 }   // waddle across the grass
+    case 'apple':     return { ...b, y0: 18, y1: 52 }   // hang up in the orchard trees
+    case 'pear':      return { ...b, y0: 20, y1: 56 }   // hang in the trees
+    case 'frog':      return { ...b, y0: 64, y1: 82 }   // on lily pads at the pond edge
+    case 'duck':      return { ...b, y0: 56, y1: 74 }   // float ON the water surface
+    case 'dragonfly': return { ...b, y0: 26, y1: 56 }   // dart above the water (a true flyer)
+    // SPACE — stars/comets/planets/satellites float high; rockets rise; the moon-surface
+    // trio (astronaut/rock/alien) stands ON the moon ground.
+    case 'rocket':    return { ...b, y0: 24, y1: 70 }   // rising off the launchpad
+    case 'star':      return { ...b, y0: 12, y1: 48 }   // high in the sky
+    case 'cloud':     return { ...b, y0: 28, y1: 58 }   // drift across the mid sky
+    case 'planet':    return { ...b, y0: 14, y1: 66 }   // float across deep space
+    case 'comet':     return { ...b, y0: 14, y1: 52 }   // streak high across space
+    case 'satellite': return { ...b, y0: 18, y1: 60 }   // orbit through space
+    case 'astronaut': return { ...b, y0: 63, y1: 84 }   // stand on the moon's surface
+    case 'moonRock':  return { ...b, y0: 67, y1: 85 }   // sit on the moon ground
+    case 'alien':     return { ...b, y0: 63, y1: 84 }   // stand on the surface
     default:          return b
   }
 }
@@ -381,30 +457,23 @@ function howManyData(biome: Biome, obj: CountKind, d: 1 | 2 | 3): HowManyData {
 //   • after 3 wrong IN A ROW Milo re-explains by counting that exact quantity out.
 // Background cross-fades smoothly via BiomeBackground's 1s opacity transition.
 type PlanCell = { biome: Biome; obj: CountKind }
-// Objects used by the opening explanation (count demo) + guided slide — kept OUT of
-// the practice so a single session NEVER repeats a creature. (countingChapter's count
-// beat = firefly, guide = butterfly.) Every other biome creature appears exactly once.
-const EXPLAIN_OBJS = new Set<CountKind>(['firefly', 'butterfly'])
-let _plan: PlanCell[] = []
-// Every non-explanation biome creature, in biome order — the full practice pool.
-function practicePool(): PlanCell[] {
+// Every creature in the storytelling's biomes EXCEPT the two used by the opening demo +
+// guided slide — kept OUT of the practice so a single session NEVER repeats a creature.
+// Every other biome creature appears exactly once.
+function practicePool(story: Storytelling): PlanCell[] {
+  const demo = new Set<CountKind>([story.demoCount, story.demoGuide])
   const pool: PlanCell[] = []
-  for (const id of BIOME_ORDER) {
+  for (const id of story.biomes) {
     for (const obj of BIOMES[id].objects) {
-      if (!EXPLAIN_OBJS.has(obj)) pool.push({ biome: BIOMES[id], obj })
+      if (!demo.has(obj)) pool.push({ biome: BIOMES[id], obj })
     }
   }
   return pool
 }
-// The practice runs exactly ONE round per pool creature, so a correctly-answered
-// question never comes back — no creature repeats in a session. (If the roster
-// grows/shrinks, the round count follows it automatically.)
-const PRACTICE_ROUNDS = practicePool().length
 // Build the plan: every pool creature used ONCE, shuffled, then nudged so the same
 // biome never runs two rounds in a row.
-function buildPlan(): PlanCell[] {
-  let pool = practicePool()
-  pool = shuffle(pool)
+function buildPlan(story: Storytelling): PlanCell[] {
+  const pool = shuffle(practicePool(story))
   for (let i = 1; i < pool.length; i++) {
     if (pool[i].biome.id === pool[i - 1].biome.id) {
       const j = pool.findIndex((c, k) => k > i && c.biome.id !== pool[i - 1].biome.id)
@@ -413,17 +482,27 @@ function buildPlan(): PlanCell[] {
   }
   return pool
 }
-export const practiceCountBeat: Beat<HowManyData> = {
-  skillId: 'counting', rounds: PRACTICE_ROUNDS, reteachAfter: 3,
-  walkEvery: 3,
-  make: (d, round = 0) => {
-    if (round === 0) _plan = buildPlan()
-    const cell = _plan[round] ?? _plan[_plan.length - 1] ?? { biome: BIOMES.forest, obj: 'butterfly' as CountKind }
-    return howManyData(cell.biome, cell.obj, d)
-  },
-  prompt: d => `Tap and count the ${COUNT_PLURAL[d.obj]}!`,
-  say: d => `Tap and count the ${COUNT_PLURAL[d.obj]}! Tap each one.`,
-  Play: HowManyPlay, Reteach: FlyingReteach,
+// THE scored practice for a storytelling — ONE continuous adaptive sequence, one round
+// per pool creature (so a correctly-answered question never comes back). The pedagogy is
+// unbroken across all rounds: difficulty ramps UP on a correct streak and DOWN when
+// struggling; a walk interlude plays every 3 rounds; after 3 wrong IN A ROW Milo
+// re-explains by counting that exact quantity out. The biome cross-fades per round.
+export function makePracticeCountBeat(story: Storytelling): Beat<HowManyData> {
+  const fallbackBiome = BIOMES[story.biomes[0]]
+  const fallbackObj = practicePool(story)[0]?.obj ?? fallbackBiome.objects[0]
+  let plan: PlanCell[] = []
+  return {
+    skillId: 'counting', rounds: practicePool(story).length, reteachAfter: 3,
+    walkEvery: 3,
+    make: (d, round = 0) => {
+      if (round === 0) plan = buildPlan(story)
+      const cell = plan[round] ?? plan[plan.length - 1] ?? { biome: fallbackBiome, obj: fallbackObj }
+      return howManyData(cell.biome, cell.obj, d)
+    },
+    prompt: d => `Tap and count the ${COUNT_PLURAL[d.obj]}!`,
+    say: d => `Tap and count the ${COUNT_PLURAL[d.obj]}! Tap each one.`,
+    Play: HowManyPlay, Reteach: FlyingReteach,
+  }
 }
 
 // ── Scene 2: NUMBER RECOGNITION (knock on door N) ──

@@ -79,10 +79,10 @@ function SceneBg({ moving }: { id: BiomeId; moving: boolean }) {
   )
 }
 
-function BiomeBackground({ biome, walking }: { biome: BiomeId; walking: boolean }) {
+function BiomeBackground({ biome, walking, ids = BIOME_ORDER }: { biome: BiomeId; walking: boolean; ids?: BiomeId[] }) {
   return (
     <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: '#bfe6f7' }}>
-      {BIOME_ORDER.map(id => {
+      {ids.map(id => {
         const active = id === biome
         const b = BIOMES[id]
         return (
@@ -122,7 +122,9 @@ export type WalkBeat =
   | { kind: 'catch'; beat: Beat<any>; biome?: BiomeId }              // the scored practice (SkillBeat) // eslint-disable-line @typescript-eslint/no-explicit-any
   | { kind: 'skill'; beat: Beat<any> } // eslint-disable-line @typescript-eslint/no-explicit-any
 
-export interface Chapter { id: string; title: string; beats: WalkBeat[] }
+// `biomes` lists the backgrounds this chapter visits (its storytelling's three
+// places), so BiomeBackground stacks only those — not every biome in the registry.
+export interface Chapter { id: string; title: string; beats: WalkBeat[]; biomes?: BiomeId[] }
 
 export default function ForestWalk({ chapter, onFinish, onExit }: {
   chapter: Chapter
@@ -144,7 +146,7 @@ export default function ForestWalk({ chapter, onFinish, onExit }: {
   const startIdx = skipToPractice ? chapter.beats.findIndex(b => b.kind === 'catch') : 0
   const [idx, setIdx] = useState(Math.max(0, startIdx))
   const [forceWalk, setForceWalk] = useState(false)   // brief walk interlude during practice
-  const [biome, setBiome] = useState<BiomeId>('forest')   // current place (bg + spawn band)
+  const [biome, setBiome] = useState<BiomeId>(chapter.biomes?.[0] ?? 'forest')   // current place (bg + spawn band)
   const beat = chapter.beats[idx]
   const walking = beat?.kind === 'walk' || forceWalk
   const band = BIOMES[biome].band
@@ -215,7 +217,7 @@ export default function ForestWalk({ chapter, onFinish, onExit }: {
   return (
     <div style={{ position: 'relative', width: '100vw', height: '100dvh', overflow: 'hidden', background: '#bfe6f7' }}>
       <style>{CSS}</style>
-      <BiomeBackground biome={biome} walking={walking} />
+      <BiomeBackground biome={biome} walking={walking} ids={chapter.biomes} />
 
       {/* No dim overlay during counting: the objects are meant to HIDE in the
           foliage (a find-and-count hunt), so the forest stays bright and they
