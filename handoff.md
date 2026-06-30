@@ -164,6 +164,8 @@ auto-memory `project-milo-{12-14,15-16,17-18}-curriculum`, `project-milo-teen-fr
 
 ## Resources
 
-- **Live:** www.mi2utor.com · milo-story-mode.vercel.app
+- **Live app (Vercel production):** https://milo-story-mode.vercel.app/ · also https://www.mi2utor.com
+  - Latest production deploy: commit `4bfa6eb` (all 11 of the 3–5 chapters in story mode) — state READY.
+  - Preview a 3–5 chapter directly: `https://milo-story-mode.vercel.app/story?ch=add|sub|measure|order|kitchen|doors|grocery|shapes|rainbow|beads`
 - **Repo:** github.com/Rafiquekuwari/milo — `main` auto-deploys to Vercel production (project `milo-story-mode`, team `team_HQsF3tfxAuGgZi7CcdhSdN7Y`).
 - **Detail:** the auto-memory `project-milo-*` files (one per chapter + sync/scaling/voice/launch-readiness).
