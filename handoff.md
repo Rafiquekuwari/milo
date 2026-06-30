@@ -1,20 +1,62 @@
 # Session Handoff — Milo Story Mode
 
-_Last updated: 2026-06-29_
+_Last updated: 2026-06-30_
 
 Concise, current state. Per-chapter detail + conventions live in the auto-memory (`project-milo-*-chapter.md`, `project-milo-demo-voice.md`, `feedback-viewport-scaling.md`, …) — read those for the deep notes.
 
-## LATEST SESSION (2026-06-29, second pass) — three features, built + verified, NOT committed/deployed
+## LATEST SESSION (2026-06-30) — STORYTELLING EXPANSION COMPLETE: ALL 8 of the 3–5 chapters now have 3 picked worlds — COMMITTED + PUSHED
 
-All `tsc --noEmit` + `next build` clean. **Nothing committed or pushed** (no-auto-push rule). Detail in auto-memory `project-milo-grades-feature`, `project-milo-engagement-improvements`.
+**Goal (user):** give each 3–5 chapter **3 storytellings (worlds), each with its own backgrounds + objects** (the locked structure: **3 storytellings × 3 backgrounds × 3 objects**), chosen by the child from a picker — so it never feels repetitive. The hard requirement throughout: **everything must BLEND** (objects look like they belong in the scene — grounded, sized right, no floating).
 
-1. **Grades feature** (teacher use). Teacher creates a named **grade** = (name + one age band + a hand-picked chapter subset); children are added into a grade and see exactly that grade's chapters. Optional/coexist: a learner with no grade falls back to all band chapters (today's behavior). New tables `grades` + `grade_chapters` + nullable `learners.grade_id`. **Migration APPLIED to prod Supabase** (`qaymxunzlarwusogwyak`, file `supabase/migrations/20260629120000_grades.sql`) — verified (RLS, triggers, search_path pinned). UI: `/parent/grades` (list + create/edit modal), grade selector in AddLearnerModal, menu/picker scope to grade chapters. `createLearner` only sends `grade_id` when a grade is chosen, so the live app is unaffected pre-deploy. **Grades UI only appears once `main` is deployed.**
+**Now COMPLETE — all 8 of the 3–5 chapters refactored to the WorldSelect 3-world pattern (`tsc` + `next build` clean, verified live, committed + pushed to `main` → Vercel production):**
+- The 4 below (Counting · Number Order · Recognition · Matching Qty) were done earlier; the remaining 4 were finished this session:
+  - **Ch.7 Colours** (`RainbowTown.tsx`): 🌈 Rainbow Town · 🐠 Coral Reef · 🍭 Candy Shop. Objects are code-drawn + **code-tinted greyscale sprites** (colour must stay exact). New AI: reef/candy backgrounds + greyscale sprites (fish/starfish/jelly/lollipop/cupcake/candy).
+  - **Ch.6 Shapes** (`ShapeTown.tsx`): 🏙️ Shape Town · 🎪 Fun Fair · 🏖️ Beach Day. Shapes stay exact SVG; per-scene code-drawn "mounts" (kite/lollipop/ribbon/flag/boat/plate). New AI: fair_* + beach_* backgrounds. **Fixed a latent bug:** the shape's `translateX(-50%)` centring was clobbered by the sway/pop `animation` transform → shapes drifted ~½-box right of their mount; split centring (outer) from animation (inner).
+  - **Ch.8 Patterns** (`BeadShop.tsx`): 📿 Bead Shop (beads/buttons/gems) · 🎉 Party (flags/balloons/lanterns) · 🧸 Toy Box (cars/blocks/ducks). Items code-drawn + **code-tinted greyscale sprites** (colour is the pattern variable). 9 backgrounds + 9 greyscale sprites.
+  - **Ch.3 Comparison** (`Kitchen.tsx`): 🍳 Kitchen (apple/cookie/candy) · 🛒 Grocery (orange/egg/strawberry) · 🧁 Bakery (cupcake/cake/cherry). Quantity not colour → uses **COLOURED** sprites directly: REUSED the existing consistent library + generated only 3 fresh (strawberry/orange/cupcake). Vessel renderers (bowl/tray/jar/cake) parameterised by item sprite. Per-world Milo (chef/grocer).
+
+**REFERENCE-IMAGE DRIFT FIX (hard-won, carry forward):** Higgsfield `media_import_url` only works on **committed/deployed** asset URLs — pointing a reference at *uncommitted* art 404s and the ref **silently fails to attach** → the model generates from text alone → style/type drift. Always reference a **committed** asset (e.g. `apple.png`, `cookie.png`, `pond.jpeg`); verify the import returns a `media_id`. For colour-recognition + patterns, objects must be **greyscale** sprites tinted in code (never bake colour into the PNG). Processing pipeline (scratch `proc.py`/`proc_color.py`/`measure.py`): cutout via `remove_background` → desaturate (greyscale only) → autocrop to alpha bbox → square-pad (top-align for hanging items) → for Kitchen, measure alpha bbox into `SPRITE_BBOX`.
+
+**Earlier-done 4 chapters (also part of this commit):**
+
+**Done this session — 4 chapters refactored (all `tsc` + `next build` clean, verified live, NOT committed):**
+
+| Ch | File | 3 worlds | `?…` to test |
+|----|------|----------|-------------|
+| 1 Counting | `ForestWalk`/`biomes.ts`/`world1.tsx`/`chapters.tsx` | 🌳 Nature Walk *(kept)* · 🐔 Farm Day · 🚀 Space Adventure | `/story?story=farm\|space\|nature` |
+| 2 Number Order | `RiverCrossing.tsx` | 🪨 River Crossing · 🚂 Train Yard · ☁️ Sky Hop | `/story?ch=order&world=river\|train\|sky` |
+| 4 Recognition | `NumberDoors.tsx` | 🚪 Number Doors *(kept)* · 🎈 Balloon Pop · 🚌 Bus Stop | `/story?ch=doors&world=doors\|balloons\|buses` |
+| 5 Matching Qty | `Grocery.tsx` | 🛒 Little Grocery *(kept)* · 🍕 Pizza Parlor · 🌻 Flower Garden | `/story?ch=grocery&world=grocery\|pizza\|garden` |
+
+- **Shared picker:** `src/components/story/WorldSelect.tsx` — generic (`{title, worlds:[{id,label,emoji,bgImage}], onPick(id)}`). Each chapter renders it FIRST (world `null` → picker); "play again" / replay re-shows it. Counting also keeps `pickStorytelling()` round-robin for back-compat but the live path uses the picker.
+- **Each chapter is config-driven** (`SCENE`/`WORLDS`/`makeXBeat(world)`, beat **memoized** — never build inline or SkillBeat resets). The 10-round adaptive practice + re-teach is unchanged; only the world/scene dressing rotates.
+- **Counting** expanded `biomes.ts` 3→9 biomes; **Number Order** generalized its 4 mini-games into 3 mechanics (`path`/`line`/`collect`); **Recognition** uses one `RecogItem` (door-sprite/balloon/bus + numeral chip, `hue-rotate` colour variety); **Matching Qty** uses one `Container` by `cType` (`bag`/`pizza`/`ground`).
+- **ART via Nano Banana 2 (~115 credits this session):** new backgrounds (`farm_*`, `space_*`, `order_yard/depot/balloonsky`, `balloon_fair`, `bus_stop/bus_depot`, `pizzeria`, `garden_meadow/fence/park`) + new sprites (chick/lamb/duckling/pear, rocket/star/cloud/planet/comet/satellite/astronaut/moon_rock/alien, lilypad/cart/crate/balloon, bus, pizza_base/topping_olive/mushroom/pepper, flower_tulip/daisy/sunflower). All in `public/assets/`. Per-chapter detail in the auto-memory `project-milo-{counting-journey,order,recognition,grocery}-chapter`; pipeline how-to in `reference-nano-banana-pipeline`.
+
+**BLEND CONVENTIONS (hard-won from user feedback — carry to every new chapter):**
+1. **Give EVERY new sprite a `SIZE_BOOST`/size** (~1.8–2.3). Missing = tiny.
+2. **Subject-dominant sprites:** a tall stem / big padding renders a tiny subject at any box size → regenerate so the subject fills the frame (e.g. flowers = big bloom, short stem).
+3. **Grounded objects** sit low + cast a contact shadow; **flyers** stay airborne with NO ground shadow; **elevated** items (fruit) go on their support (tree canopy via anchor points).
+4. **A grounded scene needs a LOW-HORIZON background (>50% ground)** + a tall ground band — else objects "on the ground" end up in the sky. Regenerated barnyard + garden bgs for this.
+5. **Prefer flat-surface / open-ground "containers" (pizza disk, grass) over 3D boxes** — items sit ON them, no occlusion, nothing floats. (Toy Shop's 3D box was dropped for this reason → Flower Garden.)
+6. **Fisher-Yates shuffle** (not `sort(()=>Math.random()-.5)`) for real round variety.
+7. **Numeral chips:** small ON the object (balloon bulb / bus sign), or floating ABOVE a tall object (door) — a big on-object chip hides the object.
+
+**NEXT:** (a) **commit** the batch (user must ask — no auto-push); (b) expand the remaining 3–5 chapters with the same pattern + WorldSelect: **Ch.3 Comparison (`Kitchen`), Ch.6 Shapes (`ShapeTown`), Ch.7 Colours (`RainbowTown`), Ch.8 Patterns (`BeadShop`)**. To preview locally `.claude/launch.json` is on port 3017 + `autoPort` (Linkcage holds 3000).
+
+## EARLIER (2026-06-29 → 30) — three features SHIPPED to production
+
+All `tsc --noEmit` + `next build` clean. **Committed + pushed to `main` → Vercel production READY (live on www.mi2utor.com).** Three logical commits on top of `c4dd322`: `ff47d57` (grades) · `21565b1` (practice early-exit/dedupe) · `5971aa5` (scene grounding). Detail in auto-memory `project-milo-grades-feature`, `project-milo-engagement-improvements`.
+
+1. **Grades feature** (teacher use). Teacher creates a named **grade** = (name + one age band + a hand-picked chapter subset); children are added into a grade and see exactly that grade's chapters. Optional/coexist: a learner with no grade falls back to all band chapters (today's behavior). New tables `grades` + `grade_chapters` + nullable `learners.grade_id`. **Migration APPLIED to prod Supabase** (`qaymxunzlarwusogwyak`, file `supabase/migrations/20260629120000_grades.sql`) — verified (RLS, triggers, search_path pinned). UI: `/parent/grades` (list + create/edit modal), grade selector in AddLearnerModal, menu/picker scope to grade chapters. `createLearner` only sends `grade_id` when a grade is chosen, so existing learners (no grade) are unaffected. **Grades UI now LIVE.** Not yet exercised end-to-end by a real teacher login — worth a smoke test (create grade → add child → child sees only those chapters).
 
 2. **Practice: mastery early-exit + non-repeating questions** (all ages). `useAdaptive.record()` returns `{…, mastered}` (top tier + 6 correct in a row → finish early with full ⭐⭐⭐). New `src/lib/questionVariety.ts` `makeDistinct` dedupes questions per session. `SkillBeat` change covers all 3–5 scenes; ~50 `game/*Chapter.tsx` inline-loop chapters wired via a 57-chapter workflow (refs: `IntegersChapter` A1 / `AdditionChapter` A2). Math-without-fear preserved.
 
 3. **Object placement re-grounded** (all 8 story scenes). Replaced the flat even-row `layoutFor` with depth-aware placement: per-object depth (near=bigger+lower, far=smaller+higher), a soft contact-shadow ellipse on a per-scene ground line, organic x jitter. Ref impl `RainbowTown.tsx` (`placeFor`/`SCENE_GROUND`/contact shadow in `ColorThing`); rolled to the other 7 (free-standing scenes fully grounded; Grocery shelf + BeadShop necklace kept their composition + shadow cues; ForestWalk butterflies scatter at depth, no ground shadow). All verified live at `/story?ch=<key>`.
 
-**Next:** review, then commit + push (triggers Vercel prod deploy). To preview `/story` locally, set `.claude/launch.json` port to a free one (Linkcage holds 3000).
+**Asset pipeline (Higgsfield MCP / Nano Banana 2):** connected for AI image gen. Model `nano_banana_2`, **metered ~1.5 credits/1k image** (NOT unlimited — verified), Plus account ~1,208 credits. **1k for everything** (1k @16:9 = 1376×768 = exact match to existing backgrounds; 1k @1:1 ≈ 1024² for sprites). STANDING RULE (see `feedback-higgsfield-reference-images`): always pass the **pond/forest/objects** assets as reference images for style consistency; **never regenerate existing art** unless asked. Import refs via deployed URLs (`https://milo-story-mode.vercel.app/assets/...`) → `media_import_url` → `media_id`; sprites need `remove_background` (+ greyscale for recolorable objects). Nothing generated/committed yet — awaiting a specific target.
+
+**Next:** (a) teacher-login smoke test of grades on prod; (b) when asked, generate new app art via Nano Banana 2 against the pond/forest/objects references. To preview `/story` locally, set `.claude/launch.json` port to a free one (Linkcage holds 3000); the OAuth callback wants 3000.
 
 ## TEEN EXPANSION 12–18 ("Field Lab") — earlier focus
 
@@ -55,7 +97,7 @@ auto-memory `project-milo-{12-14,15-16,17-18}-curriculum`, `project-milo-teen-fr
 - **Ch.1–8 committed + deployed to production** (www.mi2utor.com / milo-story-mode.vercel.app). As of 2026-06-29, `main` + Vercel production are at **`c4dd322`** (Ch.8 Bead Shop, the blocked-audio voice fix, `CLAUDE.md`, AND the teen 12–18 expansion are all shipped — see the TEEN EXPANSION section above).
 - **3 drills remain to convert (3–5):** addition · subtraction · measurement.
 
-## This session (2026-06-28)
+## SESSION 2026-06-28 (historical — Ch.7 colours + explanation-pacing fixes)
 
 - **2 non-AR Tier-0 fixes:** `useAdaptive` stale-closure → ref snapshot (rapid taps no longer corrupt promote/demote); removed the dead middleware auth guard (it bounced signed-in users to `/auth` on PWA cold launch; session is in localStorage, not cookies).
 - **Ch.7 Rainbow Town (colours):** built + painted art + **greyscale-tint objects** (one greyscale sprite → tinted to the exact hex via mask-fill + multiply, so colours stay consistent with labels) + **cars sit on the road** (per-scene lower band, grouped right of Milo).
